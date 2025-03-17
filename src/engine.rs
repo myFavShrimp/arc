@@ -79,7 +79,7 @@ impl Engine {
                 info!("Executing `{}` for {}", task_name, system_name);
 
                 let result = task_func
-                    .func
+                    .handler
                     .call::<mlua::Value>(self.lua.to_value(system_config)?)?;
                 self.modules.tasks.set_task_result(task_name, result)?;
             }

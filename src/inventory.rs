@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     engine::modules::{
-        GroupAdditionError, InventoryModule, SystemAdditionError, UnregisteredGroupMembersError,
+        DuplicateGroupError, DuplicateSystemError, GroupAdditionError, InventoryModule,
+        SystemAdditionError, UnregisteredGroupMembersError,
     },
     error::MutexLockError,
 };
@@ -51,7 +52,9 @@ impl InventoryModule for InventoryRegistrationModule {
     fn add_system(&self, name: String, config: SystemConfig) -> Result<(), SystemAdditionError> {
         let mut guard = self.inventory.lock().map_err(|_| MutexLockError)?;
 
-        guard.systems.insert(name.to_owned(), config);
+        if let Some(_) = guard.systems.insert(name.clone(), config) {
+            Err(DuplicateSystemError(name))?;
+        }
 
         Ok(())
     }
@@ -77,7 +80,9 @@ impl InventoryModule for InventoryRegistrationModule {
             missing_systems => Err(UnregisteredGroupMembersError(missing_systems.to_vec()))?,
         }
 
-        guard.groups.insert(name.to_owned(), config);
+        if let Some(_) = guard.groups.insert(name.clone(), config) {
+            Err(DuplicateGroupError(name))?;
+        }
 
         Ok(())
     }

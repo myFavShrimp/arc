@@ -4,7 +4,10 @@ use std::{
 };
 
 use crate::{
-    engine::modules::{TaskAdditionError, TasksModule, TasksResultResetError},
+    engine::modules::{
+        DuplicateTaskError, TaskAdditionError, TasksModule, TasksResultResetError,
+        UnregisteredDependenciesError,
+    },
     error::MutexLockError,
 };
 
@@ -15,7 +18,56 @@ pub struct Tasks {
 
 #[derive(Debug, Clone)]
 pub struct TaskConfig {
-    pub func: mlua::Function,
+    pub handler: mlua::Function,
+    pub dependencies: Vec<String>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TaskConfigFromLuaValueError {
+    #[error("Argument 2 of \"tasks.add\" must be a task handler or task configuration")]
+    NotAFunctionOrTaskConfig,
+    #[error("`dependencies` are invalid")]
+    InvalidDependencies(#[source] mlua::Error),
+    #[error("`handler` is invalid")]
+    InvalidHandler(#[source] mlua::Error),
+}
+
+impl TryFrom<mlua::Value> for TaskConfig {
+    type Error = TaskConfigFromLuaValueError;
+
+    fn try_from(value: mlua::Value) -> Result<Self, Self::Error> {
+        match value {
+            mlua::Value::Table(table) => {
+                let handler = table
+                    .get::<mlua::Function>("handler")
+                    .map_err(TaskConfigFromLuaValueError::InvalidHandler)?;
+                let dependencies = table
+                    .get::<Vec<String>>("dependencies")
+                    .map_err(TaskConfigFromLuaValueError::InvalidDependencies)?;
+
+                Ok(TaskConfig {
+                    handler,
+                    dependencies,
+                })
+            }
+            mlua::Value::Function(handler) => Ok(TaskConfig {
+                handler,
+                dependencies: Default::default(),
+            }),
+            mlua::Value::Nil
+            | mlua::Value::Boolean(_)
+            | mlua::Value::LightUserData(_)
+            | mlua::Value::Integer(_)
+            | mlua::Value::Number(_)
+            | mlua::Value::Vector(_)
+            | mlua::Value::String(_)
+            | mlua::Value::Thread(_)
+            | mlua::Value::UserData(_)
+            | mlua::Value::Buffer(_)
+            | mlua::Value::Error(_)
+            | mlua::Value::Other(_) => Err(TaskConfigFromLuaValueError::NotAFunctionOrTaskConfig),
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -25,10 +77,31 @@ pub struct TaskRegistrationModule {
 }
 
 impl TasksModule for TaskRegistrationModule {
-    fn add_task(&self, name: String, func: mlua::Function) -> Result<(), TaskAdditionError> {
-        let mut guard = self.tasks.lock().map_err(|_| MutexLockError)?;
+    fn add_task(&self, name: String, config: TaskConfig) -> Result<(), TaskAdditionError> {
+        let mut guard = self.tasks.lock().map_err(|_| TaskAdditionError {
+            task: name.clone(),
+            kind: MutexLockError.into(),
+        })?;
 
-        guard.tasks.insert(name, TaskConfig { func });
+        let mut unregistered_dependencies = Vec::with_capacity(config.dependencies.len());
+        for dep in &config.dependencies {
+            if !guard.tasks.contains_key(dep) {
+                unregistered_dependencies.push(dep.clone());
+            }
+        }
+        if !unregistered_dependencies.is_empty() {
+            Err(TaskAdditionError {
+                task: name.clone(),
+                kind: UnregisteredDependenciesError(unregistered_dependencies).into(),
+            })?;
+        }
+
+        if let Some(_) = guard.tasks.insert(name.clone(), config) {
+            Err(TaskAdditionError {
+                task: name.clone(),
+                kind: DuplicateTaskError(name).into(),
+            })?;
+        }
 
         Ok(())
     }

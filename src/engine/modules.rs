@@ -7,7 +7,7 @@ use crate::{
     error::{ErrorReport, MutexLockError},
     inventory::{GroupConfig, Inventory, SystemConfig},
     ssh::{ConnectionError, SshError},
-    tasks::Tasks,
+    tasks::{TaskConfig, Tasks},
 };
 
 pub struct Modules {
@@ -75,14 +75,15 @@ impl Modules {
             tasks_table.set(
                 "add",
                 lua.create_function(
-                    move |_lua, (task_name, task_func): (mlua::String, mlua::Function)| {
+                    move |_lua, (task_name, config): (mlua::String, mlua::Value)| {
                         let task_name = task_name.to_str()?;
+                        let config = TaskConfig::try_from(config).map_err(|e| {
+                            mlua::Error::runtime(ErrorReport::boxed_from(e).report())
+                        })?;
 
-                        tasks
-                            .add_task(task_name.to_string(), task_func)
-                            .map_err(|e| {
-                                mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report())
-                            })?;
+                        tasks.add_task(task_name.to_string(), config).map_err(|e| {
+                            mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report())
+                        })?;
 
                         Ok(mlua::Value::Nil)
                     },
@@ -158,6 +159,7 @@ impl Modules {
 #[error("Failed to add system")]
 pub enum SystemAdditionError {
     Lock(#[from] MutexLockError),
+    DuplicateSystem(#[from] DuplicateSystemError),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -165,6 +167,7 @@ pub enum SystemAdditionError {
 pub enum GroupAdditionError {
     Lock(#[from] MutexLockError),
     MissingGroupMembers(#[from] UnregisteredGroupMembersError),
+    DuplicateGroup(#[from] DuplicateGroupError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -177,6 +180,14 @@ pub enum InventoryAcquisitionError {
     Lock(#[from] MutexLockError),
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("Duplicate system: {0:?}")]
+pub struct DuplicateSystemError(pub String);
+
+#[derive(Debug, thiserror::Error)]
+#[error("Duplicate group: {0:?}")]
+pub struct DuplicateGroupError(pub String);
+
 pub trait InventoryModule {
     fn add_system(&self, name: String, config: SystemConfig) -> Result<(), SystemAdditionError>;
     fn add_group(&self, name: String, config: GroupConfig) -> Result<(), GroupAdditionError>;
@@ -184,9 +195,19 @@ pub trait InventoryModule {
 }
 
 #[derive(thiserror::Error, Debug)]
-#[error("Failed to add task")]
-pub enum TaskAdditionError {
+#[error("Failed to add task `{task}`")]
+pub struct TaskAdditionError {
+    pub task: String,
+    #[source]
+    pub kind: TaskAdditionErrorKind,
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum TaskAdditionErrorKind {
     Lock(#[from] MutexLockError),
+    UnregisteredDependencies(#[from] UnregisteredDependenciesError),
+    DuplicateTask(#[from] DuplicateTaskError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -213,9 +234,17 @@ pub enum TasksResultSetError {
     Lock(#[from] MutexLockError),
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("Unregistered task dependencies: {0:?}")]
+pub struct UnregisteredDependenciesError(pub Vec<String>);
+
+#[derive(Debug, thiserror::Error)]
+#[error("Duplicate task: {0:?}")]
+pub struct DuplicateTaskError(pub String);
+
 pub trait TasksModule {
     fn tasks(&self) -> Result<Tasks, TasksAcquisitionError>;
-    fn add_task(&self, name: String, func: mlua::Function) -> Result<(), TaskAdditionError>;
+    fn add_task(&self, name: String, config: TaskConfig) -> Result<(), TaskAdditionError>;
     fn reset_results(&self) -> Result<(), TasksResultResetError>;
     fn task_result(&self, name: &str) -> Result<Option<mlua::Value>, TasksResultRetrievalError>;
     fn set_task_result(&self, name: String, value: mlua::Value) -> Result<(), TasksResultSetError>;
