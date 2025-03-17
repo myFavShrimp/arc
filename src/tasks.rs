@@ -19,7 +19,7 @@ pub struct Tasks {
 impl Tasks {
     pub fn tasks_in_execution_order(&self) -> Vec<TaskConfig> {
         let mut tasks: Vec<TaskConfig> = self.tasks.clone().into_values().collect();
-        tasks.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        tasks.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
 
         tasks
     }
@@ -34,13 +34,22 @@ pub struct TaskConfig {
 
 impl PartialOrd for TaskConfig {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        let other_depends_on_self = other.dependencies.contains(&self.name);
-        let self_depends_on_other = self.dependencies.contains(&other.name);
+        let self_has_dependencies = !self.dependencies.is_empty();
+        let other_has_dependencies = !other.dependencies.is_empty();
 
-        Some(match (other_depends_on_self, self_depends_on_other) {
-            (true, true) | (false, false) => std::cmp::Ordering::Equal,
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
+        Some(match (self_has_dependencies, other_has_dependencies) {
+            (true, false) => std::cmp::Ordering::Greater,
+            (false, true) => std::cmp::Ordering::Less,
+            (true, true) | (false, false) => {
+                let other_depends_on_self = other.dependencies.contains(&self.name);
+                let self_depends_on_other = self.dependencies.contains(&other.name);
+
+                match (other_depends_on_self, self_depends_on_other) {
+                    (true, true) | (false, false) => std::cmp::Ordering::Equal,
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                }
+            }
         })
     }
 }

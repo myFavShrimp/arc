@@ -75,7 +75,7 @@ impl Engine {
                 .operations
                 .set_execution_target(system_config)?;
 
-            for task_config in self.modules.tasks.tasks()?.tasks_in_execution_order() {
+            for task_config in dbg!(self.modules.tasks.tasks()?.tasks_in_execution_order()) {
                 info!("Executing `{}` for {}", task_config.name, system_name);
 
                 let result = task_config
