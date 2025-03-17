@@ -16,10 +16,33 @@ pub struct Tasks {
     pub tasks: HashMap<String, TaskConfig>,
 }
 
-#[derive(Debug, Clone)]
+impl Tasks {
+    pub fn tasks_in_execution_order(&self) -> Vec<TaskConfig> {
+        let mut tasks: Vec<TaskConfig> = self.tasks.clone().into_values().collect();
+        tasks.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        tasks
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct TaskConfig {
+    pub name: String,
     pub handler: mlua::Function,
     pub dependencies: Vec<String>,
+}
+
+impl PartialOrd for TaskConfig {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let other_depends_on_self = other.dependencies.contains(&self.name);
+        let self_depends_on_other = self.dependencies.contains(&other.name);
+
+        Some(match (other_depends_on_self, self_depends_on_other) {
+            (true, true) | (false, false) => std::cmp::Ordering::Equal,
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+        })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -32,10 +55,10 @@ pub enum TaskConfigFromLuaValueError {
     InvalidHandler(#[source] mlua::Error),
 }
 
-impl TryFrom<mlua::Value> for TaskConfig {
+impl TryFrom<(String, mlua::Value)> for TaskConfig {
     type Error = TaskConfigFromLuaValueError;
 
-    fn try_from(value: mlua::Value) -> Result<Self, Self::Error> {
+    fn try_from((name, value): (String, mlua::Value)) -> Result<Self, Self::Error> {
         match value {
             mlua::Value::Table(table) => {
                 let handler = table
@@ -46,11 +69,13 @@ impl TryFrom<mlua::Value> for TaskConfig {
                     .map_err(TaskConfigFromLuaValueError::InvalidDependencies)?;
 
                 Ok(TaskConfig {
+                    name,
                     handler,
                     dependencies,
                 })
             }
             mlua::Value::Function(handler) => Ok(TaskConfig {
+                name,
                 handler,
                 dependencies: Default::default(),
             }),

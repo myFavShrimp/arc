@@ -77,9 +77,10 @@ impl Modules {
                 lua.create_function(
                     move |_lua, (task_name, config): (mlua::String, mlua::Value)| {
                         let task_name = task_name.to_str()?;
-                        let config = TaskConfig::try_from(config).map_err(|e| {
-                            mlua::Error::runtime(ErrorReport::boxed_from(e).report())
-                        })?;
+                        let config = TaskConfig::try_from((task_name.to_string(), config))
+                            .map_err(|e| {
+                                mlua::Error::runtime(ErrorReport::boxed_from(e).report())
+                            })?;
 
                         tasks.add_task(task_name.to_string(), config).map_err(|e| {
                             mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report())

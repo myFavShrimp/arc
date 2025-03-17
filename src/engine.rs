@@ -75,13 +75,15 @@ impl Engine {
                 .operations
                 .set_execution_target(system_config)?;
 
-            for (task_name, task_func) in self.modules.tasks.tasks()?.tasks {
-                info!("Executing `{}` for {}", task_name, system_name);
+            for task_config in self.modules.tasks.tasks()?.tasks_in_execution_order() {
+                info!("Executing `{}` for {}", task_config.name, system_name);
 
-                let result = task_func
+                let result = task_config
                     .handler
                     .call::<mlua::Value>(self.lua.to_value(system_config)?)?;
-                self.modules.tasks.set_task_result(task_name, result)?;
+                self.modules
+                    .tasks
+                    .set_task_result(task_config.name, result)?;
             }
         }
 
