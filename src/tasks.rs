@@ -37,10 +37,22 @@ impl PartialOrd for TaskConfig {
         let self_has_dependencies = !self.dependencies.is_empty();
         let other_has_dependencies = !other.dependencies.is_empty();
 
+        // Still has edge cases:
+        // A: [B]
+        // B: []
+        // C: [B]
+        // D: [C]
+        //
+        // A < B | C < B | D < C
+        // So A must be < D because A < B < D
+        // But: A == D
+        //
+        // TODO: implement `tasks_in_execution_order` without `PartialOrd`, using `HashMap`
         Some(match (self_has_dependencies, other_has_dependencies) {
             (true, false) => std::cmp::Ordering::Greater,
             (false, true) => std::cmp::Ordering::Less,
-            (true, true) | (false, false) => {
+            (false, false) => std::cmp::Ordering::Equal,
+            (true, true) => {
                 let other_depends_on_self = other.dependencies.contains(&self.name);
                 let self_depends_on_other = self.dependencies.contains(&other.name);
 
