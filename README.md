@@ -6,12 +6,12 @@ Run tasks on remote hosts.
 
 ```lua
 -- init.lua
-inventory.add_system("frontend-server", {
+targets.add_system("frontend-server", {
     address = "192.168.1.100",
     user = "root",
 })
 
-tasks.add(
+targets.add(
     "check nginx",
     function (system)
         local result = operation.run_command("nginx -v")

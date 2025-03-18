@@ -8,14 +8,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     engine::modules::{
-        DuplicateGroupError, DuplicateSystemError, GroupAdditionError, InventoryModule,
-        SystemAdditionError, UnregisteredGroupMembersError,
+        DuplicateGroupError, DuplicateSystemError, GroupAdditionError, SystemAdditionError,
+        TargetsModule, UnregisteredGroupMembersError,
     },
     error::MutexLockError,
 };
 
 #[derive(Debug, Default, Clone, Serialize)]
-pub struct Inventory {
+pub struct Targets {
     pub systems: HashMap<String, SystemConfig>,
     pub groups: HashMap<String, GroupConfig>,
 }
@@ -44,13 +44,13 @@ pub struct GroupConfig {
 }
 
 #[derive(Debug, Default)]
-pub struct InventoryRegistrationModule {
-    inventory: Arc<Mutex<Inventory>>,
+pub struct TargetsRegistrationModule {
+    targets: Arc<Mutex<Targets>>,
 }
 
-impl InventoryModule for InventoryRegistrationModule {
+impl TargetsModule for TargetsRegistrationModule {
     fn add_system(&self, name: String, config: SystemConfig) -> Result<(), SystemAdditionError> {
-        let mut guard = self.inventory.lock().map_err(|_| MutexLockError)?;
+        let mut guard = self.targets.lock().map_err(|_| MutexLockError)?;
 
         if let Some(_) = guard.systems.insert(name.clone(), config) {
             Err(DuplicateSystemError(name))?;
@@ -60,7 +60,7 @@ impl InventoryModule for InventoryRegistrationModule {
     }
 
     fn add_group(&self, name: String, config: GroupConfig) -> Result<(), GroupAdditionError> {
-        let mut guard = self.inventory.lock().map_err(|_| MutexLockError)?;
+        let mut guard = self.targets.lock().map_err(|_| MutexLockError)?;
 
         match &config
             .members
@@ -87,8 +87,8 @@ impl InventoryModule for InventoryRegistrationModule {
         Ok(())
     }
 
-    fn inventory(&self) -> Result<Inventory, crate::engine::modules::InventoryAcquisitionError> {
-        let guard = self.inventory.lock().map_err(|_| MutexLockError)?;
+    fn targets(&self) -> Result<Targets, crate::engine::modules::TargetsAcquisitionError> {
+        let guard = self.targets.lock().map_err(|_| MutexLockError)?;
 
         Ok((*guard).clone())
     }

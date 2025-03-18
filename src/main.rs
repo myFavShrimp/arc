@@ -6,13 +6,13 @@ use log::LevelFilter;
 mod cli;
 mod engine;
 mod error;
-mod inventory;
 mod operations;
 mod ssh;
+mod targets;
 mod tasks;
 
 fn main() -> Result<(), error::ErrorReport> {
-    let _ = Cli::parse();
+    let cli_args = Cli::parse();
 
     env_logger::Builder::new()
         .filter_level(LevelFilter::Trace)
@@ -20,7 +20,7 @@ fn main() -> Result<(), error::ErrorReport> {
 
     Engine::new()
         .map_err(error::ErrorReport::boxed_from)?
-        .execute()
+        .execute(cli_args.tag)
         .map_err(error::ErrorReport::boxed_from)?;
 
     Ok(())

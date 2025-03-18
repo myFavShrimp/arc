@@ -3,13 +3,14 @@ use std::{path::PathBuf, sync::Arc};
 use log::info;
 use mlua::{Lua, LuaOptions, LuaSerdeExt, StdLib};
 use modules::{
-    ExecutionTargetSetError, InventoryAcquisitionError, ModuleRegistrationError,
+    ExecutionTargetSetError, ModuleRegistrationError, TargetsAcquisitionError,
     TasksAcquisitionError, TasksResultResetError, TasksResultSetError,
 };
 
 use crate::{
-    inventory::InventoryRegistrationModule, operations::OperationsExecutionModule,
-    tasks::TaskRegistrationModule,
+    operations::OperationsExecutionModule,
+    targets::TargetsRegistrationModule,
+    tasks::{TaskConfig, TaskRegistrationModule},
 };
 
 pub mod modules;
@@ -34,7 +35,7 @@ pub enum EngineExecutionError {
     Io(#[from] std::io::Error),
     Lua(#[from] mlua::Error),
     ExecutionTargetSet(#[from] ExecutionTargetSetError),
-    InventoryAcquisition(#[from] InventoryAcquisitionError),
+    TargetsAcquisition(#[from] TargetsAcquisitionError),
     TasksAcquisition(#[from] TasksAcquisitionError),
     TasksResultReset(#[from] TasksResultResetError),
     TasksResultSet(#[from] TasksResultSetError),
@@ -45,7 +46,7 @@ impl Engine {
         let lua = Lua::new_with(StdLib::ALL_SAFE, LuaOptions::new().catch_rust_panics(true))?;
 
         let modules = modules::Modules {
-            inventory: Arc::new(InventoryRegistrationModule::default()),
+            targets: Arc::new(TargetsRegistrationModule::default()),
             tasks: Arc::new(TaskRegistrationModule::default()),
             operations: Arc::new(OperationsExecutionModule::default()),
         };
@@ -54,28 +55,46 @@ impl Engine {
         Ok(Self { lua, modules })
     }
 
-    pub fn execute(&self) -> Result<(), EngineExecutionError> {
-        let inventory_entry_point_script_path = PathBuf::from(ENTRY_POINT_SCRIPT);
+    pub fn execute(&self, tags: Vec<String>) -> Result<(), EngineExecutionError> {
+        let entry_point_script_path = PathBuf::from(ENTRY_POINT_SCRIPT);
 
-        let inventory_entry_point_script =
-            std::fs::read_to_string(&inventory_entry_point_script_path)?;
+        let entry_point_script = std::fs::read_to_string(&entry_point_script_path)?;
 
         self.lua
-            .load(inventory_entry_point_script)
-            .set_name(inventory_entry_point_script_path.to_string_lossy())
+            .load(entry_point_script)
+            .set_name(entry_point_script_path.to_string_lossy())
             .exec()?;
 
-        let inventory = self.modules.inventory.inventory()?;
+        let targets = self.modules.targets.targets()?;
 
-        for (system_name, system_config) in &inventory.systems {
-            info!("Processing system {}", system_name);
+        for (system_name, system_config) in &targets.systems {
+            info!("Processing target {:?}", system_name);
+
+            let mut tasks = self.modules.tasks.tasks()?.tasks_in_execution_order();
+
+            if !tags.is_empty() {
+                tasks = tasks
+                    .into_iter()
+                    .filter(|config| {
+                        config
+                            .tags
+                            .iter()
+                            .any(|config_tag| tags.contains(config_tag))
+                    })
+                    .collect::<Vec<TaskConfig>>();
+            }
+
+            if tasks.is_empty() {
+                info!("No tasks to execute for target {:?}", system_name);
+                return Ok(());
+            }
 
             self.modules.tasks.reset_results()?;
             self.modules
                 .operations
                 .set_execution_target(system_config)?;
 
-            for task_config in dbg!(self.modules.tasks.tasks()?.tasks_in_execution_order()) {
+            for task_config in dbg!(tasks) {
                 info!("Executing `{}` for {}", task_config.name, system_name);
 
                 let result = task_config

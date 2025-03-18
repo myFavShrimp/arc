@@ -17,7 +17,7 @@ pub struct OperationsExecutionModule {
 impl OperationsModule for OperationsExecutionModule {
     fn set_execution_target(
         &self,
-        system: &crate::inventory::SystemConfig,
+        system: &crate::targets::SystemConfig,
     ) -> Result<(), crate::engine::modules::ExecutionTargetSetError> {
         let ssh_client = SshClient::connect(&system)?;
         let mut ssh_client_guard = self.ssh_client.lock().map_err(|_| MutexLockError)?;

@@ -5,13 +5,13 @@ use serde::Serialize;
 
 use crate::{
     error::{ErrorReport, MutexLockError},
-    inventory::{GroupConfig, Inventory, SystemConfig},
     ssh::{ConnectionError, SshError},
+    targets::{GroupConfig, SystemConfig, Targets},
     tasks::{TaskConfig, Tasks},
 };
 
 pub struct Modules {
-    pub inventory: Arc<dyn InventoryModule>,
+    pub targets: Arc<dyn TargetsModule>,
     pub tasks: Arc<dyn TasksModule>,
     pub operations: Arc<dyn OperationsModule>,
 }
@@ -23,18 +23,18 @@ pub struct ModuleRegistrationError(#[from] mlua::Error);
 impl Modules {
     pub fn register_in_lua(&self, lua: &Lua) -> Result<(), ModuleRegistrationError> {
         let globals = lua.globals();
-        let inventory_table = lua.create_table()?;
+        let targets_table = lua.create_table()?;
 
         {
-            let inventory = self.inventory.clone();
-            inventory_table.set(
+            let targets = self.targets.clone();
+            targets_table.set(
                 "add_system",
                 lua.create_function(
                     move |lua, (system_name, system): (mlua::String, mlua::Table)| {
                         let system_name = system_name.to_str()?;
                         let system: SystemConfig = lua.from_value(mlua::Value::Table(system))?;
 
-                        inventory
+                        targets
                             .add_system(system_name.to_string(), system)
                             .map_err(|e| {
                                 mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report())
@@ -47,15 +47,15 @@ impl Modules {
         }
 
         {
-            let inventory = self.inventory.clone();
-            inventory_table.set(
+            let targets = self.targets.clone();
+            targets_table.set(
                 "add_group",
                 lua.create_function(
                     move |lua, (group_name, group): (mlua::String, mlua::Table)| {
                         let group_name = group_name.to_str()?;
                         let group: GroupConfig = lua.from_value(mlua::Value::Table(group))?;
 
-                        inventory
+                        targets
                             .add_group(group_name.to_string(), group)
                             .map_err(|e| {
                                 mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report())
@@ -67,7 +67,7 @@ impl Modules {
             )?;
         }
 
-        globals.set("inventory", inventory_table)?;
+        globals.set("targets", targets_table)?;
         let tasks_table = lua.create_table()?;
 
         {
@@ -176,8 +176,8 @@ pub enum GroupAdditionError {
 pub struct UnregisteredGroupMembersError(pub Vec<String>);
 
 #[derive(Debug, thiserror::Error)]
-#[error("Failed to retrieve inventory configuration")]
-pub enum InventoryAcquisitionError {
+#[error("Failed to retrieve targets configuration")]
+pub enum TargetsAcquisitionError {
     Lock(#[from] MutexLockError),
 }
 
@@ -189,10 +189,10 @@ pub struct DuplicateSystemError(pub String);
 #[error("Duplicate group: {0:?}")]
 pub struct DuplicateGroupError(pub String);
 
-pub trait InventoryModule {
+pub trait TargetsModule {
     fn add_system(&self, name: String, config: SystemConfig) -> Result<(), SystemAdditionError>;
     fn add_group(&self, name: String, config: GroupConfig) -> Result<(), GroupAdditionError>;
-    fn inventory(&self) -> Result<Inventory, InventoryAcquisitionError>;
+    fn targets(&self) -> Result<Targets, TargetsAcquisitionError>;
 }
 
 #[derive(thiserror::Error, Debug)]
