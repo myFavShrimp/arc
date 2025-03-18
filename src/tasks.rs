@@ -30,6 +30,7 @@ pub struct TaskConfig {
     pub name: String,
     pub handler: mlua::Function,
     pub dependencies: Vec<String>,
+    pub tags: Vec<String>,
 }
 
 impl PartialOrd for TaskConfig {
@@ -63,6 +64,8 @@ pub enum TaskConfigFromLuaValueError {
     InvalidDependencies(#[source] mlua::Error),
     #[error("`handler` is invalid")]
     InvalidHandler(#[source] mlua::Error),
+    #[error("`tags` is invalid")]
+    InvalidTags(#[source] mlua::Error),
 }
 
 impl TryFrom<(String, mlua::Value)> for TaskConfig {
@@ -78,16 +81,23 @@ impl TryFrom<(String, mlua::Value)> for TaskConfig {
                     .get::<Vec<String>>("dependencies")
                     .map_err(TaskConfigFromLuaValueError::InvalidDependencies)?;
 
+                let tags = table
+                    .get::<Option<Vec<String>>>("tags")
+                    .map_err(TaskConfigFromLuaValueError::InvalidTags)?
+                    .unwrap_or_default();
+
                 Ok(TaskConfig {
                     name,
                     handler,
                     dependencies,
+                    tags,
                 })
             }
             mlua::Value::Function(handler) => Ok(TaskConfig {
                 name,
                 handler,
                 dependencies: Default::default(),
+                tags: Default::default(),
             }),
             mlua::Value::Nil
             | mlua::Value::Boolean(_)
