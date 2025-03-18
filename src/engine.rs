@@ -29,7 +29,7 @@ pub enum EngineBuilderCreationError {
     ModuleRegistration(#[from] ModuleRegistrationError),
 }
 
-static ENTRY_POINT_SCRIPT: &str = "init.lua";
+static ENTRY_POINT_SCRIPT: &str = "arc.lua";
 
 #[derive(thiserror::Error, Debug)]
 #[error("Failed to run scripts")]

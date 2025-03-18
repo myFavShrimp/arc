@@ -5,7 +5,7 @@ WIP
 Run tasks on remote hosts.
 
 ```lua
--- init.lua
+-- arc.lua
 targets.add_system("frontend-server", {
     address = "192.168.1.100",
     user = "root",
