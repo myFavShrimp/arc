@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    engine::modules::{
+    engine::modules::tasks::{
         DuplicateTaskError, TaskAdditionError, TasksModule, TasksResultResetError,
         UnregisteredDependenciesError,
     },
@@ -151,7 +151,7 @@ impl TasksModule for TaskRegistrationModule {
         Ok(())
     }
 
-    fn tasks(&self) -> Result<Tasks, crate::engine::modules::TasksAcquisitionError> {
+    fn tasks(&self) -> Result<Tasks, crate::engine::modules::tasks::TasksAcquisitionError> {
         let guard = self.tasks.lock().map_err(|_| MutexLockError)?;
 
         Ok((*guard).clone())
@@ -168,7 +168,7 @@ impl TasksModule for TaskRegistrationModule {
     fn task_result(
         &self,
         name: &str,
-    ) -> Result<Option<mlua::Value>, crate::engine::modules::TasksResultRetrievalError> {
+    ) -> Result<Option<mlua::Value>, crate::engine::modules::tasks::TasksResultRetrievalError> {
         let execution_results_guard = self.execution_results.lock().map_err(|_| MutexLockError)?;
 
         Ok(execution_results_guard
@@ -180,7 +180,7 @@ impl TasksModule for TaskRegistrationModule {
         &self,
         name: String,
         value: mlua::Value,
-    ) -> Result<(), crate::engine::modules::TasksResultSetError> {
+    ) -> Result<(), crate::engine::modules::tasks::TasksResultSetError> {
         let mut guard = self.execution_results.lock().map_err(|_| MutexLockError)?;
 
         guard.insert(name, value);

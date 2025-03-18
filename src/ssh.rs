@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
 
-use crate::engine::modules::{CommandResult, FileCopyResult};
+use crate::engine::modules::operations::{CommandResult, FileCopyResult};
 use crate::targets::SystemConfig;
 
 pub struct SshClient {

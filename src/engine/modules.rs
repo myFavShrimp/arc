@@ -1,14 +1,19 @@
 use std::{path::PathBuf, sync::Arc};
 
 use mlua::{Lua, LuaSerdeExt};
-use serde::Serialize;
+use operations::OperationsModule;
+use targets::TargetsModule;
+use tasks::TasksModule;
 
 use crate::{
-    error::{ErrorReport, MutexLockError},
-    ssh::{ConnectionError, SshError},
-    targets::{GroupConfig, SystemConfig, Targets},
-    tasks::{TaskConfig, Tasks},
+    error::ErrorReport,
+    targets::{GroupConfig, SystemConfig},
+    tasks::TaskConfig,
 };
+
+pub mod operations;
+pub mod targets;
+pub mod tasks;
 
 pub struct Modules {
     pub targets: Arc<dyn TargetsModule>,
@@ -154,138 +159,4 @@ impl Modules {
 
         Ok(())
     }
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to add system")]
-pub enum SystemAdditionError {
-    Lock(#[from] MutexLockError),
-    DuplicateSystem(#[from] DuplicateSystemError),
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to add group")]
-pub enum GroupAdditionError {
-    Lock(#[from] MutexLockError),
-    MissingGroupMembers(#[from] UnregisteredGroupMembersError),
-    DuplicateGroup(#[from] DuplicateGroupError),
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Unregistered group members: {0:?}")]
-pub struct UnregisteredGroupMembersError(pub Vec<String>);
-
-#[derive(Debug, thiserror::Error)]
-#[error("Failed to retrieve targets configuration")]
-pub enum TargetsAcquisitionError {
-    Lock(#[from] MutexLockError),
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Duplicate system: {0:?}")]
-pub struct DuplicateSystemError(pub String);
-
-#[derive(Debug, thiserror::Error)]
-#[error("Duplicate group: {0:?}")]
-pub struct DuplicateGroupError(pub String);
-
-pub trait TargetsModule {
-    fn add_system(&self, name: String, config: SystemConfig) -> Result<(), SystemAdditionError>;
-    fn add_group(&self, name: String, config: GroupConfig) -> Result<(), GroupAdditionError>;
-    fn targets(&self) -> Result<Targets, TargetsAcquisitionError>;
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to add task `{task}`")]
-pub struct TaskAdditionError {
-    pub task: String,
-    #[source]
-    pub kind: TaskAdditionErrorKind,
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error(transparent)]
-pub enum TaskAdditionErrorKind {
-    Lock(#[from] MutexLockError),
-    UnregisteredDependencies(#[from] UnregisteredDependenciesError),
-    DuplicateTask(#[from] DuplicateTaskError),
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Failed to retrieve tasks configuration")]
-pub enum TasksAcquisitionError {
-    Lock(#[from] MutexLockError),
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Failed to retrieve task's result")]
-pub enum TasksResultRetrievalError {
-    Lock(#[from] MutexLockError),
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Failed to reset tasks results")]
-pub enum TasksResultResetError {
-    Lock(#[from] MutexLockError),
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Failed to set task's result")]
-pub enum TasksResultSetError {
-    Lock(#[from] MutexLockError),
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Unregistered task dependencies: {0:?}")]
-pub struct UnregisteredDependenciesError(pub Vec<String>);
-
-#[derive(Debug, thiserror::Error)]
-#[error("Duplicate task: {0:?}")]
-pub struct DuplicateTaskError(pub String);
-
-pub trait TasksModule {
-    fn tasks(&self) -> Result<Tasks, TasksAcquisitionError>;
-    fn add_task(&self, name: String, config: TaskConfig) -> Result<(), TaskAdditionError>;
-    fn reset_results(&self) -> Result<(), TasksResultResetError>;
-    fn task_result(&self, name: &str) -> Result<Option<mlua::Value>, TasksResultRetrievalError>;
-    fn set_task_result(&self, name: String, value: mlua::Value) -> Result<(), TasksResultSetError>;
-}
-
-#[derive(Debug, Serialize)]
-pub struct CommandResult {
-    pub stdout: String,
-    pub stderr: String,
-    pub exit_code: i32,
-}
-
-#[derive(Debug, Serialize)]
-pub struct FileCopyResult {
-    pub src: PathBuf,
-    pub dest: PathBuf,
-    pub size: usize,
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to set execution target")]
-pub enum ExecutionTargetSetError {
-    Connection(#[from] ConnectionError),
-    Lock(#[from] MutexLockError),
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Missing execution target")]
-pub struct UninitializedSshClientError;
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to execute tasks")]
-pub enum TaskError {
-    Ssh(#[from] SshError),
-    Lock(#[from] MutexLockError),
-    UninitializedSshClient(#[from] UninitializedSshClientError),
-}
-
-pub trait OperationsModule {
-    fn set_execution_target(&self, system: &SystemConfig) -> Result<(), ExecutionTargetSetError>;
-    fn copy_file(&self, src: PathBuf, dest: PathBuf) -> Result<FileCopyResult, TaskError>;
-    fn run_command(&self, cmd: String) -> Result<CommandResult, TaskError>;
 }

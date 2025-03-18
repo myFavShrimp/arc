@@ -3,8 +3,10 @@ use std::{path::PathBuf, sync::Arc};
 use log::info;
 use mlua::{Lua, LuaOptions, LuaSerdeExt, StdLib};
 use modules::{
-    ExecutionTargetSetError, ModuleRegistrationError, TargetsAcquisitionError,
-    TasksAcquisitionError, TasksResultResetError, TasksResultSetError,
+    operations::ExecutionTargetSetError,
+    targets::TargetsAcquisitionError,
+    tasks::{TasksAcquisitionError, TasksResultResetError, TasksResultSetError},
+    ModuleRegistrationError,
 };
 
 use crate::{
@@ -94,7 +96,7 @@ impl Engine {
                 .operations
                 .set_execution_target(system_config)?;
 
-            for task_config in dbg!(tasks) {
+            for task_config in tasks {
                 info!("Executing `{}` for {}", task_config.name, system_name);
 
                 let result = task_config

@@ -7,7 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    engine::modules::{
+    engine::modules::targets::{
         DuplicateGroupError, DuplicateSystemError, GroupAdditionError, SystemAdditionError,
         TargetsModule, UnregisteredGroupMembersError,
     },
@@ -87,7 +87,7 @@ impl TargetsModule for TargetsRegistrationModule {
         Ok(())
     }
 
-    fn targets(&self) -> Result<Targets, crate::engine::modules::TargetsAcquisitionError> {
+    fn targets(&self) -> Result<Targets, crate::engine::modules::targets::TargetsAcquisitionError> {
         let guard = self.targets.lock().map_err(|_| MutexLockError)?;
 
         Ok((*guard).clone())

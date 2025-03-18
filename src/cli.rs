@@ -4,8 +4,8 @@ use clap::Parser;
 #[command(name = "arc")]
 #[command(about = "Written in Rust, using Luau", long_about = None)]
 pub struct Cli {
-    // #[arg(short, long)]
-    // pub verbose: bool,
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    pub verbose: u8,
     #[arg(short, long)]
     pub tag: Vec<String>,
 }

@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    engine::modules::{OperationsModule, UninitializedSshClientError},
+    engine::modules::operations::{OperationsModule, UninitializedSshClientError},
     error::MutexLockError,
     ssh::SshClient,
 };
@@ -18,7 +18,7 @@ impl OperationsModule for OperationsExecutionModule {
     fn set_execution_target(
         &self,
         system: &crate::targets::SystemConfig,
-    ) -> Result<(), crate::engine::modules::ExecutionTargetSetError> {
+    ) -> Result<(), crate::engine::modules::operations::ExecutionTargetSetError> {
         let ssh_client = SshClient::connect(&system)?;
         let mut ssh_client_guard = self.ssh_client.lock().map_err(|_| MutexLockError)?;
         *ssh_client_guard = Some(ssh_client);
@@ -30,7 +30,10 @@ impl OperationsModule for OperationsExecutionModule {
         &self,
         src: std::path::PathBuf,
         dest: std::path::PathBuf,
-    ) -> Result<crate::engine::modules::FileCopyResult, crate::engine::modules::TaskError> {
+    ) -> Result<
+        crate::engine::modules::operations::FileCopyResult,
+        crate::engine::modules::operations::TaskError,
+    > {
         let mut guard = self.ssh_client.lock().map_err(|_| MutexLockError)?;
 
         let command_result = guard
@@ -44,7 +47,10 @@ impl OperationsModule for OperationsExecutionModule {
     fn run_command(
         &self,
         cmd: String,
-    ) -> Result<crate::engine::modules::CommandResult, crate::engine::modules::TaskError> {
+    ) -> Result<
+        crate::engine::modules::operations::CommandResult,
+        crate::engine::modules::operations::TaskError,
+    > {
         let mut guard = self.ssh_client.lock().map_err(|_| MutexLockError)?;
 
         let command_result = guard
