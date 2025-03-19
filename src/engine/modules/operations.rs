@@ -5,8 +5,9 @@ use serde::Serialize;
 use crate::{
     error::MutexLockError,
     ssh::{ConnectionError, SshError},
-    targets::SystemConfig,
 };
+
+use super::targets::SystemConfig;
 
 #[derive(Debug, Serialize)]
 pub struct CommandResult {

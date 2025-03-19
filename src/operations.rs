@@ -4,7 +4,10 @@ use std::{
 };
 
 use crate::{
-    engine::modules::operations::{OperationsModule, UninitializedSshClientError},
+    engine::modules::{
+        operations::{OperationsModule, UninitializedSshClientError},
+        targets::SystemConfig,
+    },
     error::MutexLockError,
     ssh::SshClient,
 };
@@ -17,7 +20,7 @@ pub struct OperationsExecutionModule {
 impl OperationsModule for OperationsExecutionModule {
     fn set_execution_target(
         &self,
-        system: &crate::targets::SystemConfig,
+        system: &SystemConfig,
     ) -> Result<(), crate::engine::modules::operations::ExecutionTargetSetError> {
         let ssh_client = SshClient::connect(&system)?;
         let mut ssh_client_guard = self.ssh_client.lock().map_err(|_| MutexLockError)?;

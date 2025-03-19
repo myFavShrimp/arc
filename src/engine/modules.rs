@@ -2,14 +2,10 @@ use std::{path::PathBuf, sync::Arc};
 
 use mlua::{Lua, LuaSerdeExt};
 use operations::OperationsModule;
-use targets::TargetsModule;
+use targets::{GroupConfig, SystemConfig, TargetsModule};
 use tasks::TasksModule;
 
-use crate::{
-    error::ErrorReport,
-    targets::{GroupConfig, SystemConfig},
-    tasks::TaskConfig,
-};
+use crate::{error::ErrorReport, tasks::TaskConfig};
 
 pub mod operations;
 pub mod targets;
