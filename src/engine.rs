@@ -10,9 +10,8 @@ use modules::{
 };
 
 use crate::{
-    operations::OperationsExecutionModule,
-    targets::TargetsRegistrationModule,
-    tasks::{TaskConfig, TaskRegistrationModule},
+    engine::modules::tasks::TaskConfig, operations::OperationsExecutionModule,
+    targets::TargetsRegistrationModule, tasks::TaskRegistrationModule,
 };
 
 pub mod modules;

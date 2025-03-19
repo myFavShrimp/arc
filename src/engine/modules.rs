@@ -5,7 +5,7 @@ use operations::OperationsModule;
 use targets::{GroupConfig, SystemConfig, TargetsModule};
 use tasks::TasksModule;
 
-use crate::{error::ErrorReport, tasks::TaskConfig};
+use crate::{engine::modules::tasks::TaskConfig, error::ErrorReport};
 
 pub mod operations;
 pub mod targets;
