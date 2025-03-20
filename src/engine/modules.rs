@@ -13,7 +13,7 @@ pub mod tasks;
 
 pub struct Modules {
     pub targets: TargetsModule,
-    pub tasks: Arc<dyn TasksModule>,
+    pub tasks: TasksModule,
     pub operations: Arc<dyn OperationsModule>,
 }
 

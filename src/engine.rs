@@ -12,7 +12,7 @@ use system::System;
 
 use crate::{
     engine::modules::targets::TargetsModule, engine::modules::tasks::TaskConfig,
-    operations::OperationsExecutionModule, tasks::TaskRegistrationModule,
+    engine::modules::tasks::TasksModule, operations::OperationsExecutionModule,
 };
 
 pub mod modules;
@@ -50,7 +50,7 @@ impl Engine {
 
         let modules = modules::Modules {
             targets: TargetsModule::default(),
-            tasks: Arc::new(TaskRegistrationModule::default()),
+            tasks: TasksModule::default(),
             operations: Arc::new(OperationsExecutionModule::default()),
         };
         modules.register_in_lua(&lua)?;

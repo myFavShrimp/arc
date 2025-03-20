@@ -8,7 +8,6 @@ mod engine;
 mod error;
 mod operations;
 mod ssh;
-mod tasks;
 
 fn main() -> Result<(), error::ErrorReport> {
     let cli_args = Cli::parse();
