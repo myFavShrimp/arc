@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     net::{IpAddr, SocketAddr},
+    sync::{Arc, Mutex},
 };
 
 use mlua::FromLua;
@@ -70,8 +71,59 @@ pub struct DuplicateSystemError(pub String);
 #[error("Duplicate group: {0:?}")]
 pub struct DuplicateGroupError(pub String);
 
-pub trait TargetsModule {
-    fn add_system(&self, name: String, config: SystemConfig) -> Result<(), SystemAdditionError>;
-    fn add_group(&self, name: String, config: GroupConfig) -> Result<(), GroupAdditionError>;
-    fn targets(&self) -> Result<Targets, TargetsAcquisitionError>;
+#[derive(Debug, Default, Clone)]
+pub struct TargetsModule {
+    targets: Arc<Mutex<Targets>>,
+}
+
+impl TargetsModule {
+    pub fn add_system(
+        &self,
+        name: String,
+        config: SystemConfig,
+    ) -> Result<(), SystemAdditionError> {
+        let mut guard = self.targets.lock().map_err(|_| MutexLockError)?;
+
+        if let Some(_) = guard.systems.insert(name.clone(), config) {
+            Err(DuplicateSystemError(name))?;
+        }
+
+        Ok(())
+    }
+
+    pub fn add_group(&self, name: String, config: GroupConfig) -> Result<(), GroupAdditionError> {
+        let mut guard = self.targets.lock().map_err(|_| MutexLockError)?;
+
+        match &config
+            .members
+            .iter()
+            .filter_map(|member| {
+                let member = member.clone();
+
+                if !guard.systems.contains_key(&member) {
+                    Some(member)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()[..]
+        {
+            [] => {}
+            missing_systems => Err(UnregisteredGroupMembersError(missing_systems.to_vec()))?,
+        }
+
+        if let Some(_) = guard.groups.insert(name.clone(), config) {
+            Err(DuplicateGroupError(name))?;
+        }
+
+        Ok(())
+    }
+
+    pub fn targets(
+        &self,
+    ) -> Result<Targets, crate::engine::modules::targets::TargetsAcquisitionError> {
+        let guard = self.targets.lock().map_err(|_| MutexLockError)?;
+
+        Ok((*guard).clone())
+    }
 }

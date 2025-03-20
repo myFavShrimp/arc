@@ -8,7 +8,6 @@ mod engine;
 mod error;
 mod operations;
 mod ssh;
-mod targets;
 mod tasks;
 
 fn main() -> Result<(), error::ErrorReport> {

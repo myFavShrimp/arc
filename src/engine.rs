@@ -11,8 +11,8 @@ use modules::{
 use system::System;
 
 use crate::{
-    engine::modules::tasks::TaskConfig, operations::OperationsExecutionModule,
-    targets::TargetsRegistrationModule, tasks::TaskRegistrationModule,
+    engine::modules::targets::TargetsModule, engine::modules::tasks::TaskConfig,
+    operations::OperationsExecutionModule, tasks::TaskRegistrationModule,
 };
 
 pub mod modules;
@@ -49,7 +49,7 @@ impl Engine {
         let lua = Lua::new_with(StdLib::ALL_SAFE, LuaOptions::new().catch_rust_panics(true))?;
 
         let modules = modules::Modules {
-            targets: Arc::new(TargetsRegistrationModule::default()),
+            targets: TargetsModule::default(),
             tasks: Arc::new(TaskRegistrationModule::default()),
             operations: Arc::new(OperationsExecutionModule::default()),
         };
