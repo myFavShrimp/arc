@@ -3,6 +3,7 @@ use std::{
     net::{IpAddr, SocketAddr},
 };
 
+use mlua::FromLua;
 use serde::{Deserialize, Serialize};
 
 use crate::error::MutexLockError;
@@ -17,11 +18,11 @@ fn default_port() -> u16 {
     22
 }
 
-#[derive(Debug, Deserialize, Clone, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize, FromLua)]
 pub struct SystemConfig {
-    address: IpAddr,
+    pub address: IpAddr,
     #[serde(default = "default_port")]
-    port: u16,
+    pub port: u16,
     pub user: String,
 }
 
