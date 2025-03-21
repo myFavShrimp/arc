@@ -1,6 +1,6 @@
 use std::{net::IpAddr, path::PathBuf};
 
-use mlua::IntoLua;
+use mlua::{IntoLua, UserData};
 use ssh_executor::SshExecutor;
 
 use crate::{error::ErrorReport, ssh::SshClient};
@@ -57,29 +57,26 @@ pub trait Executor {
     fn run_command(&self, cmd: String) -> Result<CommandResult, TaskError>;
 }
 
-impl IntoLua for System {
-    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
-        let table = lua.create_table()?;
+impl UserData for System {
+    fn add_fields<F: mlua::UserDataFields<Self>>(fields: &mut F) {
+        fields.add_field_method_get("address", |_, this| Ok(this.address.to_string()));
+        fields.add_field_method_get("port", |_, this| Ok(this.port));
+        fields.add_field_method_get("user", |_, this| Ok(this.user.clone()));
+    }
 
-        table.set("address", self.address.to_string())?;
-        table.set("port", self.port)?;
-        table.set("user", self.user)?;
+    fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
+        methods.add_method("run_command", |_, this, cmd: String| {
+            this.execution_delegator
+                .run_command(cmd)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
+            Ok(())
+        });
 
-        {
-            let execution_delegator = self.execution_delegator.clone();
-            table.set(
-                "run_command",
-                lua.create_function(move |_lua, (self_table, cmd): (SystemConfig, String)| {
-                    execution_delegator.run_command(cmd).map_err(|e| {
-                        mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report())
-                    })?;
-                    Ok(())
-                })?,
-            )?;
-        }
-
-        table.set_readonly(true);
-
-        return Ok(mlua::Value::Table(table));
+        methods.add_method("copy_file", |_, this, (src, dest): (PathBuf, PathBuf)| {
+            this.execution_delegator
+                .copy_file(src, dest)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
+            Ok(())
+        });
     }
 }
