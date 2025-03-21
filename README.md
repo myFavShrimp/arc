@@ -24,7 +24,7 @@ tasks["install nginx"] = {
     handler = function (system)
         local nginx_installed = tasks["check nginx"].result
 
-        if nginx_installed ~= nil and not nginx_installed then
+        if nginx_installed == false then
             return system:run_command("apt install nginx")
         end
     end,
@@ -35,9 +35,7 @@ tasks["print nginx installation error"] = {
     handler = function (system)
         local installation_result = tasks["install nginx"].result
 
-        if installation_result ~= nil and installation_result.exit_code ~= 0 then
-            print(installation_result.stderr)
-        end
+        print(installation_result.stderr)
     end,
     dependencies = {"install nginx"}
 }
