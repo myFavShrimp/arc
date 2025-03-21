@@ -6,39 +6,38 @@ Run tasks on remote hosts.
 
 ```lua
 -- arc.lua
-targets.add_system("frontend-server", {
+targets.system["frontend-server"] = {
     address = "192.168.1.100",
     user = "root",
-})
+}
 
-targets.add(
-    "check nginx",
-    function (system)
-        local result = operation.run_command("nginx -v")
+tasks["check nginx"] = {
+    handler = function (system)
+        local result = system:run_command("nginx -v")
 
         return result.exit_code == 0
-    end
-)
+    end,
+    dependencies = {}
+}
 
-tasks.add(
-    "install nginx",
-    function (system)
-        local nginx_installed = tasks.get_result("check nginx")
+tasks["install nginx"] = {
+    handler = function (system)
+        local nginx_installed = tasks["check nginx"].result
 
         if nginx_installed ~= nil and not nginx_installed then
-            return operation.run_command("apt install nginx")
+            return system:run_command("apt install nginx")
         end
-    end
-)
+    end,
+    dependencies = {"check nginx"}
+}
 
-tasks.add(
-    "print nginx installation error",
-    function (system)
-        local installation_result = tasks.get_result("install nginx")
+tasks["print nginx installation error"] = {
+    handler = function (system)
+        local installation_result = tasks["install nginx"].result
 
         if installation_result ~= nil and installation_result.exit_code ~= 0 then
             print(installation_result.stderr)
         end
-    end
-)
-```
+    end,
+    dependencies = {"install nginx"}
+}
