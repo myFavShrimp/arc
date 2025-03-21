@@ -1,14 +1,15 @@
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 use log::info;
 use mlua::{Lua, LuaOptions, StdLib};
 use system::{ExecutionTargetSetError, System};
+use targets::TargetsValidationError;
 use {
     targets::TargetsAcquisitionError,
     tasks::{TasksAcquisitionError, TasksResultResetError, TasksResultSetError},
 };
 
-use {targets::TargetsModule, tasks::TaskConfig, tasks::TasksModule};
+use {targets::Targets, tasks::Task, tasks::Tasks};
 
 pub mod system;
 pub mod targets;
@@ -16,8 +17,8 @@ pub mod tasks;
 
 pub struct Engine {
     lua: Lua,
-    targets: TargetsModule,
-    tasks: TasksModule,
+    targets: Targets,
+    tasks: Tasks,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -38,14 +39,19 @@ pub enum EngineExecutionError {
     TasksAcquisition(#[from] TasksAcquisitionError),
     TasksResultReset(#[from] TasksResultResetError),
     TasksResultSet(#[from] TasksResultSetError),
+    TargetsValidation(#[from] TargetsValidationError),
 }
 
 impl Engine {
     pub fn new() -> Result<Self, EngineBuilderCreationError> {
         let lua = Lua::new_with(StdLib::ALL_SAFE, LuaOptions::new().catch_rust_panics(true))?;
 
-        let targets = TargetsModule::default();
-        let tasks = TasksModule::default();
+        let targets = Targets::default();
+        let tasks = Tasks::default();
+
+        let globals = lua.globals();
+        globals.set("targets", targets.clone())?;
+        globals.set("tasks", tasks.clone())?;
 
         Ok(Self {
             lua,
@@ -64,12 +70,13 @@ impl Engine {
             .set_name(entry_point_script_path.to_string_lossy())
             .exec()?;
 
+        self.targets.validate()?;
         let targets = self.targets.targets()?;
 
-        for (system_name, system_config) in &targets.systems {
+        for (system_name, system_config) in &targets.0 {
             info!("Processing target {:?}", system_name);
 
-            let mut tasks = self.tasks.tasks()?.tasks_in_execution_order();
+            let mut tasks = self.tasks.tasks_in_execution_order()?;
 
             if !tags.is_empty() {
                 tasks = tasks
@@ -80,7 +87,7 @@ impl Engine {
                             .iter()
                             .any(|config_tag| tags.contains(config_tag))
                     })
-                    .collect::<Vec<TaskConfig>>();
+                    .collect::<Vec<Task>>();
             }
 
             if tasks.is_empty() {
@@ -89,19 +96,14 @@ impl Engine {
             }
 
             self.tasks.reset_results()?;
-            // self.modules
-            //     .operations
-            //     .set_execution_target(system_config)?;
 
             let system = System::connect(system_config)?;
 
             for task_config in tasks {
                 info!("Executing `{}` for {}", task_config.name, system_name);
 
-                task_config.handler.call::<mlua::Value>(system.clone())?;
-                // self.modules
-                //     .tasks
-                //     .set_task_result(task_config.name, result)?;
+                let result = task_config.handler.call::<mlua::Value>(system.clone())?;
+                self.tasks.set_task_result(task_config.name, result)?;
             }
         }
 

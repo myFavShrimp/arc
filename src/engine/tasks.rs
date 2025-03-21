@@ -3,31 +3,20 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::error::MutexLockError;
+use mlua::{IntoLua, MetaMethod, UserData};
 
-#[derive(Debug, Default, Clone)]
-pub struct Tasks {
-    pub tasks: HashMap<String, TaskConfig>,
-}
-
-impl Tasks {
-    pub fn tasks_in_execution_order(&self) -> Vec<TaskConfig> {
-        let mut tasks: Vec<TaskConfig> = self.tasks.clone().into_values().collect();
-        tasks.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-
-        tasks
-    }
-}
+use crate::error::{ErrorReport, MutexLockError};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TaskConfig {
+pub struct Task {
     pub name: String,
     pub handler: mlua::Function,
     pub dependencies: Vec<String>,
     pub tags: Vec<String>,
+    pub result: Option<mlua::Value>,
 }
 
-impl PartialOrd for TaskConfig {
+impl PartialOrd for Task {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         let self_has_dependencies = !self.dependencies.is_empty();
         let other_has_dependencies = !other.dependencies.is_empty();
@@ -51,7 +40,7 @@ impl PartialOrd for TaskConfig {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum TaskConfigFromLuaValueError {
+pub enum TaskFromLuaValueError {
     #[error("Argument 2 of \"tasks.add\" must be a task handler or task configuration")]
     NotAFunctionOrTaskConfig,
     #[error("`dependencies` are invalid")]
@@ -62,36 +51,38 @@ pub enum TaskConfigFromLuaValueError {
     InvalidTags(#[source] mlua::Error),
 }
 
-impl TryFrom<(String, mlua::Value)> for TaskConfig {
-    type Error = TaskConfigFromLuaValueError;
+impl TryFrom<(String, mlua::Value)> for Task {
+    type Error = TaskFromLuaValueError;
 
     fn try_from((name, value): (String, mlua::Value)) -> Result<Self, Self::Error> {
         match value {
             mlua::Value::Table(table) => {
                 let handler = table
                     .get::<mlua::Function>("handler")
-                    .map_err(TaskConfigFromLuaValueError::InvalidHandler)?;
+                    .map_err(TaskFromLuaValueError::InvalidHandler)?;
                 let dependencies = table
                     .get::<Vec<String>>("dependencies")
-                    .map_err(TaskConfigFromLuaValueError::InvalidDependencies)?;
+                    .map_err(TaskFromLuaValueError::InvalidDependencies)?;
 
                 let tags = table
                     .get::<Option<Vec<String>>>("tags")
-                    .map_err(TaskConfigFromLuaValueError::InvalidTags)?
+                    .map_err(TaskFromLuaValueError::InvalidTags)?
                     .unwrap_or_default();
 
-                Ok(TaskConfig {
+                Ok(Task {
                     name,
                     handler,
                     dependencies,
                     tags,
+                    result: None,
                 })
             }
-            mlua::Value::Function(handler) => Ok(TaskConfig {
+            mlua::Value::Function(handler) => Ok(Task {
                 name,
                 handler,
                 dependencies: Default::default(),
                 tags: Default::default(),
+                result: None,
             }),
             mlua::Value::Nil
             | mlua::Value::Boolean(_)
@@ -104,10 +95,28 @@ impl TryFrom<(String, mlua::Value)> for TaskConfig {
             | mlua::Value::UserData(_)
             | mlua::Value::Buffer(_)
             | mlua::Value::Error(_)
-            | mlua::Value::Other(_) => Err(TaskConfigFromLuaValueError::NotAFunctionOrTaskConfig),
+            | mlua::Value::Other(_) => Err(TaskFromLuaValueError::NotAFunctionOrTaskConfig),
         }
     }
 }
+
+impl IntoLua for Task {
+    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
+        let task_table = lua.create_table()?;
+
+        task_table.set("name", self.name)?;
+        task_table.set("dependecies", self.dependencies)?;
+        task_table.set("tags", self.tags)?;
+        task_table.set("result", self.result)?;
+
+        task_table.set_readonly(true);
+
+        Ok(mlua::Value::Table(task_table))
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Tasks(Arc<Mutex<HashMap<String, Task>>>);
 
 #[derive(thiserror::Error, Debug)]
 #[error("Failed to add task `{task}`")]
@@ -129,13 +138,12 @@ pub enum TaskAdditionErrorKind {
 #[error("Failed to retrieve tasks configuration")]
 pub enum TasksAcquisitionError {
     Lock(#[from] MutexLockError),
+    TaskNotDefined(#[from] TaskNotDefinedError),
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("Failed to retrieve task's result")]
-pub enum TasksResultRetrievalError {
-    Lock(#[from] MutexLockError),
-}
+#[error("Task {0:?} is not defined")]
+pub struct TaskNotDefinedError(String);
 
 #[derive(Debug, thiserror::Error)]
 #[error("Failed to reset tasks results")]
@@ -147,6 +155,7 @@ pub enum TasksResultResetError {
 #[error("Failed to set task's result")]
 pub enum TasksResultSetError {
     Lock(#[from] MutexLockError),
+    TaskNotDefined(#[from] TaskNotDefinedError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -157,22 +166,25 @@ pub struct UnregisteredDependenciesError(pub Vec<String>);
 #[error("Duplicate task: {0:?}")]
 pub struct DuplicateTaskError(pub String);
 
-#[derive(Debug, Default, Clone)]
-pub struct TasksModule {
-    tasks: Arc<Mutex<Tasks>>,
-    execution_results: Arc<Mutex<HashMap<String, mlua::Value>>>,
-}
+impl Tasks {
+    pub fn tasks_in_execution_order(&self) -> Result<Vec<Task>, TasksAcquisitionError> {
+        let guard = self.0.lock().map_err(|_| MutexLockError)?;
 
-impl TasksModule {
-    pub fn add_task(&self, name: String, config: TaskConfig) -> Result<(), TaskAdditionError> {
-        let mut guard = self.tasks.lock().map_err(|_| TaskAdditionError {
+        let mut tasks: Vec<Task> = guard.clone().into_values().collect();
+        tasks.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+
+        Ok(tasks)
+    }
+
+    pub fn add(&self, name: String, config: Task) -> Result<(), TaskAdditionError> {
+        let mut guard = self.0.lock().map_err(|_| TaskAdditionError {
             task: name.clone(),
             kind: MutexLockError.into(),
         })?;
 
         let mut unregistered_dependencies = Vec::with_capacity(config.dependencies.len());
         for dep in &config.dependencies {
-            if !guard.tasks.contains_key(dep) {
+            if !guard.contains_key(dep) {
                 unregistered_dependencies.push(dep.clone());
             }
         }
@@ -183,7 +195,7 @@ impl TasksModule {
             })?;
         }
 
-        if let Some(_) = guard.tasks.insert(name.clone(), config) {
+        if let Some(_) = guard.insert(name.clone(), config) {
             Err(TaskAdditionError {
                 task: name.clone(),
                 kind: DuplicateTaskError(name).into(),
@@ -193,29 +205,12 @@ impl TasksModule {
         Ok(())
     }
 
-    pub fn tasks(&self) -> Result<Tasks, TasksAcquisitionError> {
-        let guard = self.tasks.lock().map_err(|_| MutexLockError)?;
-
-        Ok((*guard).clone())
-    }
-
     pub fn reset_results(&self) -> Result<(), TasksResultResetError> {
-        let mut execution_results_guard =
-            self.execution_results.lock().map_err(|_| MutexLockError)?;
-        *execution_results_guard = Default::default();
+        let mut guard = self.0.lock().map_err(|_| MutexLockError)?;
+
+        guard.iter_mut().for_each(|(_, task)| task.result = None);
 
         Ok(())
-    }
-
-    pub fn task_result(
-        &self,
-        name: &str,
-    ) -> Result<Option<mlua::Value>, TasksResultRetrievalError> {
-        let execution_results_guard = self.execution_results.lock().map_err(|_| MutexLockError)?;
-
-        Ok(execution_results_guard
-            .get(name)
-            .map(|result| result.clone()))
     }
 
     pub fn set_task_result(
@@ -223,10 +218,46 @@ impl TasksModule {
         name: String,
         value: mlua::Value,
     ) -> Result<(), TasksResultSetError> {
-        let mut guard = self.execution_results.lock().map_err(|_| MutexLockError)?;
+        let mut guard = self.0.lock().map_err(|_| MutexLockError)?;
 
-        guard.insert(name, value);
+        match guard.get_mut(&name) {
+            Some(task) => {
+                task.result = Some(value);
+            }
+            None => Err(TaskNotDefinedError(name.clone()))?,
+        };
 
         Ok(())
+    }
+
+    fn get(&self, name: String) -> Result<Task, TasksAcquisitionError> {
+        let guard = self.0.lock().map_err(|_| MutexLockError)?;
+
+        Ok(guard
+            .get(&name)
+            .ok_or(TaskNotDefinedError(name.clone()))?
+            .clone())
+    }
+}
+
+impl UserData for Tasks {
+    fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
+        methods.add_meta_method(
+            MetaMethod::NewIndex,
+            |_, this, (name, config): (String, mlua::Value)| {
+                let task = Task::try_from((name.clone(), config))
+                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
+
+                Ok(this
+                    .add(name, task)
+                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
+            },
+        );
+
+        methods.add_meta_method(MetaMethod::Index, |_, this, (name,): (String,)| {
+            Ok(this
+                .get(name)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
+        });
     }
 }

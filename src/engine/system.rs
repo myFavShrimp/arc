@@ -1,6 +1,6 @@
 use std::{net::IpAddr, path::PathBuf};
 
-use mlua::UserData;
+use mlua::{IntoLua, UserData};
 use serde::Serialize;
 use ssh_executor::SshExecutor;
 
@@ -9,7 +9,7 @@ use crate::{
     ssh::{ConnectionError, SshClient, SshError},
 };
 
-use super::targets::SystemConfig;
+use super::targets::systems::SystemConfig;
 
 mod ssh_executor;
 
@@ -47,11 +47,39 @@ pub struct CommandResult {
     pub exit_code: i32,
 }
 
+impl IntoLua for CommandResult {
+    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
+        let result_table = lua.create_table()?;
+
+        result_table.set("stdout", self.stdout)?;
+        result_table.set("stderr", self.stderr)?;
+        result_table.set("exit_code", self.exit_code)?;
+
+        result_table.set_readonly(true);
+
+        Ok(mlua::Value::Table(result_table))
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct FileCopyResult {
     pub src: PathBuf,
     pub dest: PathBuf,
     pub size: usize,
+}
+
+impl IntoLua for FileCopyResult {
+    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
+        let result_table = lua.create_table()?;
+
+        result_table.set("src", self.src)?;
+        result_table.set("dest", self.dest)?;
+        result_table.set("size", self.size)?;
+
+        result_table.set_readonly(true);
+
+        Ok(mlua::Value::Table(result_table))
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -73,7 +101,6 @@ pub enum TaskError {
     UninitializedSshClient(#[from] UninitializedSshClientError),
 }
 
-// TODO: Remove and add automatic executor selection for system?
 impl Executor for ExecutionDelegator {
     fn copy_file(&self, src: PathBuf, dest: PathBuf) -> Result<FileCopyResult, TaskError> {
         self.ssh.copy_file(src, dest)
@@ -98,17 +125,17 @@ impl UserData for System {
 
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method("run_command", |_, this, cmd: String| {
-            this.execution_delegator
+            Ok(this
+                .execution_delegator
                 .run_command(cmd)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
-            Ok(())
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
         });
 
         methods.add_method("copy_file", |_, this, (src, dest): (PathBuf, PathBuf)| {
-            this.execution_delegator
+            Ok(this
+                .execution_delegator
                 .copy_file(src, dest)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
-            Ok(())
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
         });
     }
 }
