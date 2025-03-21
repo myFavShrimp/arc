@@ -6,7 +6,7 @@ Run tasks on remote hosts.
 
 ```lua
 -- arc.lua
-targets.system["frontend-server"] = {
+targets.systems["frontend-server"] = {
     address = "192.168.1.100",
     user = "root",
 }
