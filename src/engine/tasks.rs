@@ -60,10 +60,11 @@ impl TryFrom<(String, mlua::Value)> for Task {
                 let handler = table
                     .get::<mlua::Function>("handler")
                     .map_err(TaskFromLuaValueError::InvalidHandler)?;
-                let dependencies = table
-                    .get::<Vec<String>>("dependencies")
-                    .map_err(TaskFromLuaValueError::InvalidDependencies)?;
 
+                let dependencies = table
+                    .get::<Option<Vec<String>>>("dependencies")
+                    .map_err(TaskFromLuaValueError::InvalidDependencies)?
+                    .unwrap_or_default();
                 let tags = table
                     .get::<Option<Vec<String>>>("tags")
                     .map_err(TaskFromLuaValueError::InvalidTags)?

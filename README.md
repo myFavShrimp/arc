@@ -17,7 +17,7 @@ tasks["check nginx"] = {
 
         return result.exit_code == 0
     end,
-    dependencies = {}
+    tags = {"setup nginx"}
 }
 
 tasks["install nginx"] = {
@@ -29,6 +29,7 @@ tasks["install nginx"] = {
         end
     end,
     dependencies = {"check nginx"}
+    tags = {"setup nginx"}
 }
 
 tasks["print nginx installation error"] = {
