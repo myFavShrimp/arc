@@ -119,9 +119,7 @@ impl TargetsModule {
         Ok(())
     }
 
-    pub fn targets(
-        &self,
-    ) -> Result<Targets, crate::engine::modules::targets::TargetsAcquisitionError> {
+    pub fn targets(&self) -> Result<Targets, TargetsAcquisitionError> {
         let guard = self.targets.lock().map_err(|_| MutexLockError)?;
 
         Ok((*guard).clone())

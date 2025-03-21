@@ -193,7 +193,7 @@ impl TasksModule {
         Ok(())
     }
 
-    pub fn tasks(&self) -> Result<Tasks, crate::engine::modules::tasks::TasksAcquisitionError> {
+    pub fn tasks(&self) -> Result<Tasks, TasksAcquisitionError> {
         let guard = self.tasks.lock().map_err(|_| MutexLockError)?;
 
         Ok((*guard).clone())
@@ -210,7 +210,7 @@ impl TasksModule {
     pub fn task_result(
         &self,
         name: &str,
-    ) -> Result<Option<mlua::Value>, crate::engine::modules::tasks::TasksResultRetrievalError> {
+    ) -> Result<Option<mlua::Value>, TasksResultRetrievalError> {
         let execution_results_guard = self.execution_results.lock().map_err(|_| MutexLockError)?;
 
         Ok(execution_results_guard
@@ -222,7 +222,7 @@ impl TasksModule {
         &self,
         name: String,
         value: mlua::Value,
-    ) -> Result<(), crate::engine::modules::tasks::TasksResultSetError> {
+    ) -> Result<(), TasksResultSetError> {
         let mut guard = self.execution_results.lock().map_err(|_| MutexLockError)?;
 
         guard.insert(name, value);

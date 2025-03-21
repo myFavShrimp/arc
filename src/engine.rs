@@ -2,32 +2,28 @@ use std::{path::PathBuf, sync::Arc};
 
 use log::info;
 use mlua::{Lua, LuaOptions, StdLib};
-use modules::{
-    operations::ExecutionTargetSetError,
+use system::{ExecutionTargetSetError, System};
+use {
     targets::TargetsAcquisitionError,
     tasks::{TasksAcquisitionError, TasksResultResetError, TasksResultSetError},
-    ModuleRegistrationError,
-};
-use system::System;
-
-use crate::{
-    engine::modules::targets::TargetsModule, engine::modules::tasks::TaskConfig,
-    engine::modules::tasks::TasksModule, operations::OperationsExecutionModule,
 };
 
-pub mod modules;
+use {targets::TargetsModule, tasks::TaskConfig, tasks::TasksModule};
+
 pub mod system;
+pub mod targets;
+pub mod tasks;
 
 pub struct Engine {
     lua: Lua,
-    modules: modules::Modules,
+    targets: TargetsModule,
+    tasks: TasksModule,
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error("Failed to create engine")]
 pub enum EngineBuilderCreationError {
     Lua(#[from] mlua::Error),
-    ModuleRegistration(#[from] ModuleRegistrationError),
 }
 
 static ENTRY_POINT_SCRIPT: &str = "arc.lua";
@@ -48,14 +44,14 @@ impl Engine {
     pub fn new() -> Result<Self, EngineBuilderCreationError> {
         let lua = Lua::new_with(StdLib::ALL_SAFE, LuaOptions::new().catch_rust_panics(true))?;
 
-        let modules = modules::Modules {
-            targets: TargetsModule::default(),
-            tasks: TasksModule::default(),
-            operations: Arc::new(OperationsExecutionModule::default()),
-        };
-        modules.register_in_lua(&lua)?;
+        let targets = TargetsModule::default();
+        let tasks = TasksModule::default();
 
-        Ok(Self { lua, modules })
+        Ok(Self {
+            lua,
+            targets,
+            tasks,
+        })
     }
 
     pub fn execute(&self, tags: Vec<String>) -> Result<(), EngineExecutionError> {
@@ -68,12 +64,12 @@ impl Engine {
             .set_name(entry_point_script_path.to_string_lossy())
             .exec()?;
 
-        let targets = self.modules.targets.targets()?;
+        let targets = self.targets.targets()?;
 
         for (system_name, system_config) in &targets.systems {
             info!("Processing target {:?}", system_name);
 
-            let mut tasks = self.modules.tasks.tasks()?.tasks_in_execution_order();
+            let mut tasks = self.tasks.tasks()?.tasks_in_execution_order();
 
             if !tags.is_empty() {
                 tasks = tasks
@@ -92,7 +88,7 @@ impl Engine {
                 return Ok(());
             }
 
-            self.modules.tasks.reset_results()?;
+            self.tasks.reset_results()?;
             // self.modules
             //     .operations
             //     .set_execution_target(system_config)?;

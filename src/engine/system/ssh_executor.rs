@@ -25,10 +25,7 @@ impl Executor for SshExecutor {
         &self,
         src: std::path::PathBuf,
         dest: std::path::PathBuf,
-    ) -> Result<
-        crate::engine::modules::operations::FileCopyResult,
-        crate::engine::modules::operations::TaskError,
-    > {
+    ) -> Result<super::FileCopyResult, super::TaskError> {
         let client = self.ssh_client.lock().map_err(|_| MutexLockError)?;
 
         let command_result = client.copy_file(PathBuf::from(src), PathBuf::from(dest))?;
@@ -36,13 +33,7 @@ impl Executor for SshExecutor {
         Ok(command_result)
     }
 
-    fn run_command(
-        &self,
-        cmd: String,
-    ) -> Result<
-        crate::engine::modules::operations::CommandResult,
-        crate::engine::modules::operations::TaskError,
-    > {
+    fn run_command(&self, cmd: String) -> Result<super::CommandResult, super::TaskError> {
         let client = self.ssh_client.lock().map_err(|_| MutexLockError)?;
 
         let command_result = client.execute_command(&cmd)?;

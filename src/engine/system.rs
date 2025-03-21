@@ -1,14 +1,15 @@
 use std::{net::IpAddr, path::PathBuf};
 
-use mlua::{IntoLua, UserData};
+use mlua::UserData;
+use serde::Serialize;
 use ssh_executor::SshExecutor;
 
-use crate::{error::ErrorReport, ssh::SshClient};
-
-use super::modules::{
-    operations::{CommandResult, FileCopyResult, TaskError},
-    targets::SystemConfig,
+use crate::{
+    error::{ErrorReport, MutexLockError},
+    ssh::{ConnectionError, SshClient, SshError},
 };
+
+use super::targets::SystemConfig;
 
 mod ssh_executor;
 
@@ -21,9 +22,7 @@ pub struct System {
 }
 
 impl System {
-    pub fn connect(
-        config: &SystemConfig,
-    ) -> Result<Self, crate::engine::modules::operations::ExecutionTargetSetError> {
+    pub fn connect(config: &SystemConfig) -> Result<Self, ExecutionTargetSetError> {
         let ssh_client = SshClient::connect(config)?;
         let ssh_executor = SshExecutor::new(ssh_client);
 
@@ -39,6 +38,39 @@ impl System {
 #[derive(Clone)]
 pub struct ExecutionDelegator {
     ssh: SshExecutor,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CommandResult {
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: i32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FileCopyResult {
+    pub src: PathBuf,
+    pub dest: PathBuf,
+    pub size: usize,
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Failed to set execution target")]
+pub enum ExecutionTargetSetError {
+    Connection(#[from] ConnectionError),
+    Lock(#[from] MutexLockError),
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Missing execution target")]
+pub struct UninitializedSshClientError;
+
+#[derive(thiserror::Error, Debug)]
+#[error("Failed to execute tasks")]
+pub enum TaskError {
+    Ssh(#[from] SshError),
+    Lock(#[from] MutexLockError),
+    UninitializedSshClient(#[from] UninitializedSshClientError),
 }
 
 // TODO: Remove and add automatic executor selection for system?
