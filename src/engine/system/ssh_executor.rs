@@ -36,6 +36,14 @@ impl Executor for SshExecutor {
             .rename_file(&from.to_string_lossy(), &to.to_string_lossy())?)
     }
 
+    fn unlink(&self, path: PathBuf) -> Result<(), super::UnlinkError> {
+        Ok(self.ssh_client.unlink(&path.to_string_lossy())?)
+    }
+
+    fn remove_directory(&self, path: PathBuf) -> Result<(), super::RemoveDirError> {
+        Ok(self.ssh_client.remove_directory(&path.to_string_lossy())?)
+    }
+
     fn run_command(&self, cmd: String) -> Result<super::CommandResult, super::TaskError> {
         Ok(self.ssh_client.execute_command(&cmd)?)
     }
