@@ -11,6 +11,16 @@ targets.systems["frontend-server"] = {
     user = "root",
 }
 
+targets.systems["api-server"] = {
+    address = "192.168.1.101",
+    user = "root",
+    port = 42,
+}
+
+targets.groups["web-servers"] = {
+    members = {"frontend-server", "api-server"}
+}
+
 tasks["check nginx"] = {
     handler = function (system)
         local result = system:run_command("nginx -v")
@@ -30,13 +40,4 @@ tasks["install nginx"] = {
     end,
     dependencies = {"check nginx"}
     tags = {"setup nginx"}
-}
-
-tasks["print nginx installation error"] = {
-    handler = function (system)
-        local installation_result = tasks["install nginx"].result
-
-        print(installation_result.stderr)
-    end,
-    dependencies = {"install nginx"}
 }
