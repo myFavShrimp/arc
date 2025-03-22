@@ -27,8 +27,8 @@ impl System {
         let ssh_executor = SshExecutor::new(ssh_client);
 
         Ok(Self {
-            address: config.address.clone(),
-            port: config.port.clone(),
+            address: config.address,
+            port: config.port,
             user: config.user.clone(),
             execution_delegator: ExecutionDelegator { ssh: ssh_executor },
         })
@@ -125,17 +125,17 @@ impl UserData for System {
 
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method("run_command", |_, this, cmd: String| {
-            Ok(this
+            this
                 .execution_delegator
                 .run_command(cmd)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
 
         methods.add_method("copy_file", |_, this, (src, dest): (PathBuf, PathBuf)| {
-            Ok(this
+            this
                 .execution_delegator
                 .copy_file(src, dest)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
     }
 }

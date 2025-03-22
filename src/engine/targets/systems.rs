@@ -111,7 +111,7 @@ impl Systems {
     fn add(&self, name: String, config: SystemConfig) -> Result<(), SystemAdditionError> {
         let mut guard = self.0.lock().map_err(|_| MutexLockError)?;
 
-        if let Some(_) = guard.insert(name.clone(), config) {
+        if guard.insert(name.clone(), config).is_some() {
             Err(DuplicateSystemError(name))?;
         }
 
@@ -133,16 +133,16 @@ impl UserData for Systems {
         methods.add_meta_method(
             MetaMethod::NewIndex,
             |_, this, (name, config): (String, SystemConfig)| {
-                Ok(this
+                this
                     .add(name, config)
-                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
+                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
             },
         );
 
         methods.add_meta_method(MetaMethod::Index, |_, this, (name,): (String,)| {
-            Ok(this
+            this
                 .get(name)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
     }
 }

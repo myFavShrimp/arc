@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use file_system::FileSystem;
 use log::info;
 use mlua::{Lua, LuaOptions, StdLib};
 use system::{ExecutionTargetSetError, System};
@@ -12,6 +13,7 @@ use {
 use templates::{TemplateRenderError, Templates};
 use {targets::Targets, tasks::Task, tasks::Tasks};
 
+pub mod file_system;
 pub mod system;
 pub mod targets;
 pub mod tasks;
@@ -47,17 +49,19 @@ pub enum EngineExecutionError {
 }
 
 impl Engine {
-    pub fn new() -> Result<Self, EngineBuilderCreationError> {
+    pub fn new(root_directory: PathBuf) -> Result<Self, EngineBuilderCreationError> {
         let lua = Lua::new_with(StdLib::ALL_SAFE, LuaOptions::new().catch_rust_panics(true))?;
 
         let targets = Targets::default();
         let tasks = Tasks::default();
         let templates = Templates::new();
+        let file_system = FileSystem::new(root_directory);
 
         let globals = lua.globals();
         globals.set("targets", targets.clone())?;
         globals.set("tasks", tasks.clone())?;
-        globals.set("template", templates.clone())?;
+        globals.set("template", templates)?;
+        globals.set("fs", file_system)?;
 
         Ok(Self {
             lua,

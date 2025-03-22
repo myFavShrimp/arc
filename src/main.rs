@@ -19,7 +19,9 @@ fn main() -> Result<(), error::ErrorReport> {
 
     env_logger::Builder::new().filter_level(log_level).init();
 
-    Engine::new()
+    let current_dir = std::env::current_dir().map_err(error::ErrorReport::boxed_from)?;
+
+    Engine::new(current_dir)
         .map_err(error::ErrorReport::boxed_from)?
         .execute(cli_args.tag)
         .map_err(error::ErrorReport::boxed_from)?;

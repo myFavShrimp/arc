@@ -32,13 +32,10 @@ pub enum TargetsValidationError {
 #[error("Group member {0:?} of group {0:?} is not defined")]
 pub struct GroupMembersNotDefinedError(String, pub Vec<String>);
 
+pub type TargetsTuple = (HashMap<String, SystemConfig>, HashMap<String, GroupConfig>);
+
 impl Targets {
-    pub fn targets(
-        &self,
-    ) -> Result<
-        (HashMap<String, SystemConfig>, HashMap<String, GroupConfig>),
-        TargetsAcquisitionError,
-    > {
+    pub fn targets(&self) -> Result<TargetsTuple, TargetsAcquisitionError> {
         Ok((self.systems.all()?, self.groups.all()?))
     }
 

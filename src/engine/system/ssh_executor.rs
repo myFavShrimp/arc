@@ -1,7 +1,4 @@
-use std::{
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use crate::{error::MutexLockError, ssh::SshClient};
 
@@ -28,7 +25,7 @@ impl Executor for SshExecutor {
     ) -> Result<super::FileCopyResult, super::TaskError> {
         let client = self.ssh_client.lock().map_err(|_| MutexLockError)?;
 
-        let command_result = client.copy_file(PathBuf::from(src), PathBuf::from(dest))?;
+        let command_result = client.copy_file(src, dest)?;
 
         Ok(command_result)
     }

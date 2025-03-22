@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use log::debug;
 use mlua::UserData;
 use tera::Tera;
 use thiserror::Error;
@@ -47,6 +48,8 @@ impl Templates {
         template_content: &str,
         lua_context: mlua::Table,
     ) -> Result<String, TemplateRenderError> {
+        debug!("Rendering template");
+
         let mut context = tera::Context::new();
         Self::build_template_arguments(&mut context, lua_context, None)?;
 

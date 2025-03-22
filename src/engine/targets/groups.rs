@@ -92,7 +92,7 @@ impl Groups {
     fn add(&self, name: String, config: GroupConfig) -> Result<(), GroupAdditionError> {
         let mut guard = self.0.lock().map_err(|_| MutexLockError)?;
 
-        if let Some(_) = guard.insert(name.clone(), config) {
+        if guard.insert(name.clone(), config).is_some() {
             Err(DuplicateGroupError(name))?;
         }
 
@@ -114,16 +114,16 @@ impl UserData for Groups {
         methods.add_meta_method(
             MetaMethod::NewIndex,
             |_, this, (name, config): (String, GroupConfig)| {
-                Ok(this
+                this
                     .add(name, config)
-                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
+                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
             },
         );
 
         methods.add_meta_method(MetaMethod::Index, |_, this, (name,): (String,)| {
-            Ok(this
+            this
                 .get(name)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
     }
 }

@@ -196,7 +196,7 @@ impl Tasks {
             })?;
         }
 
-        if let Some(_) = guard.insert(name.clone(), config) {
+        if guard.insert(name.clone(), config).is_some() {
             Err(TaskAdditionError {
                 task: name.clone(),
                 kind: DuplicateTaskError(name).into(),
@@ -249,16 +249,14 @@ impl UserData for Tasks {
                 let task = Task::try_from((name.clone(), config))
                     .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
 
-                Ok(this
-                    .add(name, task)
-                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
+                this.add(name, task)
+                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
             },
         );
 
         methods.add_meta_method(MetaMethod::Index, |_, this, (name,): (String,)| {
-            Ok(this
-                .get(name)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
+            this.get(name)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
     }
 }
