@@ -7,12 +7,15 @@ use mlua::{IntoLua, MetaMethod, UserData};
 
 use crate::error::{ErrorReport, MutexLockError};
 
+use super::targets::groups::GroupConfig;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Task {
     pub name: String,
     pub handler: mlua::Function,
     pub dependencies: Vec<String>,
     pub tags: Vec<String>,
+    pub groups: Vec<String>,
     pub result: Option<mlua::Value>,
 }
 
@@ -49,6 +52,8 @@ pub enum TaskFromLuaValueError {
     InvalidHandler(#[source] mlua::Error),
     #[error("`tags` is invalid")]
     InvalidTags(#[source] mlua::Error),
+    #[error("`groups` is invalid")]
+    InvalidGroups(#[source] mlua::Error),
 }
 
 impl TryFrom<(String, mlua::Value)> for Task {
@@ -69,12 +74,17 @@ impl TryFrom<(String, mlua::Value)> for Task {
                     .get::<Option<Vec<String>>>("tags")
                     .map_err(TaskFromLuaValueError::InvalidTags)?
                     .unwrap_or_default();
+                let groups = table
+                    .get::<Option<Vec<String>>>("groups")
+                    .map_err(TaskFromLuaValueError::InvalidGroups)?
+                    .unwrap_or_default();
 
                 Ok(Task {
                     name,
                     handler,
                     dependencies,
                     tags,
+                    groups,
                     result: None,
                 })
             }
@@ -83,6 +93,7 @@ impl TryFrom<(String, mlua::Value)> for Task {
                 handler,
                 dependencies: Default::default(),
                 tags: Default::default(),
+                groups: Default::default(),
                 result: None,
             }),
             mlua::Value::Nil
@@ -167,7 +178,42 @@ pub struct UnregisteredDependenciesError(pub Vec<String>);
 #[error("Duplicate task: {0:?}")]
 pub struct DuplicateTaskError(pub String);
 
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub enum TasksValidationError {
+    TasksAcquisition(#[from] TasksAcquisitionError),
+    GroupNotDefined(#[from] GroupFilterNotDefinedError),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Group filter {1:?} of task {0:?} is not defined")]
+pub struct GroupFilterNotDefinedError(String, pub Vec<String>);
+
 impl Tasks {
+    pub fn all(&self) -> Result<HashMap<String, Task>, TasksAcquisitionError> {
+        let guard = self.0.lock().map_err(|_| MutexLockError)?;
+
+        Ok(guard.clone())
+    }
+
+    pub fn validate(
+        &self,
+        groups: &HashMap<String, GroupConfig>,
+    ) -> Result<(), TasksValidationError> {
+        let tasks = self.all()?;
+
+        for (name, task) in tasks {
+            let mut task_groups = task.groups;
+            task_groups.retain(|name| !groups.contains_key(name));
+
+            if !task_groups.is_empty() {
+                Err(GroupFilterNotDefinedError(name, task_groups))?
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn filtered_tasks_in_execution_order(
         &self,
         tags: &[String],
@@ -179,11 +225,11 @@ impl Tasks {
 
         if !tags.is_empty() {
             tasks.retain(|config| {
-                    config
-                        .tags
-                        .iter()
-                        .any(|config_tag| tags.contains(config_tag))
-                });
+                config
+                    .tags
+                    .iter()
+                    .any(|config_tag| tags.contains(config_tag))
+            });
         }
 
         Ok(tasks)

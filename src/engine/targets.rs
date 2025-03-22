@@ -29,7 +29,7 @@ pub enum TargetsValidationError {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("Group member {0:?} of group {0:?} is not defined")]
+#[error("Group member {1:?} of group {0:?} is not defined")]
 pub struct GroupMembersNotDefinedError(String, pub Vec<String>);
 
 pub type TargetsTuple = (HashMap<String, SystemConfig>, HashMap<String, GroupConfig>);

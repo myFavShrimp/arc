@@ -5,6 +5,7 @@ use log::info;
 use mlua::{Lua, LuaOptions, StdLib};
 use system::{ExecutionTargetSetError, System};
 use targets::TargetsValidationError;
+use tasks::TasksValidationError;
 use {
     targets::TargetsAcquisitionError,
     tasks::{TasksAcquisitionError, TasksResultResetError, TasksResultSetError},
@@ -45,6 +46,7 @@ pub enum EngineExecutionError {
     TasksResultReset(#[from] TasksResultResetError),
     TasksResultSet(#[from] TasksResultSetError),
     TargetsValidation(#[from] TargetsValidationError),
+    TasksValidation(#[from] TasksValidationError),
     Templates(#[from] TemplateRenderError),
     FilteredGroupDoesNotExistError(#[from] FilteredGroupDoesNotExistError),
 }
@@ -90,6 +92,7 @@ impl Engine {
 
         self.targets.validate()?;
         let (mut systems, mut group_configs) = self.targets.targets()?;
+        self.tasks.validate(&group_configs)?;
 
         group_configs.retain(|name, _| !groups.is_empty() && groups.contains(name));
         systems.retain(|name, _| {
