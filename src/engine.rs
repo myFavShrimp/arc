@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use file_system::FileSystem;
+use format::Format;
 use log::info;
 use mlua::{Lua, LuaOptions, StdLib};
 use system::{ExecutionTargetSetError, System};
@@ -15,6 +16,7 @@ use templates::{TemplateRenderError, Templates};
 use {targets::Targets, tasks::Tasks};
 
 pub mod file_system;
+pub mod format;
 pub mod system;
 pub mod targets;
 pub mod tasks;
@@ -63,12 +65,14 @@ impl Engine {
         let tasks = Tasks::default();
         let templates = Templates::new();
         let file_system = FileSystem::new(root_directory);
+        let format = Format::new();
 
         let globals = lua.globals();
         globals.set("targets", targets.clone())?;
         globals.set("tasks", tasks.clone())?;
         globals.set("template", templates)?;
         globals.set("fs", file_system)?;
+        globals.set("format", format)?;
 
         Ok(Self {
             lua,

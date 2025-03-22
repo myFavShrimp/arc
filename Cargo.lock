@@ -85,6 +85,7 @@ dependencies = [
  "log",
  "mlua",
  "serde",
+ "serde_json",
  "ssh2",
  "tera",
  "thiserror",
