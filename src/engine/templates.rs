@@ -50,8 +50,8 @@ impl Templates {
     ) -> Result<String, TemplateRenderError> {
         debug!("Rendering template");
 
-        let mut context = tera::Context::new();
-        Self::build_template_arguments(&mut context, lua_context, None)?;
+        let context =
+            tera::Context::from_value(Self::build_template_arguments(lua_context)?.into())?;
 
         let mut guard = self.tera.lock().map_err(|_| MutexLockError)?;
 
@@ -59,10 +59,10 @@ impl Templates {
     }
 
     fn build_template_arguments(
-        context: &mut tera::Context,
         table: mlua::Table,
-        prefix: Option<String>,
-    ) -> Result<(), TemplateArgumentsError> {
+    ) -> Result<tera::Map<String, tera::Value>, TemplateArgumentsError> {
+        let mut map = tera::Map::new();
+
         for pair in table.pairs::<mlua::Value, mlua::Value>() {
             let (key, value) = pair?;
 
@@ -73,30 +73,32 @@ impl Templates {
                 other => Err(InvalidArgumentNameError(other.type_name().to_string()))?,
             };
 
-            let full_key = if let Some(ref prefix) = prefix {
-                format!("{}.{}", prefix, key_string)
-            } else {
-                key_string
-            };
-
             match value {
-                mlua::Value::Nil => context.insert(&full_key, &()),
-                mlua::Value::Boolean(b) => context.insert(&full_key, &b),
-                mlua::Value::Integer(i) => context.insert(&full_key, &i),
-                mlua::Value::Number(n) => context.insert(&full_key, &n),
+                mlua::Value::Nil => {
+                    map.insert(key_string, ().into());
+                }
+                mlua::Value::Boolean(b) => {
+                    map.insert(key_string, b.into());
+                }
+                mlua::Value::Integer(i) => {
+                    map.insert(key_string, i.into());
+                }
+                mlua::Value::Number(n) => {
+                    map.insert(key_string, n.into());
+                }
                 mlua::Value::String(s) => {
                     if let Ok(string) = s.to_str() {
-                        context.insert(&full_key, &string.to_string())
+                        map.insert(key_string, string.to_string().into());
                     }
                 }
                 mlua::Value::Table(t) => {
-                    Self::build_template_arguments(context, t, Some(full_key))?;
+                    map.insert(key_string, Self::build_template_arguments(t)?.into());
                 }
                 other => Err(InvalidArgumentNameError(other.type_name().to_string()))?,
             }
         }
 
-        Ok(())
+        Ok(map)
     }
 }
 

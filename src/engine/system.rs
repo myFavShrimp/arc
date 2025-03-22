@@ -1,4 +1,4 @@
-use std::{net::IpAddr, path::PathBuf};
+use std::{fmt::Display, net::IpAddr, path::PathBuf};
 
 use mlua::{IntoLua, UserData};
 use serde::Serialize;
@@ -115,13 +115,13 @@ pub enum MetadataType {
     Unknown,
 }
 
-impl ToString for MetadataType {
-    fn to_string(&self) -> String {
-        match self {
-            MetadataType::File => "file".to_string(),
-            MetadataType::Directory => "directory".to_string(),
-            MetadataType::Unknown => "unknown".to_string(),
-        }
+impl Display for MetadataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            MetadataType::File => "file",
+            MetadataType::Directory => "directory",
+            MetadataType::Unknown => "unknown",
+        })
     }
 }
 
