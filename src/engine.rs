@@ -91,17 +91,21 @@ impl Engine {
             .exec()?;
 
         self.targets.validate()?;
-        let (mut systems, mut group_configs) = self.targets.targets()?;
+        let (mut systems, group_configs) = self.targets.targets()?;
         self.tasks.validate(&group_configs)?;
 
-        group_configs.retain(|name, _| !groups.is_empty() && groups.contains(name));
+        let mut filtered_group_configs = group_configs.clone();
+        filtered_group_configs.retain(|name, _| groups.is_empty() || groups.contains(name));
         systems.retain(|name, _| {
-            group_configs
+            filtered_group_configs
                 .iter()
                 .any(|(_, group)| group.members.contains(name))
+                || !group_configs
+                    .iter()
+                    .any(|(_, group)| group.members.contains(name))
         });
 
-        groups.retain(|name| !group_configs.contains_key(name));
+        groups.retain(|name| !filtered_group_configs.contains_key(name));
         if !groups.is_empty() {
             Err(FilteredGroupDoesNotExistError(groups))?
         }

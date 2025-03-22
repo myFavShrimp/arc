@@ -5,7 +5,7 @@ use mlua::UserData;
 use tera::Tera;
 use thiserror::Error;
 
-use crate::error::MutexLockError;
+use crate::error::{ErrorReport, MutexLockError};
 
 #[derive(Debug, Clone)]
 pub struct Templates {
@@ -106,11 +106,10 @@ impl UserData for Templates {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method(
             "render",
-            |_, this, (template_content, context): (String, mlua::Table)| match this
-                .render_string_with_lua_context(&template_content, context)
-            {
-                Ok(result) => Ok(result),
-                Err(err) => Err(mlua::Error::external(err)),
+            |_, this, (template_content, context): (String, mlua::Table)| {
+                Ok(this
+                    .render_string_with_lua_context(&template_content, context)
+                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
             },
         );
     }
