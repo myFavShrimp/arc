@@ -4,19 +4,22 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use mlua::{FromLua, IntoLua, MetaMethod, UserData};
+use mlua::{IntoLua, MetaMethod, UserData};
 
 use crate::error::{ErrorReport, MutexLockError};
 
 #[derive(Debug, Clone)]
 pub struct SystemConfig {
+    pub name: String,
     pub address: IpAddr,
     pub port: u16,
     pub user: String,
 }
 
-impl FromLua for SystemConfig {
-    fn from_lua(value: mlua::Value, _lua: &mlua::Lua) -> mlua::Result<Self> {
+impl TryFrom<(String, mlua::Value)> for SystemConfig {
+    type Error = mlua::Error;
+
+    fn try_from((name, value): (String, mlua::Value)) -> mlua::Result<Self> {
         match value {
             mlua::Value::Table(table) => {
                 let address_string = table
@@ -35,6 +38,7 @@ impl FromLua for SystemConfig {
                 let address = address_string.parse()?;
 
                 Ok(SystemConfig {
+                    name,
                     address,
                     port,
                     user,
@@ -60,6 +64,7 @@ impl FromLua for SystemConfig {
 impl IntoLua for SystemConfig {
     fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
         let config_table = lua.create_table()?;
+        config_table.set("name", self.name)?;
         config_table.set("address", self.address.to_string())?;
         config_table.set("port", self.port)?;
         config_table.set("user", self.user)?;
@@ -132,16 +137,16 @@ impl UserData for Systems {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_meta_method(
             MetaMethod::NewIndex,
-            |_, this, (name, config): (String, SystemConfig)| {
-                this
-                    .add(name, config)
+            |_, this, (name, config): (String, mlua::Value)| {
+                let config = SystemConfig::try_from((name.clone(), config))?;
+
+                this.add(name, config)
                     .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
             },
         );
 
         methods.add_meta_method(MetaMethod::Index, |_, this, (name,): (String,)| {
-            this
-                .get(name)
+            this.get(name)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
     }

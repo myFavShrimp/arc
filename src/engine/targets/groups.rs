@@ -114,15 +114,13 @@ impl UserData for Groups {
         methods.add_meta_method(
             MetaMethod::NewIndex,
             |_, this, (name, config): (String, GroupConfig)| {
-                this
-                    .add(name, config)
+                this.add(name, config)
                     .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
             },
         );
 
         methods.add_meta_method(MetaMethod::Index, |_, this, (name,): (String,)| {
-            this
-                .get(name)
+            this.get(name)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
     }
