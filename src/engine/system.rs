@@ -147,6 +147,18 @@ pub enum RemoveDirectoryError {
     Ssh(#[from] ssh::RemoveDirectoryError),
 }
 
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum CreateDirectoryError {
+    Ssh(#[from] ssh::CreateDirectoryError),
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum SetPermissionsError {
+    Ssh(#[from] ssh::SetPermissionsError),
+}
+
 impl Executor for ExecutionDelegator {
     fn read_file(&self, path: PathBuf) -> Result<FileReadResult, FileReadError> {
         self.ssh.read_file(path)
@@ -172,6 +184,14 @@ impl Executor for ExecutionDelegator {
         self.ssh.remove_directory(path)
     }
 
+    fn create_directory(&self, path: PathBuf) -> Result<(), CreateDirectoryError> {
+        self.ssh.create_directory(path)
+    }
+
+    fn set_permissions(&self, path: PathBuf, mode: u32) -> Result<(), SetPermissionsError> {
+        self.ssh.set_permissions(path, mode)
+    }
+
     fn run_command(&self, cmd: String) -> Result<CommandResult, TaskError> {
         self.ssh.run_command(cmd)
     }
@@ -184,6 +204,8 @@ pub trait Executor {
     fn rename_file(&self, from: PathBuf, to: PathBuf) -> Result<(), RenameError>;
     fn remove_file(&self, path: PathBuf) -> Result<(), RemoveFileError>;
     fn remove_directory(&self, path: PathBuf) -> Result<(), RemoveDirectoryError>;
+    fn create_directory(&self, path: PathBuf) -> Result<(), CreateDirectoryError>;
+    fn set_permissions(&self, path: PathBuf, mode: u32) -> Result<(), SetPermissionsError>;
 
     fn run_command(&self, cmd: String) -> Result<CommandResult, TaskError>;
 }
@@ -234,5 +256,20 @@ impl UserData for System {
                 .remove_directory(path)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
+
+        methods.add_method("create_directory", |_, this, (path,): (PathBuf,)| {
+            this.execution_delegator
+                .create_directory(path)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+        });
+
+        methods.add_method(
+            "set_permissions",
+            |_, this, (path, mode): (PathBuf, u32)| {
+                this.execution_delegator
+                    .set_permissions(path, mode)
+                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+            },
+        );
     }
 }

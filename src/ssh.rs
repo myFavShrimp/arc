@@ -80,6 +80,22 @@ pub struct RemoveDirectoryError {
     source: ssh2::Error,
 }
 
+#[derive(thiserror::Error, Debug)]
+#[error("Failed to create remote directory {path:?}")]
+pub struct CreateDirectoryError {
+    path: String,
+    #[source]
+    source: ssh2::Error,
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Failed to set permissions on remote path {path:?}")]
+pub struct SetPermissionsError {
+    path: String,
+    #[source]
+    source: ssh2::Error,
+}
+
 impl SshClient {
     pub fn connect(system: &SystemConfig) -> Result<Self, ConnectionError> {
         debug!("Connecting to {}...", system.socket_address());
@@ -214,6 +230,48 @@ impl SshClient {
         })?;
         sftp.rmdir(&PathBuf::from(path))
             .map_err(|e| RemoveDirectoryError {
+                path: path.to_string(),
+                source: e,
+            })?;
+
+        Ok(())
+    }
+
+    pub fn create_directory(&self, path: &str) -> Result<(), CreateDirectoryError> {
+        debug!("Creating remote directory {}", path);
+
+        let sftp = self.session.sftp().map_err(|e| CreateDirectoryError {
+            path: path.to_string(),
+            source: e,
+        })?;
+        sftp.mkdir(&PathBuf::from(path), 0o755)
+            .map_err(|e| CreateDirectoryError {
+                path: path.to_string(),
+                source: e,
+            })?;
+
+        Ok(())
+    }
+
+    pub fn set_permissions(&self, path: &str, mode: u32) -> Result<(), SetPermissionsError> {
+        debug!("Setting permissions on remote path {} to {:o}", path, mode);
+
+        let sftp = self.session.sftp().map_err(|e| SetPermissionsError {
+            path: path.to_string(),
+            source: e,
+        })?;
+
+        let stat = ssh2::FileStat {
+            size: None,
+            uid: None,
+            gid: None,
+            perm: Some(mode),
+            atime: None,
+            mtime: None,
+        };
+
+        sftp.setstat(&PathBuf::from(path), stat)
+            .map_err(|e| SetPermissionsError {
                 path: path.to_string(),
                 source: e,
             })?;

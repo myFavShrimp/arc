@@ -44,6 +44,16 @@ impl Executor for SshExecutor {
         Ok(self.ssh_client.remove_directory(&path.to_string_lossy())?)
     }
 
+    fn create_directory(&self, path: PathBuf) -> Result<(), super::CreateDirectoryError> {
+        Ok(self.ssh_client.create_directory(&path.to_string_lossy())?)
+    }
+
+    fn set_permissions(&self, path: PathBuf, mode: u32) -> Result<(), super::SetPermissionsError> {
+        Ok(self
+            .ssh_client
+            .set_permissions(&path.to_string_lossy(), mode)?)
+    }
+
     fn run_command(&self, cmd: String) -> Result<super::CommandResult, super::TaskError> {
         Ok(self.ssh_client.execute_command(&cmd)?)
     }
