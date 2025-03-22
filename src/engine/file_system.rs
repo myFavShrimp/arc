@@ -39,7 +39,7 @@ impl FileSystem {
     fn read_file_to_string(&self, path: PathBuf) -> Result<String, FileReadError> {
         debug!("Reading file {:?}", path);
 
-        let path = std::fs::canonicalize(path.clone()).map_err(|e| FileReadError {
+        let path = std::fs::canonicalize(&path).map_err(|e| FileReadError {
             path: path.clone(),
             kind: FileReadErrorKind::Io(e),
         })?;
