@@ -4,7 +4,9 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
 
-use crate::engine::system::{CommandResult, FileReadResult, FileWriteResult};
+use crate::engine::system::{
+    CommandResult, FileReadResult, FileWriteResult, MetadataResult, MetadataType,
+};
 use crate::engine::targets::systems::SystemConfig;
 
 #[derive(Clone)]
@@ -91,6 +93,14 @@ pub struct CreateDirectoryError {
 #[derive(thiserror::Error, Debug)]
 #[error("Failed to set permissions on remote path {path:?}")]
 pub struct SetPermissionsError {
+    path: String,
+    #[source]
+    source: ssh2::Error,
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Failed to get metadata for remote file {path:?}")]
+pub struct MetadataError {
     path: String,
     #[source]
     source: ssh2::Error,
@@ -277,5 +287,45 @@ impl SshClient {
             })?;
 
         Ok(())
+    }
+
+    pub fn metadata(&self, path: &PathBuf) -> Result<Option<MetadataResult>, MetadataError> {
+        debug!("Getting metadata for remote file {:?}", path);
+
+        let sftp = self.session.sftp().map_err(|e| MetadataError {
+            path: path.to_string_lossy().to_string(),
+            source: e,
+        })?;
+
+        let stat = match sftp.stat(path) {
+            Ok(stat) => stat,
+            Err(error) => match error.code() {
+                // No such file
+                ssh2::ErrorCode::SFTP(2) => return Ok(None),
+                ssh2::ErrorCode::SFTP(_) | ssh2::ErrorCode::Session(_) => Err(MetadataError {
+                    path: path.to_string_lossy().to_string(),
+                    source: error,
+                })?,
+            },
+        };
+
+        let file_type = if stat.is_dir() {
+            MetadataType::File
+        } else if stat.is_file() {
+            MetadataType::Directory
+        } else {
+            MetadataType::Unknown
+        };
+
+        Ok(Some(MetadataResult {
+            path: path.to_string_lossy().to_string(),
+            size: stat.size,
+            permissions: stat.perm,
+            r#type: file_type,
+            uid: stat.uid,
+            gid: stat.gid,
+            accessed: stat.atime,
+            modified: stat.mtime,
+        }))
     }
 }

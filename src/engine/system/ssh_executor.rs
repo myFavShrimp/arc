@@ -57,4 +57,11 @@ impl Executor for SshExecutor {
     fn run_command(&self, cmd: String) -> Result<super::CommandResult, super::TaskError> {
         Ok(self.ssh_client.execute_command(&cmd)?)
     }
+
+    fn metadata(
+        &self,
+        path: PathBuf,
+    ) -> Result<Option<super::MetadataResult>, super::MetadataError> {
+        Ok(self.ssh_client.metadata(&path)?)
+    }
 }

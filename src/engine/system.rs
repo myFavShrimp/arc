@@ -98,6 +98,52 @@ impl IntoLua for FileWriteResult {
     }
 }
 
+pub struct MetadataResult {
+    pub path: String,
+    pub size: Option<u64>,
+    pub permissions: Option<u32>,
+    pub r#type: MetadataType,
+    pub uid: Option<u32>,
+    pub gid: Option<u32>,
+    pub accessed: Option<u64>,
+    pub modified: Option<u64>,
+}
+
+pub enum MetadataType {
+    File,
+    Directory,
+    Unknown,
+}
+
+impl ToString for MetadataType {
+    fn to_string(&self) -> String {
+        match self {
+            MetadataType::File => "file".to_string(),
+            MetadataType::Directory => "directory".to_string(),
+            MetadataType::Unknown => "unknown".to_string(),
+        }
+    }
+}
+
+impl IntoLua for MetadataResult {
+    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
+        let result_table = lua.create_table()?;
+
+        result_table.set("path", self.path)?;
+        result_table.set("size", self.size)?;
+        result_table.set("permissions", self.permissions)?;
+        result_table.set("type", self.r#type.to_string())?;
+        result_table.set("uid", self.uid)?;
+        result_table.set("gid", self.gid)?;
+        result_table.set("accessed", self.accessed)?;
+        result_table.set("modified", self.modified)?;
+
+        result_table.set_readonly(true);
+
+        Ok(mlua::Value::Table(result_table))
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 #[error("Failed to set execution target")]
 pub enum ExecutionTargetSetError {
@@ -159,6 +205,12 @@ pub enum SetPermissionsError {
     Ssh(#[from] ssh::SetPermissionsError),
 }
 
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum MetadataError {
+    Ssh(#[from] ssh::MetadataError),
+}
+
 impl Executor for ExecutionDelegator {
     fn read_file(&self, path: PathBuf) -> Result<FileReadResult, FileReadError> {
         self.ssh.read_file(path)
@@ -192,6 +244,10 @@ impl Executor for ExecutionDelegator {
         self.ssh.set_permissions(path, mode)
     }
 
+    fn metadata(&self, path: PathBuf) -> Result<Option<MetadataResult>, MetadataError> {
+        self.ssh.metadata(path)
+    }
+
     fn run_command(&self, cmd: String) -> Result<CommandResult, TaskError> {
         self.ssh.run_command(cmd)
     }
@@ -206,7 +262,7 @@ pub trait Executor {
     fn remove_directory(&self, path: PathBuf) -> Result<(), RemoveDirectoryError>;
     fn create_directory(&self, path: PathBuf) -> Result<(), CreateDirectoryError>;
     fn set_permissions(&self, path: PathBuf, mode: u32) -> Result<(), SetPermissionsError>;
-
+    fn metadata(&self, path: PathBuf) -> Result<Option<MetadataResult>, MetadataError>;
     fn run_command(&self, cmd: String) -> Result<CommandResult, TaskError>;
 }
 
@@ -271,5 +327,11 @@ impl UserData for System {
                     .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
             },
         );
+
+        methods.add_method("metadata", |_, this, (path,): (PathBuf,)| {
+            this.execution_delegator
+                .metadata(path)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+        });
     }
 }
