@@ -15,6 +15,7 @@ mod ssh_executor;
 
 #[derive(Clone)]
 pub struct System {
+    pub name: String,
     pub address: IpAddr,
     pub port: u16,
     pub user: String,
@@ -27,6 +28,7 @@ impl System {
         let ssh_executor = SshExecutor::new(ssh_client);
 
         Ok(Self {
+            name: config.name.clone(),
             address: config.address,
             port: config.port,
             user: config.user.clone(),
@@ -268,6 +270,7 @@ pub trait Executor {
 
 impl UserData for System {
     fn add_fields<F: mlua::UserDataFields<Self>>(fields: &mut F) {
+        fields.add_field_method_get("name", |_, this| Ok(this.name.clone()));
         fields.add_field_method_get("address", |_, this| Ok(this.address.to_string()));
         fields.add_field_method_get("port", |_, this| Ok(this.port));
         fields.add_field_method_get("user", |_, this| Ok(this.user.clone()));
