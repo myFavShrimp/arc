@@ -199,12 +199,14 @@ tasks["task_name"] = {
     end,
     dependencies = {"other_task"}, -- Optional
     tags = {"tag1", "tag2"}, -- Optional
+    groups = {"group1", "group2"}, -- Optional
 }
 ```
 
 - `handler`: The function that implements the task. Takes a system object and returns a result.
 - `dependencies`: Array of task names that must be executed before this task.
 - `tags`: Array of tags associated with the task, used for filtering.
+- `groups`: Array of group names this task should run on. If not specified, the task runs on all groups.
 
 Within a task, you can access the result of a previously executed dependency using:
 
