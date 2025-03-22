@@ -68,16 +68,54 @@ To run all tasks on all systems:
 arc
 ```
 
-To run tasks with specific tags:
+To run tasks with a specific tag:
 
 ```bash
-arc --tags nginx
+arc --tag nginx
 ```
 
-To run tasks on specific groups:
+To run tasks on specific a group:
 
 ```bash
-arc --groups web-servers
+arc --group web-servers
+```
+
+## CLI Reference
+
+Arc provides several command-line options:
+
+```
+Usage:
+    arc [OPTIONS]
+
+Options:
+  -v, --verbose...     Enable verbose output (repeat for increased verbosity)
+  -t, --tag <TAG>      Filter tasks by tag
+  -g, --group <GROUP>  Run tasks only on specific groups
+  -d, --dry-run        Perform a dry run without executing commands or modifying the file system
+  -h, --help           Print help information
+```
+
+### Examples
+
+Run tasks with the "nginx" tag:
+```bash
+arc -t nginx
+```
+
+Run tasks on the "web-servers" group with verbose output:
+```bash
+arc -g web-servers -v
+```
+
+Run tasks with multiple tags and groups:
+```bash
+arc -t nginx -t security -g web-servers -g database-servers
+```
+
+Perform a dry run without executing commands:
+```bash
+arc --dry-run
 ```
 
 ## API Reference
