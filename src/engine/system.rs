@@ -137,14 +137,14 @@ pub enum RenameError {
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
-pub enum UnlinkError {
-    Ssh(#[from] ssh::UnlinkError),
+pub enum RemoveFileError {
+    Ssh(#[from] ssh::RemoveFileError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
-pub enum RemoveDirError {
-    Ssh(#[from] ssh::RemoveDirError),
+pub enum RemoveDirectoryError {
+    Ssh(#[from] ssh::RemoveDirectoryError),
 }
 
 impl Executor for ExecutionDelegator {
@@ -164,11 +164,11 @@ impl Executor for ExecutionDelegator {
         self.ssh.rename_file(from, to)
     }
 
-    fn unlink(&self, path: PathBuf) -> Result<(), UnlinkError> {
-        self.ssh.unlink(path)
+    fn remove_file(&self, path: PathBuf) -> Result<(), RemoveFileError> {
+        self.ssh.remove_file(path)
     }
 
-    fn remove_directory(&self, path: PathBuf) -> Result<(), RemoveDirError> {
+    fn remove_directory(&self, path: PathBuf) -> Result<(), RemoveDirectoryError> {
         self.ssh.remove_directory(path)
     }
 
@@ -182,8 +182,8 @@ pub trait Executor {
     fn write_file(&self, path: PathBuf, content: String)
         -> Result<FileWriteResult, FileWriteError>;
     fn rename_file(&self, from: PathBuf, to: PathBuf) -> Result<(), RenameError>;
-    fn unlink(&self, path: PathBuf) -> Result<(), UnlinkError>;
-    fn remove_directory(&self, path: PathBuf) -> Result<(), RemoveDirError>;
+    fn remove_file(&self, path: PathBuf) -> Result<(), RemoveFileError>;
+    fn remove_directory(&self, path: PathBuf) -> Result<(), RemoveDirectoryError>;
 
     fn run_command(&self, cmd: String) -> Result<CommandResult, TaskError>;
 }
@@ -223,9 +223,9 @@ impl UserData for System {
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
 
-        methods.add_method("unlink", |_, this, (path,): (PathBuf,)| {
+        methods.add_method("remove_file", |_, this, (path,): (PathBuf,)| {
             this.execution_delegator
-                .unlink(path)
+                .remove_file(path)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
 

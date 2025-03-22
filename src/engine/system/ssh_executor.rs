@@ -36,11 +36,11 @@ impl Executor for SshExecutor {
             .rename_file(&from.to_string_lossy(), &to.to_string_lossy())?)
     }
 
-    fn unlink(&self, path: PathBuf) -> Result<(), super::UnlinkError> {
-        Ok(self.ssh_client.unlink(&path.to_string_lossy())?)
+    fn remove_file(&self, path: PathBuf) -> Result<(), super::RemoveFileError> {
+        Ok(self.ssh_client.remove_file(&path.to_string_lossy())?)
     }
 
-    fn remove_directory(&self, path: PathBuf) -> Result<(), super::RemoveDirError> {
+    fn remove_directory(&self, path: PathBuf) -> Result<(), super::RemoveDirectoryError> {
         Ok(self.ssh_client.remove_directory(&path.to_string_lossy())?)
     }
 

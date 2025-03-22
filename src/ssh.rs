@@ -66,7 +66,7 @@ pub enum RenameErrorKind {
 
 #[derive(thiserror::Error, Debug)]
 #[error("Failed to delete remote file {path:?}")]
-pub struct UnlinkError {
+pub struct RemoveFileError {
     path: String,
     #[source]
     source: ssh2::Error,
@@ -74,7 +74,7 @@ pub struct UnlinkError {
 
 #[derive(thiserror::Error, Debug)]
 #[error("Failed to remove remote directory {path:?}")]
-pub struct RemoveDirError {
+pub struct RemoveDirectoryError {
     path: String,
     #[source]
     source: ssh2::Error,
@@ -189,30 +189,31 @@ impl SshClient {
         Ok(())
     }
 
-    pub fn unlink(&self, path: &str) -> Result<(), UnlinkError> {
+    pub fn remove_file(&self, path: &str) -> Result<(), RemoveFileError> {
         debug!("Deleting remote file {}", path);
 
-        let sftp = self.session.sftp().map_err(|e| UnlinkError {
+        let sftp = self.session.sftp().map_err(|e| RemoveFileError {
             path: path.to_string(),
             source: e,
         })?;
-        sftp.unlink(&PathBuf::from(path)).map_err(|e| UnlinkError {
-            path: path.to_string(),
-            source: e,
-        })?;
+        sftp.unlink(&PathBuf::from(path))
+            .map_err(|e| RemoveFileError {
+                path: path.to_string(),
+                source: e,
+            })?;
 
         Ok(())
     }
 
-    pub fn remove_directory(&self, path: &str) -> Result<(), RemoveDirError> {
+    pub fn remove_directory(&self, path: &str) -> Result<(), RemoveDirectoryError> {
         debug!("Removing remote directory {}", path);
 
-        let sftp = self.session.sftp().map_err(|e| RemoveDirError {
+        let sftp = self.session.sftp().map_err(|e| RemoveDirectoryError {
             path: path.to_string(),
             source: e,
         })?;
         sftp.rmdir(&PathBuf::from(path))
-            .map_err(|e| RemoveDirError {
+            .map_err(|e| RemoveDirectoryError {
                 path: path.to_string(),
                 source: e,
             })?;
