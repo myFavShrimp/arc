@@ -313,7 +313,7 @@ impl SshClient {
         };
 
         Ok(Some(MetadataResult {
-            path: path.to_string_lossy().to_string(),
+            path,
             size: stat.size,
             permissions: stat.perm,
             r#type: file_type,

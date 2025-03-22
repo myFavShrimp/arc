@@ -4,9 +4,13 @@ use file_system::FileSystem;
 use format::Format;
 use log::info;
 use mlua::{Lua, LuaOptions, StdLib};
-use system::{executor::ExecutionTargetSetError, System};
+use system::{
+    executor::{ExecutionTargetSetError, Executor},
+    System,
+};
 use targets::TargetsValidationError;
 use tasks::{Task, TasksValidationError};
+
 use {
     targets::TargetsAcquisitionError,
     tasks::{TasksAcquisitionError, TasksResultResetError, TasksResultSetError},
@@ -85,6 +89,7 @@ impl Engine {
         &self,
         tags: Vec<String>,
         mut groups: Vec<String>,
+        is_dry_run: bool,
     ) -> Result<(), EngineExecutionError> {
         let entry_point_script_path = PathBuf::from(ENTRY_POINT_SCRIPT);
         let entry_point_script = std::fs::read_to_string(&entry_point_script_path)?;
@@ -116,6 +121,10 @@ impl Engine {
 
         let tasks = self.tasks.filtered_tasks_in_execution_order(&tags)?;
 
+        if is_dry_run {
+            info!("Starting dry run ...");
+        }
+
         for (system_name, system_config) in systems {
             let system_groups = filtered_group_configs
                 .iter()
@@ -143,7 +152,13 @@ impl Engine {
 
             self.tasks.reset_results()?;
 
-            let system = System::connect(&system_config)?;
+            let system = System {
+                name: system_config.name.clone(),
+                address: system_config.address,
+                port: system_config.port,
+                user: system_config.user.clone(),
+                execution_delegator: Executor::new_for_system(&system_config, is_dry_run)?,
+            };
 
             for task_config in system_tasks {
                 info!("Executing `{}` for {}", task_config.name, system_name);

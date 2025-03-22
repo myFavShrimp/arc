@@ -10,4 +10,6 @@ pub struct Cli {
     pub tag: Vec<String>,
     #[arg(short, long)]
     pub group: Vec<String>,
+    #[arg(short, long)]
+    pub dry_run: bool,
 }

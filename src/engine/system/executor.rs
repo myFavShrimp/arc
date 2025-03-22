@@ -1,9 +1,11 @@
 use std::{fmt::Display, path::PathBuf};
 
+use log::info;
 use mlua::IntoLua;
 use serde::Serialize;
 
 use crate::{
+    engine::targets::systems::SystemConfig,
     error::MutexLockError,
     ssh::{self, ConnectionError, SshClient, SshError},
 };
@@ -11,15 +13,22 @@ use crate::{
 #[derive(Clone)]
 pub enum Executor {
     Ssh(SshClient),
+    Dry,
 }
 
 impl Executor {
-    pub fn new(ssh_client: SshClient) -> Self {
-        Self::Ssh(ssh_client)
+    pub fn new_for_system(
+        config: &SystemConfig,
+        is_dry_run: bool,
+    ) -> Result<Self, ExecutionTargetSetError> {
+        Ok(match is_dry_run {
+            true => Self::Dry,
+            false => Self::Ssh(SshClient::connect(config)?),
+        })
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct CommandResult {
     pub stdout: String,
     pub stderr: String,
@@ -40,7 +49,7 @@ impl IntoLua for CommandResult {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct FileReadResult {
     pub path: PathBuf,
     pub content: String,
@@ -58,7 +67,7 @@ impl IntoLua for FileReadResult {
         Ok(mlua::Value::Table(result_table))
     }
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct FileWriteResult {
     pub path: PathBuf,
     pub bytes_written: usize,
@@ -77,8 +86,9 @@ impl IntoLua for FileWriteResult {
     }
 }
 
+#[derive(Default)]
 pub struct MetadataResult {
-    pub path: String,
+    pub path: PathBuf,
     pub size: Option<u64>,
     pub permissions: Option<u32>,
     pub r#type: MetadataType,
@@ -88,9 +98,11 @@ pub struct MetadataResult {
     pub modified: Option<u64>,
 }
 
+#[derive(Default)]
 pub enum MetadataType {
     File,
     Directory,
+    #[default]
     Unknown,
 }
 
@@ -194,6 +206,14 @@ impl Executor {
     pub fn read_file(&self, path: PathBuf) -> Result<FileReadResult, FileReadError> {
         Ok(match self {
             Executor::Ssh(ssh_client) => ssh_client.read_file(path)?,
+            Executor::Dry => {
+                info!("CReading file {:?}", path);
+
+                FileReadResult {
+                    path,
+                    ..Default::default()
+                }
+            }
         })
     }
 
@@ -204,12 +224,23 @@ impl Executor {
     ) -> Result<FileWriteResult, FileWriteError> {
         Ok(match self {
             Executor::Ssh(ssh_client) => ssh_client.write_file(path, &content)?,
+            Executor::Dry => {
+                info!("Writing file {:?} with content {:?}", path, content);
+
+                FileWriteResult {
+                    path,
+                    ..Default::default()
+                }
+            }
         })
     }
 
     pub fn rename_file(&self, from: PathBuf, to: PathBuf) -> Result<(), RenameError> {
         match self {
             Executor::Ssh(ssh_client) => ssh_client.rename_file(from, to)?,
+            Executor::Dry => {
+                info!("Renaming file {:?} {:?}", from, to);
+            }
         };
         Ok(())
     }
@@ -217,6 +248,9 @@ impl Executor {
     pub fn remove_file(&self, path: PathBuf) -> Result<(), RemoveFileError> {
         match self {
             Executor::Ssh(ssh_client) => ssh_client.remove_file(path)?,
+            Executor::Dry => {
+                info!("Removing file {:?}", path);
+            }
         };
         Ok(())
     }
@@ -224,6 +258,9 @@ impl Executor {
     pub fn remove_directory(&self, path: PathBuf) -> Result<(), RemoveDirectoryError> {
         match self {
             Executor::Ssh(ssh_client) => ssh_client.remove_directory(path)?,
+            Executor::Dry => {
+                info!("Removing directory {:?}", path);
+            }
         };
         Ok(())
     }
@@ -231,6 +268,9 @@ impl Executor {
     pub fn create_directory(&self, path: PathBuf) -> Result<(), CreateDirectoryError> {
         match self {
             Executor::Ssh(ssh_client) => ssh_client.create_directory(path)?,
+            Executor::Dry => {
+                info!("Creating directory {:?}", path);
+            }
         };
         Ok(())
     }
@@ -238,6 +278,9 @@ impl Executor {
     pub fn set_permissions(&self, path: PathBuf, mode: u32) -> Result<(), SetPermissionsError> {
         match self {
             Executor::Ssh(ssh_client) => ssh_client.set_permissions(path, mode)?,
+            Executor::Dry => {
+                info!("Setting permission of {:?} to {:o}", path, mode);
+            }
         };
         Ok(())
     }
@@ -245,12 +288,25 @@ impl Executor {
     pub fn run_command(&self, cmd: String) -> Result<CommandResult, TaskError> {
         Ok(match self {
             Executor::Ssh(ssh_client) => ssh_client.execute_command(&cmd)?,
+            Executor::Dry => {
+                info!("Running command {:?}", cmd);
+
+                CommandResult::default()
+            }
         })
     }
 
     pub fn metadata(&self, path: PathBuf) -> Result<Option<MetadataResult>, MetadataError> {
         Ok(match self {
             Executor::Ssh(ssh_client) => ssh_client.metadata(path)?,
+            Executor::Dry => {
+                info!("Retrieving metadata for {:?}", path);
+
+                Some(MetadataResult {
+                    path,
+                    ..Default::default()
+                })
+            }
         })
     }
 }

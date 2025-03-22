@@ -1,11 +1,9 @@
 use std::{net::IpAddr, path::PathBuf};
 
-use executor::{ExecutionTargetSetError, Executor};
+use executor::Executor;
 use mlua::UserData;
 
-use crate::{error::ErrorReport, ssh::SshClient};
-
-use super::targets::systems::SystemConfig;
+use crate::error::ErrorReport;
 
 pub mod executor;
 
@@ -15,22 +13,7 @@ pub struct System {
     pub address: IpAddr,
     pub port: u16,
     pub user: String,
-    execution_delegator: Executor,
-}
-
-impl System {
-    pub fn connect(config: &SystemConfig) -> Result<Self, ExecutionTargetSetError> {
-        let ssh_client = SshClient::connect(config)?;
-        let ssh_executor = Executor::new(ssh_client);
-
-        Ok(Self {
-            name: config.name.clone(),
-            address: config.address,
-            port: config.port,
-            user: config.user.clone(),
-            execution_delegator: ssh_executor,
-        })
-    }
+    pub execution_delegator: Executor,
 }
 
 impl UserData for System {
