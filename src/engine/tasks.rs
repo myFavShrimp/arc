@@ -168,11 +168,23 @@ pub struct UnregisteredDependenciesError(pub Vec<String>);
 pub struct DuplicateTaskError(pub String);
 
 impl Tasks {
-    pub fn tasks_in_execution_order(&self) -> Result<Vec<Task>, TasksAcquisitionError> {
+    pub fn filtered_tasks_in_execution_order(
+        &self,
+        tags: &[String],
+    ) -> Result<Vec<Task>, TasksAcquisitionError> {
         let guard = self.0.lock().map_err(|_| MutexLockError)?;
 
         let mut tasks: Vec<Task> = guard.clone().into_values().collect();
         tasks.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+
+        if !tags.is_empty() {
+            tasks.retain(|config| {
+                    config
+                        .tags
+                        .iter()
+                        .any(|config_tag| tags.contains(config_tag))
+                });
+        }
 
         Ok(tasks)
     }
@@ -216,16 +228,16 @@ impl Tasks {
 
     pub fn set_task_result(
         &self,
-        name: String,
+        name: &str,
         value: mlua::Value,
     ) -> Result<(), TasksResultSetError> {
         let mut guard = self.0.lock().map_err(|_| MutexLockError)?;
 
-        match guard.get_mut(&name) {
+        match guard.get_mut(name) {
             Some(task) => {
                 task.result = Some(value);
             }
-            None => Err(TaskNotDefinedError(name.clone()))?,
+            None => Err(TaskNotDefinedError(name.to_string()))?,
         };
 
         Ok(())

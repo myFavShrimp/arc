@@ -23,7 +23,7 @@ fn main() -> Result<(), error::ErrorReport> {
 
     Engine::new(current_dir)
         .map_err(error::ErrorReport::boxed_from)?
-        .execute(cli_args.tag)
+        .execute(cli_args.tag, cli_args.group)
         .map_err(error::ErrorReport::boxed_from)?;
 
     Ok(())

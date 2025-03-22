@@ -8,4 +8,6 @@ pub struct Cli {
     pub verbose: u8,
     #[arg(short, long)]
     pub tag: Vec<String>,
+    #[arg(short, long)]
+    pub group: Vec<String>,
 }

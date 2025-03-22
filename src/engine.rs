@@ -11,7 +11,7 @@ use {
 };
 
 use templates::{TemplateRenderError, Templates};
-use {targets::Targets, tasks::Task, tasks::Tasks};
+use {targets::Targets, tasks::Tasks};
 
 pub mod file_system;
 pub mod system;
@@ -46,7 +46,12 @@ pub enum EngineExecutionError {
     TasksResultSet(#[from] TasksResultSetError),
     TargetsValidation(#[from] TargetsValidationError),
     Templates(#[from] TemplateRenderError),
+    FilteredGroupDoesNotExistError(#[from] FilteredGroupDoesNotExistError),
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("The filtered group {0:?} does not exist")]
+pub struct FilteredGroupDoesNotExistError(Vec<String>);
 
 impl Engine {
     pub fn new(root_directory: PathBuf) -> Result<Self, EngineBuilderCreationError> {
@@ -70,9 +75,12 @@ impl Engine {
         })
     }
 
-    pub fn execute(&self, tags: Vec<String>) -> Result<(), EngineExecutionError> {
+    pub fn execute(
+        &self,
+        tags: Vec<String>,
+        mut groups: Vec<String>,
+    ) -> Result<(), EngineExecutionError> {
         let entry_point_script_path = PathBuf::from(ENTRY_POINT_SCRIPT);
-
         let entry_point_script = std::fs::read_to_string(&entry_point_script_path)?;
 
         self.lua
@@ -81,39 +89,39 @@ impl Engine {
             .exec()?;
 
         self.targets.validate()?;
-        let targets = self.targets.targets()?;
+        let (mut systems, mut group_configs) = self.targets.targets()?;
 
-        for (system_name, system_config) in &targets.0 {
+        group_configs.retain(|name, _| !groups.is_empty() && groups.contains(name));
+        systems.retain(|name, _| {
+            group_configs
+                .iter()
+                .any(|(_, group)| group.members.contains(name))
+        });
+
+        groups.retain(|name| !group_configs.contains_key(name));
+        if !groups.is_empty() {
+            Err(FilteredGroupDoesNotExistError(groups))?
+        }
+
+        let tasks = self.tasks.filtered_tasks_in_execution_order(&tags)?;
+
+        for (system_name, system_config) in systems {
             info!("Processing target {:?}", system_name);
-
-            let mut tasks = self.tasks.tasks_in_execution_order()?;
-
-            if !tags.is_empty() {
-                tasks = tasks
-                    .into_iter()
-                    .filter(|config| {
-                        config
-                            .tags
-                            .iter()
-                            .any(|config_tag| tags.contains(config_tag))
-                    })
-                    .collect::<Vec<Task>>();
-            }
 
             if tasks.is_empty() {
                 info!("No tasks to execute for target {:?}", system_name);
-                return Ok(());
+                continue;
             }
 
             self.tasks.reset_results()?;
 
-            let system = System::connect(system_config)?;
+            let system = System::connect(&system_config)?;
 
-            for task_config in tasks {
+            for task_config in &tasks {
                 info!("Executing `{}` for {}", task_config.name, system_name);
 
                 let result = task_config.handler.call::<mlua::Value>(system.clone())?;
-                self.tasks.set_task_result(task_config.name, result)?;
+                self.tasks.set_task_result(&task_config.name, result)?;
             }
         }
 
