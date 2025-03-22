@@ -6,7 +6,7 @@ use ssh_executor::SshExecutor;
 
 use crate::{
     error::{ErrorReport, MutexLockError},
-    ssh::{ConnectionError, SshClient, SshError},
+    ssh::{self, ConnectionError, SshClient, SshError},
 };
 
 use super::targets::systems::SystemConfig;
@@ -62,19 +62,35 @@ impl IntoLua for CommandResult {
 }
 
 #[derive(Debug, Serialize)]
-pub struct FileCopyResult {
-    pub src: PathBuf,
-    pub dest: PathBuf,
-    pub size: usize,
+pub struct FileReadResult {
+    pub path: String,
+    pub content: String,
 }
 
-impl IntoLua for FileCopyResult {
+impl IntoLua for FileReadResult {
     fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
         let result_table = lua.create_table()?;
 
-        result_table.set("src", self.src)?;
-        result_table.set("dest", self.dest)?;
-        result_table.set("size", self.size)?;
+        result_table.set("path", self.path)?;
+        result_table.set("content", self.content)?;
+
+        result_table.set_readonly(true);
+
+        Ok(mlua::Value::Table(result_table))
+    }
+}
+#[derive(Debug, Serialize)]
+pub struct FileWriteResult {
+    pub path: String,
+    pub bytes_written: usize,
+}
+
+impl IntoLua for FileWriteResult {
+    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
+        let result_table = lua.create_table()?;
+
+        result_table.set("path", self.path)?;
+        result_table.set("bytes_written", self.bytes_written)?;
 
         result_table.set_readonly(true);
 
@@ -101,9 +117,39 @@ pub enum TaskError {
     UninitializedSshClient(#[from] UninitializedSshClientError),
 }
 
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum FileReadError {
+    Ssh(#[from] ssh::FileError<ssh::FileReadErrorKind>),
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum FileWriteError {
+    Ssh(#[from] ssh::FileError<ssh::FileWriteErrorKind>),
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum RenameError {
+    Ssh(#[from] ssh::RenameError),
+}
+
 impl Executor for ExecutionDelegator {
-    fn copy_file(&self, src: PathBuf, dest: PathBuf) -> Result<FileCopyResult, TaskError> {
-        self.ssh.copy_file(src, dest)
+    fn read_file(&self, path: PathBuf) -> Result<FileReadResult, FileReadError> {
+        self.ssh.read_file(path)
+    }
+
+    fn write_file(
+        &self,
+        path: PathBuf,
+        content: String,
+    ) -> Result<FileWriteResult, FileWriteError> {
+        self.ssh.write_file(path, content)
+    }
+
+    fn rename_file(&self, from: PathBuf, to: PathBuf) -> Result<(), RenameError> {
+        self.ssh.rename_file(from, to)
     }
 
     fn run_command(&self, cmd: String) -> Result<CommandResult, TaskError> {
@@ -112,7 +158,11 @@ impl Executor for ExecutionDelegator {
 }
 
 pub trait Executor {
-    fn copy_file(&self, src: PathBuf, dest: PathBuf) -> Result<FileCopyResult, TaskError>;
+    fn read_file(&self, path: PathBuf) -> Result<FileReadResult, FileReadError>;
+    fn write_file(&self, path: PathBuf, content: String)
+        -> Result<FileWriteResult, FileWriteError>;
+    fn rename_file(&self, from: PathBuf, to: PathBuf) -> Result<(), RenameError>;
+
     fn run_command(&self, cmd: String) -> Result<CommandResult, TaskError>;
 }
 
@@ -125,16 +175,29 @@ impl UserData for System {
 
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method("run_command", |_, this, cmd: String| {
-            this
-                .execution_delegator
+            this.execution_delegator
                 .run_command(cmd)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
 
-        methods.add_method("copy_file", |_, this, (src, dest): (PathBuf, PathBuf)| {
-            this
-                .execution_delegator
-                .copy_file(src, dest)
+        methods.add_method("read_file", |_, this, (path,): (PathBuf,)| {
+            this.execution_delegator
+                .read_file(path)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+        });
+
+        methods.add_method(
+            "write_file",
+            |_, this, (path, content): (PathBuf, String)| {
+                this.execution_delegator
+                    .write_file(path, content)
+                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+            },
+        );
+
+        methods.add_method("rename_file", |_, this, (from, to): (PathBuf, PathBuf)| {
+            this.execution_delegator
+                .rename_file(from, to)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
     }

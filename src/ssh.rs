@@ -4,9 +4,10 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
 
-use crate::engine::system::{CommandResult, FileCopyResult};
+use crate::engine::system::{CommandResult, FileReadResult, FileWriteResult};
 use crate::engine::targets::systems::SystemConfig;
 
+#[derive(Clone)]
 pub struct SshClient {
     session: Session,
 }
@@ -21,6 +22,44 @@ pub enum ConnectionError {
 #[derive(thiserror::Error, Debug)]
 #[error("Failed to perform ssh operation")]
 pub enum SshError {
+    Io(#[from] std::io::Error),
+    Ssh(#[from] ssh2::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Failed to read remote file {path:?}")]
+pub struct FileError<E: std::error::Error> {
+    path: String,
+    #[source]
+    kind: E,
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum FileReadErrorKind {
+    Io(#[from] std::io::Error),
+    Ssh(#[from] ssh2::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum FileWriteErrorKind {
+    Io(#[from] std::io::Error),
+    Ssh(#[from] ssh2::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Failed to rename remote file {from:?} to {to:?}")]
+pub struct RenameError {
+    from: String,
+    to: String,
+    #[source]
+    kind: RenameErrorKind,
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum RenameErrorKind {
     Io(#[from] std::io::Error),
     Ssh(#[from] ssh2::Error),
 }
@@ -65,32 +104,72 @@ impl SshClient {
         })
     }
 
-    pub fn copy_file(&self, src: PathBuf, dest: PathBuf) -> Result<FileCopyResult, SshError> {
-        debug!(
-            "Copying file from {} to remote path {}",
-            src.display(),
-            dest.display(),
-        );
+    pub fn read_file(&self, path: &str) -> Result<FileReadResult, FileError<FileReadErrorKind>> {
+        debug!("Reading remote file {:?}", path);
 
-        let content = std::fs::read(&src)?;
+        let sftp = self.session.sftp().map_err(|e| FileError {
+            path: path.to_string(),
+            kind: FileReadErrorKind::Ssh(e),
+        })?;
+        let mut file = sftp.open(path).map_err(|e| FileError {
+            path: path.to_string(),
+            kind: FileReadErrorKind::Ssh(e),
+        })?;
 
-        let mut channel = self
-            .session
-            .scp_send(&dest, 0o644, content.len() as u64, None)?;
+        let mut content = String::new();
+        file.read_to_string(&mut content).map_err(|e| FileError {
+            path: path.to_string(),
+            kind: FileReadErrorKind::Io(e),
+        })?;
 
-        channel.write_all(&content)?;
-
-        channel.send_eof()?;
-        channel.wait_eof()?;
-        channel.close()?;
-        channel.wait_close()?;
-
-        debug!("File copied successfully");
-
-        Ok(FileCopyResult {
-            src: src.to_path_buf(),
-            dest: dest.to_path_buf(),
-            size: content.len(),
+        Ok(FileReadResult {
+            path: path.to_string(),
+            content,
         })
+    }
+
+    pub fn write_file(
+        &self,
+        path: &str,
+        content: &str,
+    ) -> Result<FileWriteResult, FileError<FileWriteErrorKind>> {
+        debug!("Writing to remote file {:?}", path);
+
+        let sftp = self.session.sftp().map_err(|e| FileError {
+            path: path.to_string(),
+            kind: FileWriteErrorKind::Ssh(e),
+        })?;
+        let mut file = sftp.create(path.as_ref()).map_err(|e| FileError {
+            path: path.to_string(),
+            kind: FileWriteErrorKind::Ssh(e),
+        })?;
+
+        let bytes_written = file.write(content.as_bytes()).map_err(|e| FileError {
+            path: path.to_string(),
+            kind: FileWriteErrorKind::Io(e),
+        })?;
+
+        Ok(FileWriteResult {
+            path: path.to_string(),
+            bytes_written,
+        })
+    }
+
+    pub fn rename_file(&self, from: &str, to: &str) -> Result<(), RenameError> {
+        debug!("Renaming remote file {} to {}", from, to);
+
+        let sftp = self.session.sftp().map_err(|e| RenameError {
+            from: from.to_string(),
+            to: to.to_string(),
+            kind: RenameErrorKind::Ssh(e),
+        })?;
+        sftp.rename(&PathBuf::from(from), &PathBuf::from(to), None)
+            .map_err(|e| RenameError {
+                from: from.to_string(),
+                to: to.to_string(),
+                kind: RenameErrorKind::Ssh(e),
+            })?;
+
+        Ok(())
     }
 }

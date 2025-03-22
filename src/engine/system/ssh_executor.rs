@@ -1,40 +1,42 @@
-use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
 
-use crate::{error::MutexLockError, ssh::SshClient};
+use crate::ssh::SshClient;
 
 use super::Executor;
 
 #[derive(Clone)]
 pub struct SshExecutor {
-    ssh_client: Arc<Mutex<SshClient>>,
+    ssh_client: SshClient,
 }
 
 impl SshExecutor {
     pub fn new(ssh_client: SshClient) -> Self {
-        Self {
-            ssh_client: Arc::new(Mutex::new(ssh_client)),
-        }
+        Self { ssh_client }
     }
 }
 
 impl Executor for SshExecutor {
-    fn copy_file(
+    fn read_file(&self, path: PathBuf) -> Result<super::FileReadResult, super::FileReadError> {
+        Ok(self.ssh_client.read_file(&path.to_string_lossy())?)
+    }
+
+    fn write_file(
         &self,
-        src: std::path::PathBuf,
-        dest: std::path::PathBuf,
-    ) -> Result<super::FileCopyResult, super::TaskError> {
-        let client = self.ssh_client.lock().map_err(|_| MutexLockError)?;
+        path: PathBuf,
+        content: String,
+    ) -> Result<super::FileWriteResult, super::FileWriteError> {
+        Ok(self
+            .ssh_client
+            .write_file(&path.to_string_lossy(), &content)?)
+    }
 
-        let command_result = client.copy_file(src, dest)?;
-
-        Ok(command_result)
+    fn rename_file(&self, from: PathBuf, to: PathBuf) -> Result<(), super::RenameError> {
+        Ok(self
+            .ssh_client
+            .rename_file(&from.to_string_lossy(), &to.to_string_lossy())?)
     }
 
     fn run_command(&self, cmd: String) -> Result<super::CommandResult, super::TaskError> {
-        let client = self.ssh_client.lock().map_err(|_| MutexLockError)?;
-
-        let command_result = client.execute_command(&cmd)?;
-
-        Ok(command_result)
+        Ok(self.ssh_client.execute_command(&cmd)?)
     }
 }
