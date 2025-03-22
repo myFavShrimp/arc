@@ -2,7 +2,7 @@ use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(name = "arc")]
-#[command(about = "Written in Rust, using Luau", long_about = None)]
+#[command(about = "An infrastructure automation tool.", long_about = None)]
 pub struct Cli {
     #[arg(short, long, action = clap::ArgAction::Count)]
     pub verbose: u8,
