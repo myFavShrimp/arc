@@ -9,11 +9,13 @@ use {
     tasks::{TasksAcquisitionError, TasksResultResetError, TasksResultSetError},
 };
 
+use templates::{TemplateRenderError, Templates};
 use {targets::Targets, tasks::Task, tasks::Tasks};
 
 pub mod system;
 pub mod targets;
 pub mod tasks;
+pub mod templates;
 
 pub struct Engine {
     lua: Lua,
@@ -25,6 +27,7 @@ pub struct Engine {
 #[error("Failed to create engine")]
 pub enum EngineBuilderCreationError {
     Lua(#[from] mlua::Error),
+    Templates(#[from] TemplateRenderError),
 }
 
 static ENTRY_POINT_SCRIPT: &str = "arc.lua";
@@ -40,6 +43,7 @@ pub enum EngineExecutionError {
     TasksResultReset(#[from] TasksResultResetError),
     TasksResultSet(#[from] TasksResultSetError),
     TargetsValidation(#[from] TargetsValidationError),
+    Templates(#[from] TemplateRenderError),
 }
 
 impl Engine {
@@ -48,10 +52,12 @@ impl Engine {
 
         let targets = Targets::default();
         let tasks = Tasks::default();
+        let templates = Templates::new();
 
         let globals = lua.globals();
         globals.set("targets", targets.clone())?;
         globals.set("tasks", tasks.clone())?;
+        globals.set("template", templates.clone())?;
 
         Ok(Self {
             lua,
