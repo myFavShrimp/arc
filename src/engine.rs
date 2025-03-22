@@ -6,7 +6,7 @@ use log::info;
 use mlua::{Lua, LuaOptions, StdLib};
 use system::{ExecutionTargetSetError, System};
 use targets::TargetsValidationError;
-use tasks::TasksValidationError;
+use tasks::{Task, TasksValidationError};
 use {
     targets::TargetsAcquisitionError,
     tasks::{TasksAcquisitionError, TasksResultResetError, TasksResultSetError},
@@ -117,9 +117,26 @@ impl Engine {
         let tasks = self.tasks.filtered_tasks_in_execution_order(&tags)?;
 
         for (system_name, system_config) in systems {
+            let system_groups = filtered_group_configs
+                .iter()
+                .filter(|(_, config)| config.members.contains(&system_name))
+                .map(|(name, _)| name)
+                .collect::<Vec<&String>>();
+            let system_tasks = tasks
+                .iter()
+                .filter(|task| {
+                    system_groups.is_empty()
+                        || task.groups.is_empty()
+                        || task
+                            .groups
+                            .iter()
+                            .any(|group| system_groups.contains(&group))
+                })
+                .collect::<Vec<&Task>>();
+
             info!("Processing target {:?}", system_name);
 
-            if tasks.is_empty() {
+            if system_tasks.is_empty() {
                 info!("No tasks to execute for target {:?}", system_name);
                 continue;
             }
@@ -128,7 +145,7 @@ impl Engine {
 
             let system = System::connect(&system_config)?;
 
-            for task_config in &tasks {
+            for task_config in system_tasks {
                 info!("Executing `{}` for {}", task_config.name, system_name);
 
                 let result = task_config.handler.call::<mlua::Value>(system.clone())?;
