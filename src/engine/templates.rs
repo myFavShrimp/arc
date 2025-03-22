@@ -107,9 +107,9 @@ impl UserData for Templates {
         methods.add_method(
             "render",
             |_, this, (template_content, context): (String, mlua::Table)| {
-                Ok(this
+                this
                     .render_string_with_lua_context(&template_content, context)
-                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
+                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
             },
         );
     }

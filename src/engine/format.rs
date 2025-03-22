@@ -39,18 +39,18 @@ impl Format {
 impl UserData for Format {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_function("to_json", |_, value: mlua::Value| {
-            Ok(Self::to_json(value)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
+            Self::to_json(value)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
 
         methods.add_function("to_json_pretty", |_, value: mlua::Value| {
-            Ok(Self::to_json_pretty(value)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
+            Self::to_json_pretty(value)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
 
         methods.add_function("from_json", |lua, json_str: String| {
-            Ok(Self::from_json(lua, json_str)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?)
+            Self::from_json(lua, json_str)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
     }
 }
