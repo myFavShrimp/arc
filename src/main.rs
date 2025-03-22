@@ -21,9 +21,9 @@ fn main() -> Result<(), error::ErrorReport> {
 
     let current_dir = std::env::current_dir().map_err(error::ErrorReport::boxed_from)?;
 
-    Engine::new(current_dir)
+    Engine::new(current_dir, cli_args.dry_run)
         .map_err(error::ErrorReport::boxed_from)?
-        .execute(cli_args.tag, cli_args.group, cli_args.dry_run)
+        .execute(cli_args.tag, cli_args.group)
         .map_err(error::ErrorReport::boxed_from)?;
 
     Ok(())

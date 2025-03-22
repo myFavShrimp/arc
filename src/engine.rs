@@ -30,6 +30,7 @@ pub struct Engine {
     lua: Lua,
     targets: Targets,
     tasks: Tasks,
+    is_dry_run: bool,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -62,7 +63,10 @@ pub enum EngineExecutionError {
 pub struct FilteredGroupDoesNotExistError(Vec<String>);
 
 impl Engine {
-    pub fn new(root_directory: PathBuf) -> Result<Self, EngineBuilderCreationError> {
+    pub fn new(
+        root_directory: PathBuf,
+        is_dry_run: bool,
+    ) -> Result<Self, EngineBuilderCreationError> {
         let lua = Lua::new_with(StdLib::ALL_SAFE, LuaOptions::new().catch_rust_panics(true))?;
 
         let targets = Targets::default();
@@ -82,6 +86,7 @@ impl Engine {
             lua,
             targets,
             tasks,
+            is_dry_run,
         })
     }
 
@@ -89,7 +94,6 @@ impl Engine {
         &self,
         tags: Vec<String>,
         mut groups: Vec<String>,
-        is_dry_run: bool,
     ) -> Result<(), EngineExecutionError> {
         let entry_point_script_path = PathBuf::from(ENTRY_POINT_SCRIPT);
         let entry_point_script = std::fs::read_to_string(&entry_point_script_path)?;
@@ -121,7 +125,7 @@ impl Engine {
 
         let tasks = self.tasks.filtered_tasks_in_execution_order(&tags)?;
 
-        if is_dry_run {
+        if self.is_dry_run {
             info!("Starting dry run ...");
         }
 
@@ -157,7 +161,7 @@ impl Engine {
                 address: system_config.address,
                 port: system_config.port,
                 user: system_config.user.clone(),
-                execution_delegator: Executor::new_for_system(&system_config, is_dry_run)?,
+                execution_delegator: Executor::new_for_system(&system_config, self.is_dry_run)?,
             };
 
             for task_config in system_tasks {
