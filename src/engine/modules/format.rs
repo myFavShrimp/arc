@@ -17,10 +17,6 @@ pub enum FromJsonError {
 }
 
 impl Format {
-    pub fn new() -> Self {
-        Self {}
-    }
-
     fn to_json(value: mlua::Value) -> Result<String, ToJsonError> {
         Ok(serde_json::to_string(&serde_json::to_value(&value)?)?)
     }

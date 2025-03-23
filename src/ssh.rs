@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use crate::engine::system::executor::{
     CommandResult, FileReadResult, FileWriteResult, MetadataResult, MetadataType,
 };
-use crate::engine::targets::systems::SystemConfig;
+use crate::memory::target_systems::TargetSystem;
 
 #[derive(Clone)]
 pub struct SshClient {
@@ -107,7 +107,7 @@ pub struct MetadataError {
 }
 
 impl SshClient {
-    pub fn connect(system: &SystemConfig) -> Result<Self, ConnectionError> {
+    pub fn connect(system: &TargetSystem) -> Result<Self, ConnectionError> {
         debug!("Connecting to {}...", system.socket_address());
 
         let tcp =

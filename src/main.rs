@@ -6,6 +6,7 @@ use log::LevelFilter;
 mod cli;
 mod engine;
 mod error;
+mod memory;
 mod ssh;
 
 fn main() -> Result<(), error::ErrorReport> {

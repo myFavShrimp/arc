@@ -1,35 +1,31 @@
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
-use file_system::FileSystem;
-use format::Format;
 use log::info;
 use mlua::{Lua, LuaOptions, StdLib};
+use modules::Modules;
+use state::{State, TasksResultResetError, TasksResultStateSetError};
 use system::{
     executor::{ExecutionTargetSetError, Executor},
     System,
 };
-use targets::TargetsValidationError;
-use tasks::{Task, TasksValidationError};
 
-use {
-    targets::TargetsAcquisitionError,
-    tasks::{TasksAcquisitionError, TasksResultResetError, TasksResultSetError},
+use crate::{
+    error::MutexLockError,
+    memory::{
+        target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory, tasks::TasksMemory,
+    },
 };
 
-use templates::{TemplateRenderError, Templates};
-use {targets::Targets, tasks::Tasks};
-
-pub mod file_system;
-pub mod format;
+pub mod modules;
+pub mod state;
 pub mod system;
-pub mod targets;
-pub mod tasks;
-pub mod templates;
 
 pub struct Engine {
     lua: Lua,
-    targets: Targets,
-    tasks: Tasks,
+    state: State,
     is_dry_run: bool,
 }
 
@@ -37,7 +33,6 @@ pub struct Engine {
 #[error("Failed to create engine")]
 pub enum EngineBuilderCreationError {
     Lua(#[from] mlua::Error),
-    Templates(#[from] TemplateRenderError),
 }
 
 static ENTRY_POINT_SCRIPT: &str = "arc.lua";
@@ -48,14 +43,10 @@ pub enum EngineExecutionError {
     Io(#[from] std::io::Error),
     Lua(#[from] mlua::Error),
     ExecutionTargetSet(#[from] ExecutionTargetSetError),
-    TargetsAcquisition(#[from] TargetsAcquisitionError),
-    TasksAcquisition(#[from] TasksAcquisitionError),
-    TasksResultReset(#[from] TasksResultResetError),
-    TasksResultSet(#[from] TasksResultSetError),
-    TargetsValidation(#[from] TargetsValidationError),
-    TasksValidation(#[from] TasksValidationError),
-    Templates(#[from] TemplateRenderError),
     FilteredGroupDoesNotExistError(#[from] FilteredGroupDoesNotExistError),
+    Lock(#[from] MutexLockError),
+    TasksResultResetError(#[from] TasksResultResetError),
+    TasksResultSet(#[from] TasksResultStateSetError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -67,25 +58,23 @@ impl Engine {
         root_directory: PathBuf,
         is_dry_run: bool,
     ) -> Result<Self, EngineBuilderCreationError> {
-        let lua = Lua::new_with(StdLib::ALL_SAFE, LuaOptions::new().catch_rust_panics(true))?;
+        let mut lua = Lua::new_with(StdLib::ALL_SAFE, LuaOptions::new().catch_rust_panics(true))?;
 
-        let targets = Targets::default();
-        let tasks = Tasks::default();
-        let templates = Templates::new();
-        let file_system = FileSystem::new(root_directory);
-        let format = Format::new();
+        let target_systems_memory = Arc::new(Mutex::new(TargetSystemsMemory::default()));
+        let target_groups_memory = Arc::new(Mutex::new(TargetGroupsMemory::default()));
+        let tasks_memory = Arc::new(Mutex::new(TasksMemory::default()));
 
-        let globals = lua.globals();
-        globals.set("targets", targets.clone())?;
-        globals.set("tasks", tasks.clone())?;
-        globals.set("template", templates)?;
-        globals.set("fs", file_system)?;
-        globals.set("format", format)?;
+        Modules::new(
+            target_systems_memory.clone(),
+            target_groups_memory.clone(),
+            tasks_memory.clone(),
+            root_directory,
+        )
+        .mount_to_globals(&mut lua)?;
 
         Ok(Self {
             lua,
-            targets,
-            tasks,
+            state: State::new(target_systems_memory, target_groups_memory, tasks_memory),
             is_dry_run,
         })
     }
@@ -93,7 +82,7 @@ impl Engine {
     pub fn execute(
         &self,
         tags: Vec<String>,
-        mut groups: Vec<String>,
+        groups: Vec<String>,
     ) -> Result<(), EngineExecutionError> {
         let entry_point_script_path = PathBuf::from(ENTRY_POINT_SCRIPT);
         let entry_point_script = std::fs::read_to_string(&entry_point_script_path)?;
@@ -103,39 +92,35 @@ impl Engine {
             .set_name(entry_point_script_path.to_string_lossy())
             .exec()?;
 
-        self.targets.validate()?;
-        let (mut systems, group_configs) = self.targets.targets()?;
-        self.tasks.validate(&group_configs)?;
+        let systems = self.state.systems_for_selected_groups(&groups)?;
+        let tasks = self
+            .state
+            .tasks_for_selected_groups_and_tags(&groups, &tags)?;
 
-        let mut filtered_group_configs = group_configs.clone();
-        filtered_group_configs.retain(|name, _| groups.is_empty() || groups.contains(name));
-        systems.retain(|name, _| {
-            filtered_group_configs
-                .iter()
-                .any(|(_, group)| group.members.contains(name))
-                || !group_configs
-                    .iter()
-                    .any(|(_, group)| group.members.contains(name))
-        });
+        let mut tasks_to_execute = tasks.values().cloned().collect::<Vec<_>>();
+        // TODO: this is not correct in all cases
+        tasks_to_execute.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
 
-        groups.retain(|name| !filtered_group_configs.contains_key(name));
-        if !groups.is_empty() {
-            Err(FilteredGroupDoesNotExistError(groups))?
+        let missing_selected_groups = self.state.missing_selected_groups(&groups)?;
+        if !missing_selected_groups.is_empty() {
+            Err(FilteredGroupDoesNotExistError(
+                missing_selected_groups.clone(),
+            ))?
         }
 
-        let tasks = self.tasks.filtered_tasks_in_execution_order(&tags)?;
+        let selected_groups = self.state.selected_groups(&groups)?;
 
         if self.is_dry_run {
             info!("Starting dry run ...");
         }
 
         for (system_name, system_config) in systems {
-            let system_groups = filtered_group_configs
+            let system_groups = selected_groups
                 .iter()
                 .filter(|(_, config)| config.members.contains(&system_name))
                 .map(|(name, _)| name)
                 .collect::<Vec<&String>>();
-            let system_tasks = tasks
+            let system_tasks = tasks_to_execute
                 .iter()
                 .filter(|task| {
                     system_groups.is_empty()
@@ -145,7 +130,7 @@ impl Engine {
                             .iter()
                             .any(|group| system_groups.contains(&group))
                 })
-                .collect::<Vec<&Task>>();
+                .collect::<Vec<_>>();
 
             info!("Processing target {:?}", system_name);
 
@@ -154,7 +139,7 @@ impl Engine {
                 continue;
             }
 
-            self.tasks.reset_results()?;
+            self.state.reset_task_results()?;
 
             let system = System {
                 name: system_config.name.clone(),
@@ -168,7 +153,7 @@ impl Engine {
                 info!("Executing `{}` for {}", task_config.name, system_name);
 
                 let result = task_config.handler.call::<mlua::Value>(system.clone())?;
-                self.tasks.set_task_result(&task_config.name, result)?;
+                self.state.set_task_result(&task_config.name, result)?;
             }
         }
 

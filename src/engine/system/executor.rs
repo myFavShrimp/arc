@@ -5,8 +5,8 @@ use mlua::IntoLua;
 use serde::Serialize;
 
 use crate::{
-    engine::targets::systems::SystemConfig,
     error::MutexLockError,
+    memory::target_systems::TargetSystem,
     ssh::{self, ConnectionError, SshClient, SshError},
 };
 
@@ -18,7 +18,7 @@ pub enum Executor {
 
 impl Executor {
     pub fn new_for_system(
-        config: &SystemConfig,
+        config: &TargetSystem,
         is_dry_run: bool,
     ) -> Result<Self, ExecutionTargetSetError> {
         Ok(match is_dry_run {
