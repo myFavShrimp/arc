@@ -99,7 +99,7 @@ impl Engine {
 
         let mut tasks_to_execute = tasks.values().cloned().collect::<Vec<_>>();
         // TODO: this is not correct in all cases
-        tasks_to_execute.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+        tasks_to_execute.sort_unstable_by(|a, b| a.partial_cmp(b).expect("ordering is not none"));
 
         let missing_selected_groups = self.state.missing_selected_groups(&groups)?;
         if !missing_selected_groups.is_empty() {

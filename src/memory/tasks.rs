@@ -24,7 +24,8 @@ impl PartialOrd for Task {
                 let self_depends_on_other = self.dependencies.contains(&other.name);
 
                 match (other_depends_on_self, self_depends_on_other) {
-                    (true, true) | (false, false) => std::cmp::Ordering::Equal,
+                    (false, false) => std::cmp::Ordering::Equal,
+                    (true, true) => return None,
                     (true, false) => std::cmp::Ordering::Less,
                     (false, true) => std::cmp::Ordering::Greater,
                 }
