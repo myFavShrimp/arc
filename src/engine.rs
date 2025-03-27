@@ -116,7 +116,9 @@ impl Engine {
         let selected_groups = self.state.selected_groups(&groups)?;
 
         if self.is_dry_run {
-            // info!("Starting dry run ...");
+            let logger = self.logger.lock().unwrap();
+            logger.info("Starting dry run ...");
+            drop(logger);
         }
 
         for (system_name, system_config) in systems {

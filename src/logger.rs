@@ -31,17 +31,15 @@ impl Logger {
         })
     }
 
+    pub fn info(&self, message: &str) {
+        println!("ARC | INFO : {}\n", message);
+    }
+
     pub fn current_system(&mut self, system_name: &str) {
         self.current_system = Some(system_name.to_string());
 
         println!("SYSTEM: {}\n", system_name);
     }
-
-    // fn terminal_width() -> u16 {
-    //     crossterm::terminal::size()
-    //         .map(|(c, _)| c)
-    //         .unwrap_or(DEFAULT_LINE_LEGNTH)
-    // }
 
     pub fn enter_task(&mut self, task_name: &str) {
         let current_system = self.current_system.as_ref().expect("current system");

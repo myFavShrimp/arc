@@ -1,3 +1,4 @@
+use colored::Colorize;
 use mlua::UserData;
 
 use crate::error::ErrorReport;
@@ -8,7 +9,13 @@ pub struct Log;
 
 impl Log {
     fn info(message: &str) {
-        println!("{:.3} INFO: {}", jiff::Timestamp::now(), message);
+        println!(
+            "{:.3} {}{}: {}",
+            jiff::Timestamp::now(),
+            "INFO".blue(),
+            "".clear(),
+            message
+        );
     }
 }
 
