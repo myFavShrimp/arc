@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use log::debug;
+// use log::debug;
 use mlua::UserData;
 use tera::Tera;
 use thiserror::Error;
@@ -48,7 +48,7 @@ impl Templates {
         template_content: &str,
         lua_context: mlua::Table,
     ) -> Result<String, TemplateRenderError> {
-        debug!("Rendering template");
+        // debug!("Rendering template");
 
         let context =
             tera::Context::from_value(Self::build_template_arguments(lua_context)?.into())?;
@@ -107,8 +107,7 @@ impl UserData for Templates {
         methods.add_method(
             "render",
             |_, this, (template_content, context): (String, mlua::Table)| {
-                this
-                    .render_string_with_lua_context(&template_content, context)
+                this.render_string_with_lua_context(&template_content, context)
                     .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
             },
         );

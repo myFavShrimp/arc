@@ -75,6 +75,7 @@ impl UserData for System {
             |_, this, (path, mode): (PathBuf, u32)| {
                 this.execution_delegator
                     .set_permissions(path, mode)
+                    // .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
                     .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
             },
         );

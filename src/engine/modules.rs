@@ -1,12 +1,16 @@
 use std::path::PathBuf;
 
-use crate::memory::{
-    target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory, tasks::TasksMemory,
-    SharedMemory,
+use crate::{
+    logger::SharedLogger,
+    memory::{
+        target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory, tasks::TasksMemory,
+        SharedMemory,
+    },
 };
 
 mod file_system;
 mod format;
+mod log;
 mod targets;
 mod tasks;
 mod templates;
@@ -17,6 +21,7 @@ pub struct Modules {
     targets: targets::TargetsTable,
     tasks: tasks::TasksTable,
     file_system: file_system::FileSystem,
+    log: log::Log,
 }
 
 impl Modules {
@@ -24,13 +29,15 @@ impl Modules {
         target_systems: SharedMemory<TargetSystemsMemory>,
         target_groups: SharedMemory<TargetGroupsMemory>,
         tasks: SharedMemory<TasksMemory>,
+        logger: SharedLogger,
         root_directory: PathBuf,
     ) -> Self {
         let file_system = file_system::FileSystem::new(root_directory);
         let format = format::Format;
         let targets = targets::TargetsTable::new(target_groups.clone(), target_systems.clone());
-        let tasks = tasks::TasksTable::new(target_groups, tasks);
+        let tasks = tasks::TasksTable::new(target_groups, tasks, logger);
         let templates = templates::Templates::new();
+        let log = log::Log;
 
         Self {
             file_system,
@@ -38,10 +45,13 @@ impl Modules {
             targets,
             tasks,
             templates,
+            log,
         }
     }
+}
 
-    pub fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
+impl MountToGlobals for Modules {
+    fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
         let globals = lua.globals();
 
         globals.set("fs", self.file_system)?;
@@ -50,6 +60,12 @@ impl Modules {
         globals.set("tasks", self.tasks)?;
         globals.set("template", self.templates)?;
 
+        self.log.mount_to_globals(lua)?;
+
         Ok(())
     }
+}
+
+pub trait MountToGlobals {
+    fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error>;
 }

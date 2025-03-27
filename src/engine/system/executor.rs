@@ -1,6 +1,6 @@
 use std::{fmt::Display, path::PathBuf};
 
-use log::info;
+// use log::info;
 use mlua::IntoLua;
 use serde::Serialize;
 
@@ -207,7 +207,7 @@ impl Executor {
         Ok(match self {
             Executor::Ssh(ssh_client) => ssh_client.read_file(path)?,
             Executor::Dry => {
-                info!("CReading file {:?}", path);
+                // info!("CReading file {:?}", path);
 
                 FileReadResult {
                     path,
@@ -225,7 +225,7 @@ impl Executor {
         Ok(match self {
             Executor::Ssh(ssh_client) => ssh_client.write_file(path, &content)?,
             Executor::Dry => {
-                info!("Writing file {:?} with content {:?}", path, content);
+                // info!("Writing file {:?} with content {:?}", path, content);
 
                 FileWriteResult {
                     path,
@@ -239,7 +239,7 @@ impl Executor {
         match self {
             Executor::Ssh(ssh_client) => ssh_client.rename_file(from, to)?,
             Executor::Dry => {
-                info!("Renaming file {:?} {:?}", from, to);
+                // info!("Renaming file {:?} {:?}", from, to);
             }
         };
         Ok(())
@@ -249,7 +249,7 @@ impl Executor {
         match self {
             Executor::Ssh(ssh_client) => ssh_client.remove_file(path)?,
             Executor::Dry => {
-                info!("Removing file {:?}", path);
+                // info!("Removing file {:?}", path);
             }
         };
         Ok(())
@@ -259,7 +259,7 @@ impl Executor {
         match self {
             Executor::Ssh(ssh_client) => ssh_client.remove_directory(path)?,
             Executor::Dry => {
-                info!("Removing directory {:?}", path);
+                // info!("Removing directory {:?}", path);
             }
         };
         Ok(())
@@ -269,7 +269,7 @@ impl Executor {
         match self {
             Executor::Ssh(ssh_client) => ssh_client.create_directory(path)?,
             Executor::Dry => {
-                info!("Creating directory {:?}", path);
+                // info!("Creating directory {:?}", path);
             }
         };
         Ok(())
@@ -279,7 +279,7 @@ impl Executor {
         match self {
             Executor::Ssh(ssh_client) => ssh_client.set_permissions(path, mode)?,
             Executor::Dry => {
-                info!("Setting permission of {:?} to {:o}", path, mode);
+                // info!("Setting permission of {:?} to {:o}", path, mode);
             }
         };
         Ok(())
@@ -289,7 +289,7 @@ impl Executor {
         Ok(match self {
             Executor::Ssh(ssh_client) => ssh_client.execute_command(&cmd)?,
             Executor::Dry => {
-                info!("Running command {:?}", cmd);
+                // info!("Running command {:?}", cmd);
 
                 CommandResult::default()
             }
@@ -300,7 +300,7 @@ impl Executor {
         Ok(match self {
             Executor::Ssh(ssh_client) => ssh_client.metadata(path)?,
             Executor::Dry => {
-                info!("Retrieving metadata for {:?}", path);
+                // info!("Retrieving metadata for {:?}", path);
 
                 Some(MetadataResult {
                     path,

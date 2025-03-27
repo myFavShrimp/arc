@@ -1,7 +1,8 @@
-use mlua::{FromLua, IntoLua, MetaMethod, UserData};
+use mlua::{FromLua, IntoLua, Lua, MetaMethod, UserData};
 
 use crate::{
     error::{ErrorReport, MutexLockError},
+    logger::SharedLogger,
     memory::{
         target_groups::TargetGroupsMemory,
         tasks::{Task, TaskAdditionError, TaskRetrievalError, TasksMemory},
@@ -97,6 +98,7 @@ pub enum TaskConfigAdditionError {
     Lock(#[from] MutexLockError),
     TaskAddition(#[from] TaskAdditionError),
     GroupFilterNotDefined(#[from] GroupFilterNotDefinedError),
+    Lua(#[from] mlua::Error),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -125,20 +127,28 @@ pub struct DuplicateTaskError(pub String);
 pub struct TasksTable {
     pub groups_memory: SharedMemory<TargetGroupsMemory>,
     pub tasks_memory: SharedMemory<TasksMemory>,
+    pub logger: SharedLogger,
 }
 
 impl TasksTable {
     pub fn new(
         groups_memory: SharedMemory<TargetGroupsMemory>,
         tasks_memory: SharedMemory<TasksMemory>,
+        logger: SharedLogger,
     ) -> Self {
         Self {
             groups_memory,
             tasks_memory,
+            logger,
         }
     }
 
-    pub fn add(&self, name: String, config: TaskConfig) -> Result<(), TaskConfigAdditionError> {
+    pub fn add(
+        &self,
+        lua: &Lua,
+        name: String,
+        config: TaskConfig,
+    ) -> Result<(), TaskConfigAdditionError> {
         let mut tasks = self.tasks_memory.lock().map_err(|_| MutexLockError)?;
         let groups = self.groups_memory.lock().map_err(|_| MutexLockError)?.all();
 
@@ -151,9 +161,28 @@ impl TasksTable {
             }
         }
 
+        let wrapped_handler = {
+            let logger = self.logger.clone();
+            let task_name = name.clone();
+            let handler = config.handler.clone();
+
+            lua.create_function(move |_, value: mlua::Value| {
+                let mut guard = logger.lock().unwrap();
+                guard.enter_task(&task_name);
+                drop(guard);
+
+                let result = handler.clone().call::<mlua::Value>(value);
+
+                let mut guard = logger.lock().unwrap();
+                guard.pop_task();
+
+                result
+            })?
+        };
+
         tasks.add(Task {
             name,
-            handler: config.handler,
+            handler: wrapped_handler,
             dependencies: config.dependencies,
             tags: config.tags,
             groups: config.groups,
@@ -174,8 +203,8 @@ impl UserData for TasksTable {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_meta_method(
             MetaMethod::NewIndex,
-            |_, this, (name, config): (String, TaskConfig)| {
-                this.add(name, config)
+            |lua, this, (name, config): (String, TaskConfig)| {
+                this.add(lua, name, config)
                     .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
             },
         );

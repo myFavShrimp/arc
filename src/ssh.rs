@@ -1,4 +1,4 @@
-use log::debug;
+// use log::debug;
 use ssh2::Session;
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -108,7 +108,7 @@ pub struct MetadataError {
 
 impl SshClient {
     pub fn connect(system: &TargetSystem) -> Result<Self, ConnectionError> {
-        debug!("Connecting to {}...", system.socket_address());
+        // debug!("Connecting to {}...", system.socket_address());
 
         let tcp =
             TcpStream::connect(system.socket_address()).map_err(ConnectionError::TcpConnection)?;
@@ -123,7 +123,7 @@ impl SshClient {
     }
 
     pub fn execute_command(&self, command: &str) -> Result<CommandResult, SshError> {
-        debug!("Executing command `{}`", command);
+        // debug!("Executing command `{}`", command);
 
         let mut channel = self.session.channel_session()?;
         channel.exec(command)?;
@@ -137,7 +137,7 @@ impl SshClient {
         channel.close()?;
         let exit_code = channel.exit_status()?;
 
-        debug!("Command completed with exit code: {}", exit_code);
+        // debug!("Command completed with exit code: {}", exit_code);
 
         Ok(CommandResult {
             stdout,
@@ -147,7 +147,7 @@ impl SshClient {
     }
 
     pub fn read_file(&self, path: PathBuf) -> Result<FileReadResult, FileError<FileReadErrorKind>> {
-        debug!("Reading remote file {:?}", path);
+        // debug!("Reading remote file {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| FileError {
             path: path.clone(),
@@ -172,7 +172,7 @@ impl SshClient {
         path: PathBuf,
         content: &str,
     ) -> Result<FileWriteResult, FileError<FileWriteErrorKind>> {
-        debug!("Writing to remote file {:?}", path);
+        // debug!("Writing to remote file {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| FileError {
             path: path.clone(),
@@ -195,7 +195,7 @@ impl SshClient {
     }
 
     pub fn rename_file(&self, from: PathBuf, to: PathBuf) -> Result<(), RenameError> {
-        debug!("Renaming remote file {:?} to {:?}", from, to);
+        // debug!("Renaming remote file {:?} to {:?}", from, to);
 
         let sftp = self.session.sftp().map_err(|e| RenameError {
             from: from.clone(),
@@ -212,7 +212,7 @@ impl SshClient {
     }
 
     pub fn remove_file(&self, path: PathBuf) -> Result<(), RemoveFileError> {
-        debug!("Deleting remote file {:?}", path);
+        // debug!("Deleting remote file {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| RemoveFileError {
             path: path.clone(),
@@ -227,7 +227,7 @@ impl SshClient {
     }
 
     pub fn remove_directory(&self, path: PathBuf) -> Result<(), RemoveDirectoryError> {
-        debug!("Removing remote directory {:?}", path);
+        // debug!("Removing remote directory {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| RemoveDirectoryError {
             path: path.clone(),
@@ -242,7 +242,7 @@ impl SshClient {
     }
 
     pub fn create_directory(&self, path: PathBuf) -> Result<(), CreateDirectoryError> {
-        debug!("Creating remote directory {:?}", path);
+        // debug!("Creating remote directory {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| CreateDirectoryError {
             path: path.clone(),
@@ -257,10 +257,10 @@ impl SshClient {
     }
 
     pub fn set_permissions(&self, path: PathBuf, mode: u32) -> Result<(), SetPermissionsError> {
-        debug!(
-            "Setting permissions on remote path {:?} to {:o}",
-            path, mode
-        );
+        // debug!(
+        //     "Setting permissions on remote path {:?} to {:o}",
+        //     path, mode
+        // );
 
         let sftp = self.session.sftp().map_err(|e| SetPermissionsError {
             path: path.clone(),
@@ -285,7 +285,7 @@ impl SshClient {
     }
 
     pub fn metadata(&self, path: PathBuf) -> Result<Option<MetadataResult>, MetadataError> {
-        debug!("Getting metadata for remote file {:?}", path);
+        // debug!("Getting metadata for remote file {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| MetadataError {
             path: path.clone(),

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use log::debug;
+// use log::debug;
 use mlua::UserData;
 
 use crate::error::ErrorReport;
@@ -37,7 +37,7 @@ impl FileSystem {
     }
 
     fn read_file_to_string(&self, path: PathBuf) -> Result<String, FileReadError> {
-        debug!("Reading file {:?}", path);
+        // debug!("Reading file {:?}", path);
 
         let path = std::fs::canonicalize(&path).map_err(|e| FileReadError {
             path: path.clone(),

@@ -3,9 +3,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use log::info;
+// use log::info;
 use mlua::{Lua, LuaOptions, StdLib};
-use modules::Modules;
+use modules::{Modules, MountToGlobals};
 use state::{State, TasksResultResetError, TasksResultStateSetError};
 use system::{
     executor::{ExecutionTargetSetError, Executor},
@@ -14,6 +14,7 @@ use system::{
 
 use crate::{
     error::MutexLockError,
+    logger::{Logger, SharedLogger},
     memory::{
         target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory, tasks::TasksMemory,
     },
@@ -27,6 +28,7 @@ pub struct Engine {
     lua: Lua,
     state: State,
     is_dry_run: bool,
+    logger: SharedLogger,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -56,8 +58,10 @@ pub struct FilteredGroupDoesNotExistError(Vec<String>);
 impl Engine {
     pub fn new(
         root_directory: PathBuf,
+        verbosity: u8,
         is_dry_run: bool,
     ) -> Result<Self, EngineBuilderCreationError> {
+        let logger = Arc::new(Mutex::new(Logger::new()));
         let mut lua = Lua::new_with(StdLib::ALL_SAFE, LuaOptions::new().catch_rust_panics(true))?;
 
         let target_systems_memory = Arc::new(Mutex::new(TargetSystemsMemory::default()));
@@ -68,6 +72,7 @@ impl Engine {
             target_systems_memory.clone(),
             target_groups_memory.clone(),
             tasks_memory.clone(),
+            logger.clone(),
             root_directory,
         )
         .mount_to_globals(&mut lua)?;
@@ -76,6 +81,7 @@ impl Engine {
             lua,
             state: State::new(target_systems_memory, target_groups_memory, tasks_memory),
             is_dry_run,
+            logger,
         })
     }
 
@@ -111,7 +117,7 @@ impl Engine {
         let selected_groups = self.state.selected_groups(&groups)?;
 
         if self.is_dry_run {
-            info!("Starting dry run ...");
+            // info!("Starting dry run ...");
         }
 
         for (system_name, system_config) in systems {
@@ -132,10 +138,11 @@ impl Engine {
                 })
                 .collect::<Vec<_>>();
 
-            info!("Processing target {:?}", system_name);
+            let mut logger = self.logger.lock().unwrap();
+            logger.current_system(&system_name);
+            drop(logger);
 
             if system_tasks.is_empty() {
-                info!("No tasks to execute for target {:?}", system_name);
                 continue;
             }
 
@@ -150,11 +157,12 @@ impl Engine {
             };
 
             for task_config in system_tasks {
-                info!("Executing `{}` for {}", task_config.name, system_name);
-
                 let result = task_config.handler.call::<mlua::Value>(system.clone())?;
                 self.state.set_task_result(&task_config.name, result)?;
             }
+
+            let mut logger = self.logger.lock().unwrap();
+            logger.reset_system();
         }
 
         Ok(())
