@@ -12,6 +12,7 @@ mod ssh;
 fn main() -> Result<(), error::ErrorReport> {
     let cli_args = Cli::parse();
 
+    dotenvy::dotenv_override().map_err(error::ErrorReport::boxed_from)?;
     let current_dir = std::env::current_dir().map_err(error::ErrorReport::boxed_from)?;
 
     Engine::new(current_dir, cli_args.verbose, cli_args.dry_run)
