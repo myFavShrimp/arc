@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use super::{
     executor::CommandResult,
-    operator::{FileReadResult, FileWriteResult, MetadataResult, MetadataType},
+    operator::{FileWriteResult, MetadataResult, MetadataType},
 };
 use crate::memory::target_systems::TargetSystem;
 
@@ -147,10 +147,7 @@ impl SshClient {
         })
     }
 
-    pub fn read_file(
-        &self,
-        path: &PathBuf,
-    ) -> Result<FileReadResult, FileError<FileReadErrorKind>> {
+    pub fn read_file(&self, path: &PathBuf) -> Result<Vec<u8>, FileError<FileReadErrorKind>> {
         // debug!("Reading remote file {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| FileError {
@@ -162,16 +159,13 @@ impl SshClient {
             kind: FileReadErrorKind::Ssh(e),
         })?;
 
-        let mut content = String::new();
-        file.read_to_string(&mut content).map_err(|e| FileError {
+        let mut content = Vec::new();
+        file.read_to_end(&mut content).map_err(|e| FileError {
             path: path.clone(),
             kind: FileReadErrorKind::Io(e),
         })?;
 
-        Ok(FileReadResult {
-            path: path.clone(),
-            content,
-        })
+        Ok(content)
     }
 
     pub fn write_file(

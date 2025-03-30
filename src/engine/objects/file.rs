@@ -21,6 +21,7 @@ impl UserData for File {
         fields.add_field_method_get("content", |_, this| {
             this.file_system_operator
                 .read_file(&this.path)
+                .map(mlua::BString::new)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
         fields.add_field_method_set("content", |_, this, content: Vec<u8>| {

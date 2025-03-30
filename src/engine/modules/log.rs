@@ -1,32 +1,33 @@
 use colored::Colorize;
 use mlua::UserData;
 
-use crate::error::ErrorReport;
-
 use super::MountToGlobals;
 
 pub struct Log;
 
 impl Log {
-    fn info(message: &str) {
+    fn info(value: mlua::Value) {
+        let message = match value.to_string() {
+            Ok(utf8_str) => utf8_str,
+            Err(_) => {
+                format!("[binary data] {:X?}", value)
+            }
+        };
+
         println!(
             "{:.3} {}{}: {}",
             jiff::Timestamp::now(),
             "INFO".blue(),
             "".clear(),
-            message
+            message,
         );
     }
 }
 
 impl UserData for Log {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
-        methods.add_function("to_json", |_, value: mlua::Value| {
-            Self::info(
-                &value
-                    .to_string()
-                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?,
-            );
+        methods.add_function("info", |_, value: mlua::Value| {
+            Log::info(value);
 
             Ok(())
         });
@@ -40,7 +41,7 @@ impl MountToGlobals for Log {
         globals.set(
             "print",
             lua.create_function(|_, value: mlua::Value| {
-                Log::info(&value.to_string()?);
+                Log::info(value);
 
                 Ok(())
             })?,

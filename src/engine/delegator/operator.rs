@@ -25,24 +25,6 @@ impl FileSystemOperator {
 }
 
 #[derive(Debug, Serialize, Default)]
-pub struct FileReadResult {
-    pub path: PathBuf,
-    pub content: String,
-}
-
-impl IntoLua for FileReadResult {
-    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
-        let result_table = lua.create_table()?;
-
-        result_table.set("path", self.path)?;
-        result_table.set("content", self.content)?;
-
-        result_table.set_readonly(true);
-
-        Ok(mlua::Value::Table(result_table))
-    }
-}
-#[derive(Debug, Serialize, Default)]
 pub struct FileWriteResult {
     pub path: PathBuf,
     pub bytes_written: usize,
@@ -178,16 +160,13 @@ pub enum MetadataError {
 }
 
 impl FileSystemOperator {
-    pub fn read_file(&self, path: &PathBuf) -> Result<FileReadResult, FileReadError> {
+    pub fn read_file(&self, path: &PathBuf) -> Result<Vec<u8>, FileReadError> {
         Ok(match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.read_file(path)?,
             FileSystemOperator::Dry => {
                 // info!("CReading file {:?}", path);
 
-                FileReadResult {
-                    path: path.clone(),
-                    ..Default::default()
-                }
+                Vec::new()
             }
         })
     }
