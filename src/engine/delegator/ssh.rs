@@ -4,7 +4,9 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
 
-use super::{CommandResult, FileReadResult, FileWriteResult, MetadataResult, MetadataType};
+use super::executor::{
+    CommandResult, FileReadResult, FileWriteResult, MetadataResult, MetadataType,
+};
 use crate::memory::target_systems::TargetSystem;
 
 #[derive(Clone)]

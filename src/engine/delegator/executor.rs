@@ -3,10 +3,8 @@ use std::{fmt::Display, path::PathBuf};
 use mlua::IntoLua;
 use serde::Serialize;
 
+use super::ssh::{self, ConnectionError, SshClient, SshError};
 use crate::{error::MutexLockError, memory::target_systems::TargetSystem};
-use ssh::{ConnectionError, SshClient, SshError};
-
-mod ssh;
 
 #[derive(Clone)]
 pub enum Executor {

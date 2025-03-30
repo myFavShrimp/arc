@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use executor::{ExecutionTargetSetError, Executor};
+use delegator::executor::{ExecutionTargetSetError, Executor};
 use mlua::{Lua, LuaOptions, StdLib};
 use modules::{Modules, MountToGlobals};
 use objects::system::System;
@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-pub mod executor;
+pub mod delegator;
 pub mod modules;
 pub mod objects;
 pub mod state;
