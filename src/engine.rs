@@ -4,13 +4,11 @@ use std::{
 };
 
 // use log::info;
+use executor::{ExecutionTargetSetError, Executor};
 use mlua::{Lua, LuaOptions, StdLib};
 use modules::{Modules, MountToGlobals};
 use state::{State, TasksResultResetError, TasksResultStateSetError};
-use system::{
-    executor::{ExecutionTargetSetError, Executor},
-    System,
-};
+use system::System;
 
 use crate::{
     error::MutexLockError,
@@ -20,6 +18,7 @@ use crate::{
     },
 };
 
+pub mod executor;
 pub mod modules;
 pub mod state;
 pub mod system;

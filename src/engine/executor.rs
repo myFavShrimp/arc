@@ -1,14 +1,12 @@
 use std::{fmt::Display, path::PathBuf};
 
-// use log::info;
 use mlua::IntoLua;
 use serde::Serialize;
 
-use crate::{
-    error::MutexLockError,
-    memory::target_systems::TargetSystem,
-    ssh::{self, ConnectionError, SshClient, SshError},
-};
+use crate::{error::MutexLockError, memory::target_systems::TargetSystem};
+use ssh::{ConnectionError, SshClient, SshError};
+
+mod ssh;
 
 #[derive(Clone)]
 pub enum Executor {

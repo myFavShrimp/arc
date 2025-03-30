@@ -1,11 +1,10 @@
 use std::{net::IpAddr, path::PathBuf};
 
-use executor::Executor;
 use mlua::UserData;
 
 use crate::error::ErrorReport;
 
-pub mod executor;
+use super::executor::Executor;
 
 #[derive(Clone)]
 pub struct System {

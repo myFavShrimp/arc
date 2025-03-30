@@ -7,7 +7,6 @@ mod engine;
 mod error;
 mod logger;
 mod memory;
-mod ssh;
 
 fn main() -> Result<(), error::ErrorReport> {
     let cli_args = Cli::parse();
