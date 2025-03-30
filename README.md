@@ -237,6 +237,8 @@ print("Last modified: " .. metadata.modified)
 
 The `env` module provides access to environment variables.
 
+Arc automatically loads variables from `.env` files in your project directory, making it easy to manage secrets, configuration values, and environment-specific settings without hardcoding sensitive information in your scripts.
+
 #### Methods
 
 - `get(var_name)`: Get the value of an environment variable
