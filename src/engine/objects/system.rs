@@ -2,9 +2,7 @@ use std::{net::IpAddr, path::PathBuf};
 
 use mlua::UserData;
 
-use crate::error::ErrorReport;
-
-use super::executor::Executor;
+use crate::{engine::executor::Executor, error::ErrorReport};
 
 #[derive(Clone)]
 pub struct System {

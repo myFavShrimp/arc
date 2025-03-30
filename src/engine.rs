@@ -7,8 +7,8 @@ use std::{
 use executor::{ExecutionTargetSetError, Executor};
 use mlua::{Lua, LuaOptions, StdLib};
 use modules::{Modules, MountToGlobals};
+use objects::system::System;
 use state::{State, TasksResultResetError, TasksResultStateSetError};
-use system::System;
 
 use crate::{
     error::MutexLockError,
@@ -20,8 +20,8 @@ use crate::{
 
 pub mod executor;
 pub mod modules;
+pub mod objects;
 pub mod state;
-pub mod system;
 
 pub struct Engine {
     lua: Lua,
