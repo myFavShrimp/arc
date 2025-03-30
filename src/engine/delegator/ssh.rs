@@ -312,9 +312,9 @@ impl SshClient {
         };
 
         let file_type = if stat.is_dir() {
-            MetadataType::File
-        } else if stat.is_file() {
             MetadataType::Directory
+        } else if stat.is_file() {
+            MetadataType::File
         } else {
             MetadataType::Unknown
         };
