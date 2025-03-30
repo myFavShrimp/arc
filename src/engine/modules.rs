@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use crate::{
     logger::SharedLogger,
     memory::{
@@ -9,7 +7,6 @@ use crate::{
 };
 
 mod env;
-mod file_system;
 mod format;
 mod host;
 mod log;
@@ -22,7 +19,6 @@ pub struct Modules {
     format: format::Format,
     targets: targets::TargetsTable,
     tasks: tasks::TasksTable,
-    file_system: file_system::FileSystem,
     log: log::Log,
     env: env::Env,
     host: host::Host,
@@ -34,9 +30,7 @@ impl Modules {
         target_groups: SharedMemory<TargetGroupsMemory>,
         tasks: SharedMemory<TasksMemory>,
         logger: SharedLogger,
-        root_directory: PathBuf,
     ) -> Self {
-        let file_system = file_system::FileSystem::new(root_directory);
         let format = format::Format;
         let targets = targets::TargetsTable::new(target_groups.clone(), target_systems.clone());
         let tasks = tasks::TasksTable::new(target_groups, tasks, logger);
@@ -46,7 +40,6 @@ impl Modules {
         let host = host::Host::new();
 
         Self {
-            file_system,
             format,
             targets,
             tasks,
@@ -62,7 +55,6 @@ impl MountToGlobals for Modules {
     fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
         let globals = lua.globals();
 
-        globals.set("fs", self.file_system)?;
         globals.set("format", self.format)?;
         globals.set("targets", self.targets)?;
         globals.set("tasks", self.tasks)?;

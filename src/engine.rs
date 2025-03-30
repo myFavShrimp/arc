@@ -58,11 +58,7 @@ pub enum EngineExecutionError {
 pub struct FilteredGroupDoesNotExistError(Vec<String>);
 
 impl Engine {
-    pub fn new(
-        root_directory: PathBuf,
-        verbosity: u8,
-        is_dry_run: bool,
-    ) -> Result<Self, EngineBuilderCreationError> {
+    pub fn new(verbosity: u8, is_dry_run: bool) -> Result<Self, EngineBuilderCreationError> {
         let logger = Arc::new(Mutex::new(Logger::new()));
         let mut lua = Lua::new_with(StdLib::ALL_SAFE, LuaOptions::new().catch_rust_panics(true))?;
 
@@ -75,7 +71,6 @@ impl Engine {
             target_groups_memory.clone(),
             tasks_memory.clone(),
             logger.clone(),
-            root_directory,
         )
         .mount_to_globals(&mut lua)?;
 
