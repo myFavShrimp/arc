@@ -167,11 +167,14 @@ Example:
 -- Create and write to a file
 local config_file = system:file("/etc/nginx/sites-available/default")
 config_file.content = "server {\n    listen 80 default_server;\n    root /var/www/html;\n}"
+print(format.to_json(config_file.metadata()))
 
--- Method chaining
-local example_file = system:file("/tmp/example.txt")
-example_file.content = "Hello, World!"
-print(format.to_json(example_file.metadata()))
+-- Create, move and then delete a file
+local file = system:file("/path/to/file.txt")
+file.content = "New content"                 -- Write to file
+file.permissions = tonumber("755", 8)        -- Set permissions
+file.path = "/new-path/to/renamed-file.txt"  -- Rename file
+file:remove()                                -- Delete file
 ```
 
 ### Directory Object
@@ -198,10 +201,11 @@ app_dir:create()
 -- Set permissions
 app_dir.permissions = tonumber("755", 8)
 
--- Create and configure nested directories
-local logs_dir = system:directory("/var/www/myapp/logs")
-logs_dir:create()
-logs_dir.permissions = tonumber("777", 8)
+-- Create, move and then delete a directory
+local dir = system:directory("/path/to/dir")
+dir:create()                                 -- Create directory
+dir.path = "/path/to/renamed-dir"            -- Rename directory
+dir:remove()                                 -- Delete directory
 ```
 
 ### Metadata Structure
@@ -459,33 +463,6 @@ Within a task, you can access the result of a previously executed dependency usi
 
 ```lua
 local dependency_result = tasks["dependency_task_name"].result
-```
-
-## Working with Files and Directories
-
-Arc provides a comprehensive file system API for managing files and directories on remote systems:
-
-```lua
--- Working with files
-local file = system:file("/path/to/file.txt")
-file.content = "New content"                 -- Write to file
-file.permissions = tonumber("755", 8)        -- Set permissions
-file.path = "/path/to/renamed-file.txt"      -- Rename file
-file:remove()                                -- Delete file
-
--- Working with directories
-local dir = system:directory("/path/to/dir")
-dir:create()                                 -- Create directory
-dir.permissions = tonumber("755", 8)         -- Set permissions
-dir.path = "/path/to/renamed-dir"            -- Rename directory
-dir:remove()                                 -- Delete directory
-
--- Getting metadata
-local metadata = file:metadata()
-print("File size: " .. metadata.size)
-print("File type: " .. metadata.type)
-print("File permissions: " .. metadata.permissions)
-print("Last modified: " .. metadata.modified)
 ```
 
 ## Contributing
