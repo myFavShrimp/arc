@@ -4,8 +4,9 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
 
-use super::executor::{
-    CommandResult, FileReadResult, FileWriteResult, MetadataResult, MetadataType,
+use super::{
+    executor::CommandResult,
+    operator::{FileReadResult, FileWriteResult, MetadataResult, MetadataType},
 };
 use crate::memory::target_systems::TargetSystem;
 
@@ -146,7 +147,10 @@ impl SshClient {
         })
     }
 
-    pub fn read_file(&self, path: PathBuf) -> Result<FileReadResult, FileError<FileReadErrorKind>> {
+    pub fn read_file(
+        &self,
+        path: &PathBuf,
+    ) -> Result<FileReadResult, FileError<FileReadErrorKind>> {
         // debug!("Reading remote file {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| FileError {
@@ -164,13 +168,16 @@ impl SshClient {
             kind: FileReadErrorKind::Io(e),
         })?;
 
-        Ok(FileReadResult { path, content })
+        Ok(FileReadResult {
+            path: path.clone(),
+            content,
+        })
     }
 
     pub fn write_file(
         &self,
-        path: PathBuf,
-        content: &str,
+        path: &PathBuf,
+        content: &[u8],
     ) -> Result<FileWriteResult, FileError<FileWriteErrorKind>> {
         // debug!("Writing to remote file {:?}", path);
 
@@ -183,18 +190,18 @@ impl SshClient {
             kind: FileWriteErrorKind::Ssh(e),
         })?;
 
-        let bytes_written = file.write(content.as_bytes()).map_err(|e| FileError {
+        let bytes_written = file.write(content).map_err(|e| FileError {
             path: path.clone(),
             kind: FileWriteErrorKind::Io(e),
         })?;
 
         Ok(FileWriteResult {
-            path,
+            path: path.clone(),
             bytes_written,
         })
     }
 
-    pub fn rename_file(&self, from: PathBuf, to: PathBuf) -> Result<(), RenameError> {
+    pub fn rename_file(&self, from: &PathBuf, to: &PathBuf) -> Result<(), RenameError> {
         // debug!("Renaming remote file {:?} to {:?}", from, to);
 
         let sftp = self.session.sftp().map_err(|e| RenameError {
@@ -211,7 +218,7 @@ impl SshClient {
         Ok(())
     }
 
-    pub fn remove_file(&self, path: PathBuf) -> Result<(), RemoveFileError> {
+    pub fn remove_file(&self, path: &PathBuf) -> Result<(), RemoveFileError> {
         // debug!("Deleting remote file {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| RemoveFileError {
@@ -226,7 +233,7 @@ impl SshClient {
         Ok(())
     }
 
-    pub fn remove_directory(&self, path: PathBuf) -> Result<(), RemoveDirectoryError> {
+    pub fn remove_directory(&self, path: &PathBuf) -> Result<(), RemoveDirectoryError> {
         // debug!("Removing remote directory {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| RemoveDirectoryError {
@@ -241,7 +248,7 @@ impl SshClient {
         Ok(())
     }
 
-    pub fn create_directory(&self, path: PathBuf) -> Result<(), CreateDirectoryError> {
+    pub fn create_directory(&self, path: &PathBuf) -> Result<(), CreateDirectoryError> {
         // debug!("Creating remote directory {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| CreateDirectoryError {
@@ -256,7 +263,7 @@ impl SshClient {
         Ok(())
     }
 
-    pub fn set_permissions(&self, path: PathBuf, mode: u32) -> Result<(), SetPermissionsError> {
+    pub fn set_permissions(&self, path: &PathBuf, mode: u32) -> Result<(), SetPermissionsError> {
         // debug!(
         //     "Setting permissions on remote path {:?} to {:o}",
         //     path, mode
@@ -284,7 +291,7 @@ impl SshClient {
         Ok(())
     }
 
-    pub fn metadata(&self, path: PathBuf) -> Result<Option<MetadataResult>, MetadataError> {
+    pub fn metadata(&self, path: &PathBuf) -> Result<Option<MetadataResult>, MetadataError> {
         // debug!("Getting metadata for remote file {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| MetadataError {
@@ -313,7 +320,7 @@ impl SshClient {
         };
 
         Ok(Some(MetadataResult {
-            path,
+            path: path.clone(),
             size: stat.size,
             permissions: stat.perm,
             r#type: file_type,

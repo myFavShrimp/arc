@@ -3,7 +3,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use delegator::executor::{ExecutionTargetSetError, Executor};
+use delegator::{
+    executor::{ExecutionTargetSetError, Executor},
+    operator::{FileSystemOperator, OperationTargetSetError},
+};
 use mlua::{Lua, LuaOptions, StdLib};
 use modules::{Modules, MountToGlobals};
 use objects::system::System;
@@ -43,6 +46,7 @@ pub enum EngineExecutionError {
     Io(#[from] std::io::Error),
     Lua(#[from] mlua::Error),
     ExecutionTargetSet(#[from] ExecutionTargetSetError),
+    OperationTargetSet(#[from] OperationTargetSetError),
     FilteredGroupDoesNotExistError(#[from] FilteredGroupDoesNotExistError),
     Lock(#[from] MutexLockError),
     TasksResultResetError(#[from] TasksResultResetError),
@@ -153,6 +157,10 @@ impl Engine {
                 port: system_config.port,
                 user: system_config.user.clone(),
                 executor: Executor::new_for_system(&system_config, self.is_dry_run)?,
+                file_system_operator: FileSystemOperator::new_for_system(
+                    &system_config,
+                    self.is_dry_run,
+                )?,
             };
 
             for task_config in system_tasks {
