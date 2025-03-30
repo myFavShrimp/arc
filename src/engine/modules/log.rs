@@ -3,6 +3,7 @@ use mlua::UserData;
 
 use super::MountToGlobals;
 
+#[derive(Clone)]
 pub struct Log;
 
 impl Log {

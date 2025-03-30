@@ -59,6 +59,7 @@ impl MountToGlobals for Modules {
         globals.set("targets", self.targets)?;
         globals.set("tasks", self.tasks)?;
         globals.set("template", self.templates)?;
+        globals.set("log", self.log.clone())?;
         globals.set("env", self.env)?;
         globals.set("host", self.host)?;
 
