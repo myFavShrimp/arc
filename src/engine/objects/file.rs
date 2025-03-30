@@ -24,7 +24,7 @@ impl UserData for File {
                 .map(mlua::BString::new)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
-        fields.add_field_method_set("content", |_, this, content: Vec<u8>| {
+        fields.add_field_method_set("content", |_, this, content: mlua::BString| {
             this.file_system_operator
                 .write_file(&this.path, &content)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;

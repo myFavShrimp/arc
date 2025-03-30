@@ -11,6 +11,7 @@ use crate::{
 mod env;
 mod file_system;
 mod format;
+mod host;
 mod log;
 mod targets;
 mod tasks;
@@ -24,6 +25,7 @@ pub struct Modules {
     file_system: file_system::FileSystem,
     log: log::Log,
     env: env::Env,
+    host: host::Host,
 }
 
 impl Modules {
@@ -41,6 +43,7 @@ impl Modules {
         let templates = templates::Templates::new();
         let log = log::Log;
         let env = env::Env;
+        let host = host::Host::new();
 
         Self {
             file_system,
@@ -50,6 +53,7 @@ impl Modules {
             templates,
             log,
             env,
+            host,
         }
     }
 }
@@ -64,6 +68,7 @@ impl MountToGlobals for Modules {
         globals.set("tasks", self.tasks)?;
         globals.set("template", self.templates)?;
         globals.set("env", self.env)?;
+        globals.set("host", self.host)?;
 
         self.log.mount_to_globals(lua)?;
 

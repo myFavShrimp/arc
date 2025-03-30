@@ -3,13 +3,17 @@ use std::path::PathBuf;
 use mlua::IntoLua;
 use serde::Serialize;
 
-use super::ssh::{ConnectionError, SshClient, SshError};
+use super::{
+    local::{HostError, LocalClient},
+    ssh::{ConnectionError, SshClient, SshError},
+};
 use crate::{error::MutexLockError, memory::target_systems::TargetSystem};
 
 #[derive(Clone)]
 pub enum Executor {
     Ssh(SshClient),
     Dry,
+    Host(LocalClient),
 }
 
 impl Executor {
@@ -21,6 +25,10 @@ impl Executor {
             true => Self::Dry,
             false => Self::Ssh(SshClient::connect(config)?),
         })
+    }
+
+    pub fn new_local() -> Self {
+        Self::Host(LocalClient)
     }
 }
 
@@ -97,8 +105,9 @@ pub struct UninitializedSshClientError;
 #[error("Failed to execute tasks")]
 pub enum TaskError {
     Ssh(#[from] SshError),
+    Local(#[from] HostError),
     Lock(#[from] MutexLockError),
-    UninitializedSshClient(#[from] UninitializedSshClientError),
+    UninitializedSshClientError(#[from] UninitializedSshClientError),
 }
 
 impl Executor {
@@ -110,6 +119,7 @@ impl Executor {
 
                 CommandResult::default()
             }
+            Executor::Host(local_client) => local_client.execute_command(&cmd)?,
         })
     }
 }

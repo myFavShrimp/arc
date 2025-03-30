@@ -3,13 +3,17 @@ use std::{fmt::Display, path::PathBuf};
 use mlua::IntoLua;
 use serde::Serialize;
 
-use super::ssh::{self, ConnectionError, SshClient, SshError};
+use super::{
+    local::{self, LocalClient},
+    ssh::{self, ConnectionError, SshClient, SshError},
+};
 use crate::{error::MutexLockError, memory::target_systems::TargetSystem};
 
 #[derive(Clone)]
 pub enum FileSystemOperator {
     Ssh(SshClient),
     Dry,
+    Local(LocalClient),
 }
 
 impl FileSystemOperator {
@@ -21,6 +25,10 @@ impl FileSystemOperator {
             true => Self::Dry,
             false => Self::Ssh(SshClient::connect(config)?),
         })
+    }
+
+    pub fn new_local() -> Self {
+        Self::Local(LocalClient)
     }
 }
 
@@ -115,48 +123,56 @@ pub enum TaskError {
 #[error(transparent)]
 pub enum FileReadError {
     Ssh(#[from] ssh::FileError<ssh::FileReadErrorKind>),
+    Local(#[from] local::FileError<local::FileReadErrorKind>),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum FileWriteError {
     Ssh(#[from] ssh::FileError<ssh::FileWriteErrorKind>),
+    Local(#[from] local::FileError<local::FileWriteErrorKind>),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum RenameError {
     Ssh(#[from] ssh::RenameError),
+    Local(#[from] local::RenameError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum RemoveFileError {
     Ssh(#[from] ssh::RemoveFileError),
+    Local(#[from] local::RemoveFileError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum RemoveDirectoryError {
     Ssh(#[from] ssh::RemoveDirectoryError),
+    Local(#[from] local::RemoveDirectoryError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum CreateDirectoryError {
     Ssh(#[from] ssh::CreateDirectoryError),
+    Local(#[from] local::CreateDirectoryError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum SetPermissionsError {
     Ssh(#[from] ssh::SetPermissionsError),
+    Local(#[from] local::SetPermissionsError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum MetadataError {
     Ssh(#[from] ssh::MetadataError),
+    Local(#[from] local::MetadataError),
 }
 
 impl FileSystemOperator {
@@ -168,6 +184,7 @@ impl FileSystemOperator {
 
                 Vec::new()
             }
+            FileSystemOperator::Local(local_client) => local_client.read_file(path)?,
         })
     }
 
@@ -186,6 +203,7 @@ impl FileSystemOperator {
                     ..Default::default()
                 }
             }
+            FileSystemOperator::Local(local_client) => local_client.write_file(path, content)?,
         })
     }
 
@@ -195,6 +213,7 @@ impl FileSystemOperator {
             FileSystemOperator::Dry => {
                 // info!("Renaming file {:?} {:?}", from, to);
             }
+            FileSystemOperator::Local(local_client) => local_client.rename_file(from, to)?,
         };
         Ok(())
     }
@@ -205,6 +224,7 @@ impl FileSystemOperator {
             FileSystemOperator::Dry => {
                 // info!("Removing file {:?}", path);
             }
+            FileSystemOperator::Local(local_client) => local_client.remove_file(path)?,
         };
         Ok(())
     }
@@ -215,6 +235,7 @@ impl FileSystemOperator {
             FileSystemOperator::Dry => {
                 // info!("Removing directory {:?}", path);
             }
+            FileSystemOperator::Local(local_client) => local_client.remove_directory(path)?,
         };
         Ok(())
     }
@@ -225,6 +246,7 @@ impl FileSystemOperator {
             FileSystemOperator::Dry => {
                 // info!("Creating directory {:?}", path);
             }
+            FileSystemOperator::Local(local_client) => local_client.create_directory(path)?,
         };
         Ok(())
     }
@@ -235,6 +257,7 @@ impl FileSystemOperator {
             FileSystemOperator::Dry => {
                 // info!("Setting permission of {:?} to {:o}", path, mode);
             }
+            FileSystemOperator::Local(local_client) => local_client.set_permissions(path, mode)?,
         };
         Ok(())
     }
@@ -250,6 +273,7 @@ impl FileSystemOperator {
                     ..Default::default()
                 })
             }
+            FileSystemOperator::Local(local_client) => local_client.metadata(path)?,
         })
     }
 }

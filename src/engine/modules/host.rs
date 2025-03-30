@@ -1,35 +1,34 @@
-use std::{net::IpAddr, path::PathBuf};
+use std::path::PathBuf;
 
 use mlua::UserData;
 
 use crate::{
-    engine::delegator::{
-        executor::Executor,
-        operator::{FileSystemOperator, MetadataType},
+    engine::{
+        delegator::{
+            executor::Executor,
+            operator::{FileSystemOperator, MetadataType},
+        },
+        objects::{directory::Directory, file::File},
     },
     error::ErrorReport,
 };
 
-use super::{directory::Directory, file::File};
-
 #[derive(Clone)]
-pub struct System {
-    pub name: String,
-    pub address: IpAddr,
-    pub port: u16,
-    pub user: String,
+pub struct Host {
     pub executor: Executor,
     pub file_system_operator: FileSystemOperator,
 }
 
-impl UserData for System {
-    fn add_fields<F: mlua::UserDataFields<Self>>(fields: &mut F) {
-        fields.add_field_method_get("name", |_, this| Ok(this.name.clone()));
-        fields.add_field_method_get("address", |_, this| Ok(this.address.to_string()));
-        fields.add_field_method_get("port", |_, this| Ok(this.port));
-        fields.add_field_method_get("user", |_, this| Ok(this.user.clone()));
+impl Host {
+    pub fn new() -> Self {
+        Self {
+            executor: Executor::new_local(),
+            file_system_operator: FileSystemOperator::new_local(),
+        }
     }
+}
 
+impl UserData for Host {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method("run_command", |_, this, cmd: String| {
             this.executor

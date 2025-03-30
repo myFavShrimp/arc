@@ -1,8 +1,7 @@
-// use log::debug;
 use ssh2::Session;
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::{
     executor::CommandResult,
@@ -154,7 +153,7 @@ impl SshClient {
             path: path.clone(),
             kind: FileReadErrorKind::Ssh(e),
         })?;
-        let mut file = sftp.open(&path).map_err(|e| FileError {
+        let mut file = sftp.open(path).map_err(|e| FileError {
             path: path.clone(),
             kind: FileReadErrorKind::Ssh(e),
         })?;
@@ -170,101 +169,101 @@ impl SshClient {
 
     pub fn write_file(
         &self,
-        path: &PathBuf,
+        path: &Path,
         content: &[u8],
     ) -> Result<FileWriteResult, FileError<FileWriteErrorKind>> {
         // debug!("Writing to remote file {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| FileError {
-            path: path.clone(),
+            path: path.to_path_buf(),
             kind: FileWriteErrorKind::Ssh(e),
         })?;
-        let mut file = sftp.create(&path).map_err(|e| FileError {
-            path: path.clone(),
+        let mut file = sftp.create(path).map_err(|e| FileError {
+            path: path.to_path_buf(),
             kind: FileWriteErrorKind::Ssh(e),
         })?;
 
         let bytes_written = file.write(content).map_err(|e| FileError {
-            path: path.clone(),
+            path: path.to_path_buf(),
             kind: FileWriteErrorKind::Io(e),
         })?;
 
         Ok(FileWriteResult {
-            path: path.clone(),
+            path: path.to_path_buf(),
             bytes_written,
         })
     }
 
-    pub fn rename_file(&self, from: &PathBuf, to: &PathBuf) -> Result<(), RenameError> {
+    pub fn rename_file(&self, from: &Path, to: &Path) -> Result<(), RenameError> {
         // debug!("Renaming remote file {:?} to {:?}", from, to);
 
         let sftp = self.session.sftp().map_err(|e| RenameError {
-            from: from.clone(),
-            to: to.clone(),
+            from: from.to_path_buf(),
+            to: to.to_path_buf(),
             kind: RenameErrorKind::Ssh(e),
         })?;
-        sftp.rename(&from, &to, None).map_err(|e| RenameError {
-            from: from.clone(),
-            to: to.clone(),
+        sftp.rename(from, to, None).map_err(|e| RenameError {
+            from: from.to_path_buf(),
+            to: to.to_path_buf(),
             kind: RenameErrorKind::Ssh(e),
         })?;
 
         Ok(())
     }
 
-    pub fn remove_file(&self, path: &PathBuf) -> Result<(), RemoveFileError> {
+    pub fn remove_file(&self, path: &Path) -> Result<(), RemoveFileError> {
         // debug!("Deleting remote file {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| RemoveFileError {
-            path: path.clone(),
+            path: path.to_path_buf(),
             source: e,
         })?;
-        sftp.unlink(&path).map_err(|e| RemoveFileError {
-            path: path.clone(),
+        sftp.unlink(path).map_err(|e| RemoveFileError {
+            path: path.to_path_buf(),
             source: e,
         })?;
 
         Ok(())
     }
 
-    pub fn remove_directory(&self, path: &PathBuf) -> Result<(), RemoveDirectoryError> {
+    pub fn remove_directory(&self, path: &Path) -> Result<(), RemoveDirectoryError> {
         // debug!("Removing remote directory {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| RemoveDirectoryError {
-            path: path.clone(),
+            path: path.to_path_buf(),
             source: e,
         })?;
-        sftp.rmdir(&path).map_err(|e| RemoveDirectoryError {
-            path: path.clone(),
+        sftp.rmdir(path).map_err(|e| RemoveDirectoryError {
+            path: path.to_path_buf(),
             source: e,
         })?;
 
         Ok(())
     }
 
-    pub fn create_directory(&self, path: &PathBuf) -> Result<(), CreateDirectoryError> {
+    pub fn create_directory(&self, path: &Path) -> Result<(), CreateDirectoryError> {
         // debug!("Creating remote directory {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| CreateDirectoryError {
-            path: path.clone(),
+            path: path.to_path_buf(),
             source: e,
         })?;
-        sftp.mkdir(&path, 0o755).map_err(|e| CreateDirectoryError {
-            path: path.clone(),
+        sftp.mkdir(path, 0o755).map_err(|e| CreateDirectoryError {
+            path: path.to_path_buf(),
             source: e,
         })?;
 
         Ok(())
     }
 
-    pub fn set_permissions(&self, path: &PathBuf, mode: u32) -> Result<(), SetPermissionsError> {
+    pub fn set_permissions(&self, path: &Path, mode: u32) -> Result<(), SetPermissionsError> {
         // debug!(
         //     "Setting permissions on remote path {:?} to {:o}",
         //     path, mode
         // );
 
         let sftp = self.session.sftp().map_err(|e| SetPermissionsError {
-            path: path.clone(),
+            path: path.to_path_buf(),
             source: e,
         })?;
 
@@ -277,29 +276,29 @@ impl SshClient {
             mtime: None,
         };
 
-        sftp.setstat(&path, stat).map_err(|e| SetPermissionsError {
-            path: path.clone(),
+        sftp.setstat(path, stat).map_err(|e| SetPermissionsError {
+            path: path.to_path_buf(),
             source: e,
         })?;
 
         Ok(())
     }
 
-    pub fn metadata(&self, path: &PathBuf) -> Result<Option<MetadataResult>, MetadataError> {
+    pub fn metadata(&self, path: &Path) -> Result<Option<MetadataResult>, MetadataError> {
         // debug!("Getting metadata for remote file {:?}", path);
 
         let sftp = self.session.sftp().map_err(|e| MetadataError {
-            path: path.clone(),
+            path: path.to_path_buf(),
             source: e,
         })?;
 
-        let stat = match sftp.stat(&path) {
+        let stat = match sftp.stat(path) {
             Ok(stat) => stat,
             Err(error) => match error.code() {
                 // No such file
                 ssh2::ErrorCode::SFTP(2) => return Ok(None),
                 ssh2::ErrorCode::SFTP(_) | ssh2::ErrorCode::Session(_) => Err(MetadataError {
-                    path: path.clone(),
+                    path: path.to_path_buf(),
                     source: error,
                 })?,
             },
@@ -314,7 +313,7 @@ impl SshClient {
         };
 
         Ok(Some(MetadataResult {
-            path: path.clone(),
+            path: path.to_path_buf(),
             size: stat.size,
             permissions: stat.perm,
             r#type: file_type,

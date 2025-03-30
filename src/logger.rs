@@ -45,12 +45,12 @@ impl Logger {
         let current_system = self.current_system.as_ref().expect("current system");
 
         if self.task_stack.is_empty() {
-            println!("TASK : {} | {}", task_name.to_string(), current_system);
+            println!("TASK : {} | {}", task_name, current_system);
         } else {
             println!(
                 "TASK : {} > {} | {}",
                 self.format_task_stack(),
-                task_name.to_string(),
+                task_name,
                 current_system
             );
         };
