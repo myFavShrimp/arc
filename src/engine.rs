@@ -3,7 +3,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-// use log::info;
 use executor::{ExecutionTargetSetError, Executor};
 use mlua::{Lua, LuaOptions, StdLib};
 use modules::{Modules, MountToGlobals};
@@ -153,7 +152,7 @@ impl Engine {
                 address: system_config.address,
                 port: system_config.port,
                 user: system_config.user.clone(),
-                execution_delegator: Executor::new_for_system(&system_config, self.is_dry_run)?,
+                executor: Executor::new_for_system(&system_config, self.is_dry_run)?,
             };
 
             for task_config in system_tasks {

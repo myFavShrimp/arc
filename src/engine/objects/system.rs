@@ -10,7 +10,7 @@ pub struct System {
     pub address: IpAddr,
     pub port: u16,
     pub user: String,
-    pub execution_delegator: Executor,
+    pub executor: Executor,
 }
 
 impl UserData for System {
@@ -23,13 +23,13 @@ impl UserData for System {
 
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method("run_command", |_, this, cmd: String| {
-            this.execution_delegator
+            this.executor
                 .run_command(cmd)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
 
         methods.add_method("read_file", |_, this, (path,): (PathBuf,)| {
-            this.execution_delegator
+            this.executor
                 .read_file(path)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
@@ -37,32 +37,32 @@ impl UserData for System {
         methods.add_method(
             "write_file",
             |_, this, (path, content): (PathBuf, String)| {
-                this.execution_delegator
+                this.executor
                     .write_file(path, content)
                     .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
             },
         );
 
         methods.add_method("rename_file", |_, this, (from, to): (PathBuf, PathBuf)| {
-            this.execution_delegator
+            this.executor
                 .rename_file(from, to)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
 
         methods.add_method("remove_file", |_, this, (path,): (PathBuf,)| {
-            this.execution_delegator
+            this.executor
                 .remove_file(path)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
 
         methods.add_method("remove_directory", |_, this, (path,): (PathBuf,)| {
-            this.execution_delegator
+            this.executor
                 .remove_directory(path)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
 
         methods.add_method("create_directory", |_, this, (path,): (PathBuf,)| {
-            this.execution_delegator
+            this.executor
                 .create_directory(path)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
@@ -70,7 +70,7 @@ impl UserData for System {
         methods.add_method(
             "set_permissions",
             |_, this, (path, mode): (PathBuf, u32)| {
-                this.execution_delegator
+                this.executor
                     .set_permissions(path, mode)
                     // .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
                     .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
@@ -78,7 +78,7 @@ impl UserData for System {
         );
 
         methods.add_method("metadata", |_, this, (path,): (PathBuf,)| {
-            this.execution_delegator
+            this.executor
                 .metadata(path)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
