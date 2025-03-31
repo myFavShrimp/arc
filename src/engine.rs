@@ -58,8 +58,12 @@ pub enum EngineExecutionError {
 pub struct FilteredGroupDoesNotExistError(Vec<String>);
 
 impl Engine {
-    pub fn new(verbosity: u8, is_dry_run: bool) -> Result<Self, EngineBuilderCreationError> {
-        let logger = Arc::new(Mutex::new(Logger::new()));
+    pub fn new(
+        logger: Logger,
+        verbosity: u8,
+        is_dry_run: bool,
+    ) -> Result<Self, EngineBuilderCreationError> {
+        let logger = Arc::new(Mutex::new(logger));
         let mut lua = Lua::new_with(StdLib::ALL_SAFE, LuaOptions::new().catch_rust_panics(true))?;
 
         let target_systems_memory = Arc::new(Mutex::new(TargetSystemsMemory::default()));

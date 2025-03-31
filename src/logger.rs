@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex};
 
+use colored::Colorize;
+
 pub type SharedLogger = Arc<Mutex<Logger>>;
 
 struct LoggingTask {
@@ -10,8 +12,6 @@ pub struct Logger {
     task_stack: Vec<LoggingTask>,
     current_system: Option<String>,
 }
-
-// static DEFAULT_LINE_LEGNTH: u16 = 80;
 
 impl Logger {
     pub fn new() -> Self {
@@ -32,13 +32,17 @@ impl Logger {
     }
 
     pub fn info(&self, message: &str) {
-        println!("ARC | INFO : {}\n", message);
+        println!("ARC | {}{} : {}", "INFO".blue(), "".clear(), message);
+    }
+
+    pub fn warn(&self, message: &str) {
+        println!("ARC | {}{} : {}", "WARN".yellow(), "".clear(), message);
     }
 
     pub fn current_system(&mut self, system_name: &str) {
         self.current_system = Some(system_name.to_string());
 
-        println!("SYSTEM: {}\n", system_name);
+        println!("\nSYSTEM: {}\n", system_name);
     }
 
     pub fn enter_task(&mut self, task_name: &str) {
