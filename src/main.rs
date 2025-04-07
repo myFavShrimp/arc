@@ -14,7 +14,7 @@ fn main() -> Result<(), error::ErrorReport> {
     let logger = Logger::new();
 
     if let Err(error) = dotenvy::dotenv_override() {
-        logger.warn(&format!("Failed to load .env: {}", error.to_string()));
+        logger.warn(&format!("Failed to load .env: {}", error));
     };
 
     Engine::new(logger, cli_args.verbose, cli_args.dry_run)

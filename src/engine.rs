@@ -10,6 +10,7 @@ use delegator::{
 use mlua::{Lua, LuaOptions, StdLib};
 use modules::{Modules, MountToGlobals};
 use objects::system::System;
+use recipe::{Recipe, RecipeCreationError};
 use state::{State, TasksResultResetError, TasksResultStateSetError};
 
 use crate::{
@@ -23,6 +24,7 @@ use crate::{
 pub mod delegator;
 pub mod modules;
 pub mod objects;
+mod recipe;
 pub mod state;
 
 pub struct Engine {
@@ -51,6 +53,7 @@ pub enum EngineExecutionError {
     Lock(#[from] MutexLockError),
     TasksResultResetError(#[from] TasksResultResetError),
     TasksResultSet(#[from] TasksResultStateSetError),
+    RecipeCreation(#[from] RecipeCreationError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -104,8 +107,8 @@ impl Engine {
             .state
             .tasks_for_selected_groups_and_tags(&groups, &tags)?;
 
-        let mut tasks_to_execute = tasks.values().cloned().collect::<Vec<_>>();
-        tasks_to_execute.sort_unstable_by(|a, b| a.partial_cmp(b).expect("ordering is not none"));
+        let tasks_to_execute = tasks.values().cloned().collect::<Vec<_>>();
+        let recipe = Recipe::from_tasks(&tasks_to_execute)?;
 
         let missing_selected_groups = self.state.missing_selected_groups(&groups)?;
         if !missing_selected_groups.is_empty() {
@@ -128,7 +131,8 @@ impl Engine {
                 .filter(|(_, config)| config.members.contains(&system_name))
                 .map(|(name, _)| name)
                 .collect::<Vec<&String>>();
-            let system_tasks = tasks_to_execute
+            let system_tasks = recipe
+                .tasks
                 .iter()
                 .filter(|task| {
                     system_groups.is_empty()

@@ -10,29 +10,6 @@ pub struct Task {
     pub result: Option<mlua::Value>,
 }
 
-impl PartialOrd for Task {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        let self_has_dependencies = !self.dependencies.is_empty();
-        let other_has_dependencies = !other.dependencies.is_empty();
-
-        Some(match (self_has_dependencies, other_has_dependencies) {
-            (true, false) => std::cmp::Ordering::Greater,
-            (false, true) => std::cmp::Ordering::Less,
-            (false, false) => std::cmp::Ordering::Equal,
-            (true, true) => {
-                let other_depends_on_self = other.dependencies.contains(&self.name);
-                let self_depends_on_other = self.dependencies.contains(&other.name);
-
-                match (other_depends_on_self, self_depends_on_other) {
-                    (true, true) | (false, false) => self.name.cmp(&other.name),
-                    (true, false) => std::cmp::Ordering::Less,
-                    (false, true) => std::cmp::Ordering::Greater,
-                }
-            }
-        })
-    }
-}
-
 pub type Tasks = HashMap<String, Task>;
 
 #[derive(Debug, Default)]
