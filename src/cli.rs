@@ -2,7 +2,7 @@ use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(name = "arc")]
-#[command(about = "An infrastructure automation tool.", long_about = None)]
+#[command(about = "A scriptable automation tool.", long_about = None)]
 pub struct Cli {
     /// Enable verbose output
     #[arg(short, long, action = clap::ArgAction::Count)]

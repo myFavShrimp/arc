@@ -2,9 +2,11 @@
 name = "arc-engine"
 version = "0.1.0"
 edition = "2021"
-description = "A scriptable configuration tool written in Rust using Luau"
-authors = []
+description = "A scriptable automation tool."
+authors = ["myFavShrimp <myfavshrimp@tuta.io>"]
+repository = "https://github.com/myFavShrimp/arc"
 license = "MIT"
+publish = true
 
 [dependencies]
 mlua = { version = "0.10", features = ["luau", "macros", "serialize"] }

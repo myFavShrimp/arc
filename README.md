@@ -1,6 +1,6 @@
 # Arc
 
-Arc is an infrastructure automation tool similar to Ansible, but using Lua for scripting. It allows you to define tasks that are executed on remote systems via SSH, with a powerful and flexible API.
+Arc is an infrastructure automation tool that uses Lua for scripting. It allows you to define tasks that are executed on remote systems via SSH, with a powerful and flexible API.
 
 ## Installation
 
