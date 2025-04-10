@@ -7,7 +7,11 @@ use super::{
     local::{self, LocalClient},
     ssh::{self, ConnectionError, SshClient, SshError},
 };
-use crate::{error::MutexLockError, memory::target_systems::TargetSystem};
+use crate::{
+    engine::objects::{directory::Directory, file::File},
+    error::MutexLockError,
+    memory::target_systems::TargetSystem,
+};
 
 #[derive(Clone)]
 pub enum FileSystemOperator {
@@ -63,7 +67,7 @@ pub struct MetadataResult {
     pub modified: Option<u64>,
 }
 
-#[derive(Default)]
+#[derive(Default, PartialEq, Eq)]
 pub enum MetadataType {
     File,
     Directory,
@@ -175,6 +179,42 @@ pub enum MetadataError {
     Local(#[from] local::MetadataError),
 }
 
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum FileError {
+    Ssh(#[from] ssh::MetadataError),
+    Local(#[from] local::MetadataError),
+    Metadata(#[from] MetadataError),
+    UnexpectedDirectory(#[from] UnexpectedDirectoryError),
+    NotAFile(#[from] NotAFileError),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("{0:?} is a directory - expected a file")]
+pub struct UnexpectedDirectoryError(PathBuf);
+
+#[derive(Debug, thiserror::Error)]
+#[error("{0:?} is not a file")]
+pub struct NotAFileError(PathBuf);
+
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum DirectoryError {
+    Ssh(#[from] ssh::MetadataError),
+    Local(#[from] local::MetadataError),
+    Metadata(#[from] MetadataError),
+    UnexpectedFile(#[from] UnexpectedFileError),
+    NotADirectory(#[from] NotADirectoryError),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("{0:?} is a file - expected a directory")]
+pub struct UnexpectedFileError(PathBuf);
+
+#[derive(Debug, thiserror::Error)]
+#[error("{0:?} is not a directory")]
+pub struct NotADirectoryError(PathBuf);
+
 impl FileSystemOperator {
     pub fn read_file(&self, path: &PathBuf) -> Result<Vec<u8>, FileReadError> {
         Ok(match self {
@@ -275,5 +315,57 @@ impl FileSystemOperator {
             }
             FileSystemOperator::Local(local_client) => local_client.metadata(path)?,
         })
+    }
+
+    pub fn file(&self, path: &PathBuf) -> Result<File, FileError> {
+        if let FileSystemOperator::Dry = self {
+            return Ok(File {
+                path: path.clone(),
+                file_system_operator: self.clone(),
+            });
+        }
+
+        let metadata = self.metadata(path)?;
+
+        match metadata {
+            None => Ok(File {
+                path: path.clone(),
+                file_system_operator: self.clone(),
+            }),
+            Some(metadata) => match metadata.r#type {
+                MetadataType::File => Ok(File {
+                    path: path.clone(),
+                    file_system_operator: self.clone(),
+                }),
+                MetadataType::Directory => Err(UnexpectedDirectoryError(path.clone()))?,
+                MetadataType::Unknown => Err(NotAFileError(path.clone()))?,
+            },
+        }
+    }
+
+    pub fn directory(&self, path: &PathBuf) -> Result<Directory, DirectoryError> {
+        if let FileSystemOperator::Dry = self {
+            return Ok(Directory {
+                path: path.clone(),
+                file_system_operator: self.clone(),
+            });
+        }
+
+        let metadata = self.metadata(path)?;
+
+        match metadata {
+            None => Ok(Directory {
+                path: path.clone(),
+                file_system_operator: self.clone(),
+            }),
+            Some(metadata) => match metadata.r#type {
+                MetadataType::Directory => Ok(Directory {
+                    path: path.clone(),
+                    file_system_operator: self.clone(),
+                }),
+                MetadataType::File => Err(UnexpectedFileError(path.clone()))?,
+                MetadataType::Unknown => Err(NotADirectoryError(path.clone()))?,
+            },
+        }
     }
 }
