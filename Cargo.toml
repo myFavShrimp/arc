@@ -1,5 +1,5 @@
 [package]
-name = "arc"
+name = "arc-engine"
 version = "0.1.0"
 edition = "2021"
 description = "A scriptable configuration tool written in Rust using Luau"
@@ -17,3 +17,7 @@ tera = "1.20.0"
 jiff = { version = "0.2.5", default-features = false, features = ["std"] }
 colored = "3.0.0"
 dotenvy = "0.15.7"
+
+[[bin]]
+name = "arc"
+path = "src/main.rs"
