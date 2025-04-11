@@ -71,6 +71,7 @@ impl Engine {
 
         let target_systems_memory = Arc::new(Mutex::new(TargetSystemsMemory::default()));
         let target_groups_memory = Arc::new(Mutex::new(TargetGroupsMemory::default()));
+        #[allow(clippy::arc_with_non_send_sync)]
         let tasks_memory = Arc::new(Mutex::new(TasksMemory::default()));
 
         Modules::new(

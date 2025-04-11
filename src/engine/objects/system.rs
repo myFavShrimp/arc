@@ -3,14 +3,9 @@ use std::{net::IpAddr, path::PathBuf};
 use mlua::UserData;
 
 use crate::{
-    engine::delegator::{
-        executor::Executor,
-        operator::{FileSystemOperator, MetadataType},
-    },
+    engine::delegator::{executor::Executor, operator::FileSystemOperator},
     error::ErrorReport,
 };
-
-use super::{directory::Directory, file::File};
 
 #[derive(Clone)]
 pub struct System {
