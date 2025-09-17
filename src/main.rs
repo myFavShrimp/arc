@@ -6,6 +6,7 @@ use logger::Logger;
 mod cli;
 mod engine;
 mod error;
+mod init;
 mod logger;
 mod memory;
 
@@ -13,14 +14,26 @@ fn main() -> Result<(), error::ErrorReport> {
     let cli_args = Cli::parse();
     let logger = Logger::new();
 
-    if let Err(error) = dotenvy::dotenv_override() {
-        logger.warn(&format!("Failed to load .env: {}", error));
-    };
+    match cli_args.command {
+        cli::Command::Init { project_root } => {
+            init::init_project(project_root).map_err(error::ErrorReport::boxed_from)?
+        }
+        cli::Command::Run {
+            verbose,
+            tag,
+            group,
+            dry_run,
+        } => {
+            if let Err(error) = dotenvy::dotenv_override() {
+                logger.warn(&format!("Failed to load .env: {}", error));
+            };
 
-    Engine::new(logger, cli_args.verbose, cli_args.dry_run)
-        .map_err(error::ErrorReport::boxed_from)?
-        .execute(cli_args.tag, cli_args.group)
-        .map_err(error::ErrorReport::boxed_from)?;
+            Engine::new(logger, verbose, dry_run)
+                .map_err(error::ErrorReport::boxed_from)?
+                .execute(tag, group)
+                .map_err(error::ErrorReport::boxed_from)?;
+        }
+    }
 
     Ok(())
 }
