@@ -57,7 +57,9 @@ pub enum TaskRetrievalError {
 pub struct TaskNotDefinedError(String);
 
 impl TasksMemory {
-    pub fn add(&mut self, task: Task) -> Result<(), TaskAdditionError> {
+    pub fn add(&mut self, mut task: Task) -> Result<(), TaskAdditionError> {
+        task.tags.push(task.name.clone());
+
         if self
             .memory
             .insert(task.name.clone(), task.clone())
