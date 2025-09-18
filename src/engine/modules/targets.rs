@@ -1,9 +1,13 @@
-use groups::{GroupRetrievalError, GroupsTable};
+use groups::GroupsTable;
 use mlua::IntoLua;
-use systems::{SystemRetrievalError, SystemsTable};
+use systems::SystemsTable;
 
-use crate::memory::{
-    target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory, SharedMemory,
+use crate::{
+    engine::readonly::set_readonly,
+    error::ErrorReport,
+    memory::{
+        target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory, SharedMemory,
+    },
 };
 
 pub mod groups;
@@ -13,27 +17,6 @@ pub struct TargetsTable {
     pub systems: SystemsTable,
     pub groups: GroupsTable,
 }
-
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub enum TargetsAcquisitionError {
-    SystemAcquisition(#[from] SystemRetrievalError),
-    GroupAcquisition(#[from] GroupRetrievalError),
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub enum TargetsValidationError {
-    SystemAcquisition(#[from] SystemRetrievalError),
-    GroupAcquisition(#[from] GroupRetrievalError),
-    GroupMembersNotDefined(#[from] GroupMembersNotDefinedError),
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Group member {1:?} of group {0:?} is not defined")]
-pub struct GroupMembersNotDefinedError(String, pub Vec<String>);
-
-// pub type TargetsTuple = (HashMap<String, SystemConfig>, HashMap<String, GroupConfig>);
 
 impl TargetsTable {
     pub fn new(
@@ -59,7 +42,8 @@ impl IntoLua for TargetsTable {
         targets_table.set("systems", self.systems)?;
         targets_table.set("groups", self.groups)?;
 
-        targets_table.set_readonly(true);
+        let targets_table = set_readonly(lua, targets_table)
+            .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
 
         Ok(mlua::Value::Table(targets_table))
     }

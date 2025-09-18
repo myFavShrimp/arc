@@ -4,6 +4,7 @@ use mlua::{FromLua, IntoLua, LuaSerdeExt, MetaMethod, UserData};
 use serde::Serialize;
 
 use crate::{
+    engine::readonly::set_readonly,
     error::{ErrorReport, MutexLockError},
     memory::{
         target_systems::{
@@ -56,11 +57,9 @@ impl FromLua for SystemConfig {
             | mlua::Value::LightUserData(_)
             | mlua::Value::Integer(_)
             | mlua::Value::Number(_)
-            | mlua::Value::Vector(_)
             | mlua::Value::String(_)
             | mlua::Value::Thread(_)
             | mlua::Value::UserData(_)
-            | mlua::Value::Buffer(_)
             | mlua::Value::Error(_)
             | mlua::Value::Other(_) => Err(mlua::Error::runtime(format!(
                 "{:?} is not a valid system config",
@@ -78,7 +77,8 @@ impl IntoLua for TargetSystem {
         config_table.set("port", self.port)?;
         config_table.set("user", self.user)?;
 
-        config_table.set_readonly(true);
+        let config_table = set_readonly(lua, config_table)
+            .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
 
         Ok(mlua::Value::Table(config_table))
     }
@@ -93,19 +93,11 @@ pub enum SystemAdditionError {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("Duplicate system: {0:?}")]
-pub struct DuplicateSystemError(pub String);
-
-#[derive(Debug, thiserror::Error)]
 #[error("Failed to retrieve system configuration")]
 pub enum SystemRetrievalError {
     Lock(#[from] MutexLockError),
     TargetSystemRetrieval(#[from] TargetSystemRetrievalError),
 }
-
-#[derive(Debug, thiserror::Error)]
-#[error("System {0:?} is not defined")]
-pub struct SystemNotDefinedError(String);
 
 pub struct SystemsTable {
     pub systems_memory: SharedMemory<TargetSystemsMemory>,

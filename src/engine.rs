@@ -24,6 +24,7 @@ use crate::{
 pub mod delegator;
 pub mod modules;
 pub mod objects;
+mod readonly;
 mod recipe;
 pub mod state;
 
@@ -61,11 +62,7 @@ pub enum EngineExecutionError {
 pub struct FilteredGroupDoesNotExistError(Vec<String>);
 
 impl Engine {
-    pub fn new(
-        logger: Logger,
-        verbosity: u8,
-        is_dry_run: bool,
-    ) -> Result<Self, EngineBuilderCreationError> {
+    pub fn new(logger: Logger, is_dry_run: bool) -> Result<Self, EngineBuilderCreationError> {
         let logger = Arc::new(Mutex::new(logger));
         let mut lua = Lua::new_with(StdLib::ALL_SAFE, LuaOptions::new().catch_rust_panics(true))?;
 

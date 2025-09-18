@@ -19,7 +19,6 @@ fn main() -> Result<(), error::ErrorReport> {
             init::init_project(project_root).map_err(error::ErrorReport::boxed_from)?
         }
         cli::Command::Run {
-            verbose,
             tag,
             group,
             dry_run,
@@ -28,7 +27,7 @@ fn main() -> Result<(), error::ErrorReport> {
                 logger.warn(&format!("Failed to load .env: {}", error));
             };
 
-            Engine::new(logger, verbose, dry_run)
+            Engine::new(logger, dry_run)
                 .map_err(error::ErrorReport::boxed_from)?
                 .execute(tag, group)
                 .map_err(error::ErrorReport::boxed_from)?;

@@ -1,6 +1,7 @@
 use mlua::{FromLua, IntoLua, Lua, MetaMethod, UserData};
 
 use crate::{
+    engine::readonly::set_readonly,
     error::{ErrorReport, MutexLockError},
     logger::SharedLogger,
     memory::{
@@ -62,11 +63,9 @@ impl FromLua for TaskConfig {
             | mlua::Value::LightUserData(_)
             | mlua::Value::Integer(_)
             | mlua::Value::Number(_)
-            | mlua::Value::Vector(_)
             | mlua::Value::String(_)
             | mlua::Value::Thread(_)
             | mlua::Value::UserData(_)
-            | mlua::Value::Buffer(_)
             | mlua::Value::Error(_)
             | mlua::Value::Other(_) => Err(mlua::Error::runtime(format!(
                 "{:?} is not a valid system config",
@@ -86,7 +85,8 @@ impl IntoLua for Task {
         task_table.set("result", self.result)?;
         task_table.set("handler", self.handler)?;
 
-        task_table.set_readonly(true);
+        let task_table = set_readonly(lua, task_table)
+            .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
 
         Ok(mlua::Value::Table(task_table))
     }
@@ -111,18 +111,6 @@ pub enum TasksModuleRetrievalError {
     Lock(#[from] MutexLockError),
     TaskRetrieval(#[from] TaskRetrievalError),
 }
-
-#[derive(Debug, thiserror::Error)]
-#[error("Task {0:?} is not defined")]
-pub struct TaskNotDefinedError(String);
-
-#[derive(Debug, thiserror::Error)]
-#[error("Unregistered task dependencies: {0:?}")]
-pub struct UnregisteredDependenciesError(pub Vec<String>);
-
-#[derive(Debug, thiserror::Error)]
-#[error("Duplicate task: {0:?}")]
-pub struct DuplicateTaskError(pub String);
 
 pub struct TasksTable {
     pub groups_memory: SharedMemory<TargetGroupsMemory>,

@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use mlua::IntoLua;
 use serde::Serialize;
 
@@ -7,7 +5,11 @@ use super::{
     local::{HostError, LocalClient},
     ssh::{ConnectionError, SshClient, SshError},
 };
-use crate::{error::MutexLockError, memory::target_systems::TargetSystem};
+use crate::{
+    engine::readonly::set_readonly,
+    error::{ErrorReport, MutexLockError},
+    memory::target_systems::TargetSystem,
+};
 
 #[derive(Clone)]
 pub enum Executor {
@@ -47,44 +49,8 @@ impl IntoLua for CommandResult {
         result_table.set("stderr", self.stderr)?;
         result_table.set("exit_code", self.exit_code)?;
 
-        result_table.set_readonly(true);
-
-        Ok(mlua::Value::Table(result_table))
-    }
-}
-
-#[derive(Debug, Serialize, Default)]
-pub struct FileReadResult {
-    pub path: PathBuf,
-    pub content: String,
-}
-
-impl IntoLua for FileReadResult {
-    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
-        let result_table = lua.create_table()?;
-
-        result_table.set("path", self.path)?;
-        result_table.set("content", self.content)?;
-
-        result_table.set_readonly(true);
-
-        Ok(mlua::Value::Table(result_table))
-    }
-}
-#[derive(Debug, Serialize, Default)]
-pub struct FileWriteResult {
-    pub path: PathBuf,
-    pub bytes_written: usize,
-}
-
-impl IntoLua for FileWriteResult {
-    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
-        let result_table = lua.create_table()?;
-
-        result_table.set("path", self.path)?;
-        result_table.set("bytes_written", self.bytes_written)?;
-
-        result_table.set_readonly(true);
+        let result_table = set_readonly(lua, result_table)
+            .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
 
         Ok(mlua::Value::Table(result_table))
     }

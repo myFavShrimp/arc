@@ -17,9 +17,6 @@ pub enum Command {
         project_root: PathBuf,
     },
     Run {
-        /// Enable verbose output
-        #[arg(short, long, action = clap::ArgAction::Count)]
-        verbose: u8,
         /// Filter tasks by tag
         #[arg(short, long)]
         tag: Vec<String>,
@@ -35,7 +32,6 @@ pub enum Command {
 impl Default for Command {
     fn default() -> Self {
         Self::Run {
-            verbose: 0,
             tag: Vec::new(),
             group: Vec::new(),
             dry_run: false,

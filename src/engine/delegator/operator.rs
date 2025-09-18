@@ -5,11 +5,14 @@ use serde::Serialize;
 
 use super::{
     local::{self, LocalClient},
-    ssh::{self, ConnectionError, SshClient, SshError},
+    ssh::{self, ConnectionError, SshClient},
 };
 use crate::{
-    engine::objects::{directory::Directory, file::File},
-    error::MutexLockError,
+    engine::{
+        objects::{directory::Directory, file::File},
+        readonly::set_readonly,
+    },
+    error::{ErrorReport, MutexLockError},
     memory::target_systems::TargetSystem,
 };
 
@@ -49,7 +52,8 @@ impl IntoLua for FileWriteResult {
         result_table.set("path", self.path)?;
         result_table.set("bytes_written", self.bytes_written)?;
 
-        result_table.set_readonly(true);
+        let result_table = set_readonly(lua, result_table)
+            .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
 
         Ok(mlua::Value::Table(result_table))
     }
@@ -98,7 +102,8 @@ impl IntoLua for MetadataResult {
         result_table.set("accessed", self.accessed)?;
         result_table.set("modified", self.modified)?;
 
-        result_table.set_readonly(true);
+        let result_table = set_readonly(lua, result_table)
+            .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
 
         Ok(mlua::Value::Table(result_table))
     }
@@ -109,18 +114,6 @@ impl IntoLua for MetadataResult {
 pub enum OperationTargetSetError {
     Connection(#[from] ConnectionError),
     Lock(#[from] MutexLockError),
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Missing execution target")]
-pub struct UninitializedSshClientError;
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to execute tasks")]
-pub enum TaskError {
-    Ssh(#[from] SshError),
-    Lock(#[from] MutexLockError),
-    UninitializedSshClient(#[from] UninitializedSshClientError),
 }
 
 #[derive(thiserror::Error, Debug)]

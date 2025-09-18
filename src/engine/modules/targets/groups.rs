@@ -2,6 +2,7 @@ use mlua::{FromLua, IntoLua, LuaSerdeExt, MetaMethod, UserData};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    engine::readonly::set_readonly,
     error::{ErrorReport, MutexLockError},
     memory::{
         target_groups::{
@@ -25,9 +26,9 @@ impl FromLua for GroupConfig {
                     .get::<mlua::Value>("members")
                     .or(Err(mlua::Error::runtime("\"members\" is missing")))?;
 
-                let members = lua
-                    .from_value(members_field)
-                    .or(Err(mlua::Error::runtime("\"members\" is invalid".to_string())))?;
+                let members = lua.from_value(members_field).or(Err(mlua::Error::runtime(
+                    "\"members\" is invalid".to_string(),
+                )))?;
 
                 Ok(GroupConfig { members })
             }
@@ -37,11 +38,9 @@ impl FromLua for GroupConfig {
             | mlua::Value::LightUserData(_)
             | mlua::Value::Integer(_)
             | mlua::Value::Number(_)
-            | mlua::Value::Vector(_)
             | mlua::Value::String(_)
             | mlua::Value::Thread(_)
             | mlua::Value::UserData(_)
-            | mlua::Value::Buffer(_)
             | mlua::Value::Error(_)
             | mlua::Value::Other(_) => Err(mlua::Error::runtime(format!(
                 "{:?} is not a valid group config",
@@ -59,18 +58,16 @@ impl IntoLua for TargetGroup {
         for member in self.members {
             members_table.push(member)?;
         }
-        members_table.set_readonly(true);
+        let members_table = set_readonly(lua, members_table)
+            .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
 
         config_table.set("members", members_table)?;
-        config_table.set_readonly(true);
+        let config_table = set_readonly(lua, config_table)
+            .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
 
         Ok(mlua::Value::Table(config_table))
     }
 }
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to retrieve groups")]
-pub struct GroupsRetrievalError(#[from] MutexLockError);
 
 #[derive(thiserror::Error, Debug)]
 #[error("Failed to add group")]
@@ -85,19 +82,11 @@ pub enum GroupAdditionError {
 pub struct GroupMembersNotDefinedError(String, pub Vec<String>);
 
 #[derive(Debug, thiserror::Error)]
-#[error("Duplicate group: {0:?}")]
-pub struct DuplicateGroupError(pub String);
-
-#[derive(Debug, thiserror::Error)]
 #[error("Failed to retrieve group configuration")]
 pub enum GroupRetrievalError {
     Lock(#[from] MutexLockError),
     TargetGroupRetrieval(#[from] TargetGroupRetrievalError),
 }
-
-#[derive(Debug, thiserror::Error)]
-#[error("Group {0:?} is not defined")]
-pub struct GroupNotDefinedError(String);
 
 pub struct GroupsTable {
     pub groups_memory: SharedMemory<TargetGroupsMemory>,

@@ -1,9 +1,11 @@
----@meta
+---@meta _
+---Type definitions for Arc
 
 ---@class CommandResult
 ---@field stdout string The command output
 ---@field stderr string The command error output  
 ---@field exit_code integer The command exit code
+
 
 ---@class FileMetadata
 ---@field path string Path to the file or directory
@@ -14,6 +16,7 @@
 ---@field gid integer Group ID of the owner
 ---@field accessed integer Last access time as Unix timestamp
 ---@field modified integer Last modification time as Unix timestamp
+
 
 ---@class File
 ---@field path string Path to the file (can be read and set, setting renames the file)
@@ -32,6 +35,7 @@ function File:remove() end
 ---@return boolean exists True if file exists
 function File:exists() end
 
+
 ---@class Directory
 ---@field path string Path to the directory (can be read and set, setting renames the directory)
 ---@field permissions integer Directory permissions (can be read and set as numeric mode)
@@ -46,6 +50,7 @@ function Directory:remove() end
 ---Get directory metadata
 ---@return FileMetadata metadata Directory metadata information
 function Directory:metadata() end
+
 
 ---@class System
 ---@field name string The name of the system as defined in targets.systems
@@ -101,77 +106,100 @@ targets = {
 
 ---Environment variables module
 ---@class EnvModule
-local env = {}
+local Env = {}
 
 ---Get the value of an environment variable
 ---@param var_name string Name of the environment variable
 ---@return string|nil value Value of the environment variable or nil if not set
-function env.get(var_name) end
+function Env.get(var_name) end
 
----Local host operations module
----@class HostModule
-local host = {}
+---Environment variables module
+---@type EnvModule
+env = {}
+
+--- Global host class for aaccessing the host system
+---@class Host
+local Host = {}
 
 ---Execute a command on the local system
 ---@param cmd string The command to execute
 ---@return CommandResult result Command execution result
-function host:run_command(cmd) end
+function Host:run_command(cmd) end
 
 ---Get a File object representing a file on the local system
 ---@param path string Path to the file
 ---@return File file File object
-function host:file(path) end
+function Host:file(path) end
 
 ---Get a Directory object representing a directory on the local system
 ---@param path string Path to the directory
 ---@return Directory directory Directory object
-function host:directory(path) end
+function Host:directory(path) end
+
+--- Global host instance for aaccessing the host system
+---@type Host
+host = {}
+
 
 ---JSON formatting utilities
 ---@class FormatModule
-local format = {}
+local Format = {}
 
 ---Convert a Lua value to JSON
 ---@param value any Value to convert
 ---@return string json JSON string representation
-function format.to_json(value) end
+function Format.to_json(value) end
 
 ---Convert a Lua value to pretty-printed JSON
 ---@param value any Value to convert
 ---@return string json Pretty-printed JSON string
-function format.to_json_pretty(value) end
+function Format.to_json_pretty(value) end
 
 ---Parse a JSON string to a Lua value
 ---@param json_string string JSON string to parse
 ---@return any value Parsed Lua value
-function format.from_json(json_string) end
+function Format.from_json(json_string) end
+
+---JSON formatting utilities
+---@type FormatModule
+format = {}
+
 
 ---Template rendering module
 ---@class TemplateModule
-local template = {}
+local Template = {}
 
 ---Render a template with given context
 ---@param template_content string Template content
 ---@param context table Variables to use for template rendering
 ---@return string rendered Rendered template as string
-function template.render(template_content, context) end
+function Template.render(template_content, context) end
+
+---Template rendering module
+---@type TemplateModule
+template = {}
+
 
 ---Logging utilities
 ---@class LogModule
-local log = {}
+local Log = {}
 
 ---Log a debug message
 ---@param message string Debug message to log
-function log.debug(message) end
+function Log.debug(message) end
 
 ---Log an info message  
 ---@param message string Info message to log
-function log.info(message) end
+function Log.info(message) end
 
 ---Log a warning message
 ---@param message string Warning message to log
-function log.warn(message) end
+function Log.warn(message) end
 
 ---Log an error message
 ---@param message string Error message to log
-function log.error(message) end
+function Log.error(message) end
+
+---Logging utilities
+---@type LogModule
+log = {}
