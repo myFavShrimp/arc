@@ -1,6 +1,5 @@
 use std::sync::{Arc, Mutex};
 
-// use log::debug;
 use mlua::UserData;
 use tera::Tera;
 use thiserror::Error;

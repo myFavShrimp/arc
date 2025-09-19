@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use mlua::{FromLua, IntoLua, Lua, MetaMethod, UserData};
 
 use crate::{
@@ -5,9 +7,9 @@ use crate::{
     error::{ErrorReport, MutexLockError},
     logger::SharedLogger,
     memory::{
+        SharedMemory,
         target_groups::TargetGroupsMemory,
         tasks::{Task, TaskAdditionError, TaskRetrievalError, TasksMemory},
-        SharedMemory,
     },
 };
 
@@ -191,7 +193,47 @@ impl UserData for TasksTable {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_meta_method(
             MetaMethod::NewIndex,
-            |lua, this, (name, config): (String, TaskConfig)| {
+            |lua, this, (name, mut config): (String, TaskConfig)| {
+                let additional_tags = lua.inspect_stack(1, |debug| {
+                    let source = debug.source().source?;
+
+                    if !source.starts_with('@') {
+                        return None;
+                    }
+
+                    let source_path = PathBuf::from(source.trim_start_matches('@'));
+
+                    let source_file_stem = source_path.file_stem()?.to_string_lossy().to_string();
+                    let initial_additional_tags = vec![source_file_stem];
+
+                    let additional_tags = if let Some(parent_path) = source_path.parent() {
+                        parent_path.components().fold(
+                            initial_additional_tags,
+                            |mut acc, component| {
+                                match component {
+                                    std::path::Component::Prefix(..)
+                                    | std::path::Component::RootDir
+                                    | std::path::Component::CurDir
+                                    | std::path::Component::ParentDir => {}
+                                    std::path::Component::Normal(component) => {
+                                        acc.push(component.to_string_lossy().to_string());
+                                    }
+                                };
+
+                                acc
+                            },
+                        )
+                    } else {
+                        initial_additional_tags
+                    };
+
+                    Some(additional_tags)
+                });
+
+                if let Some(Some(additional_tags)) = additional_tags {
+                    config.tags.extend_from_slice(additional_tags.as_slice());
+                }
+
                 this.add(lua, name, config)
                     .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
             },

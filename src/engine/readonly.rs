@@ -17,7 +17,7 @@ pub fn set_readonly(lua: &Lua, table: Table) -> Result<Table, ReadonlySetError> 
     )?;
     metatable.set("__metatable", "Read-only table")?;
 
-    proxy.set_metatable(Some(metatable));
+    proxy.set_metatable(Some(metatable))?;
 
     Ok(proxy)
 }

@@ -29,6 +29,14 @@ This will compile and install the `arc` binary to your Cargo bin directory (usua
 
 Arc uses a Lua script (`arc.lua`) to define targets and tasks.
 
+### Creating a New Project
+
+```bash
+arc init /path/to/project
+```
+
+This command creates the project structure, type definitions for LSP support, and a basic `arc.lua` file with example tasks.
+
 ### Basic Example
 
 ```lua
@@ -484,7 +492,7 @@ tasks["task_name"] = {
 
 - `handler`: The function that implements the task. Takes a system object and returns a result.
 - `dependencies`: Array of task names that must be executed before this task.
-- `tags`: Array of tags associated with the task, used for filtering.
+- `tags`: Array of tags associated with the task, used for filtering. Tasks are automatically tagged with the task name and path components when defined in separate files (e.g., `modules/web/nginx.lua` adds tags: `modules`, `web`, `nginx`).
 - `groups`: Array of group names this task should run on. If not specified, the task runs on all groups.
 
 Within a task, you can access the result of a previously executed dependency using:

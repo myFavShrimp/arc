@@ -173,7 +173,7 @@ local Template = {}
 ---@param template_content string Template content
 ---@param context table Variables to use for template rendering
 ---@return string rendered Rendered template as string
-function Template.render(template_content, context) end
+function Template:render(template_content, context) end
 
 ---Template rendering module
 ---@type TemplateModule
