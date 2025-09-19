@@ -4,15 +4,26 @@ Arc is an infrastructure automation tool that uses Lua for scripting. It allows 
 
 ## Installation
 
-Clone the repository and build the project:
+1. Install Rust:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+2. Clone the repository and navigate to the project directory:
 
 ```bash
 git clone https://github.com/myFavShrimp/arc.git
 cd arc
-cargo build --release
 ```
 
-The binary will be available at `target/release/arc`.
+3. Install Arc using Cargo:
+
+```bash
+cargo install --path .
+```
+
+This will compile and install the `arc` binary to your Cargo bin directory (usually `~/.cargo/bin/`).
 
 ## Usage
 
@@ -65,60 +76,75 @@ tasks["install_nginx"] = {
 To run all tasks on all systems:
 
 ```bash
-arc
+arc run
 ```
 
 To run tasks with a specific tag:
 
 ```bash
-arc --tag nginx
+arc run --tag nginx
 ```
 
 To run tasks on specific a group:
 
 ```bash
-arc --group web-servers
+arc run --group web-servers
 ```
 
 ## CLI Reference
 
-Arc provides several command-line options:
+Arc provides the following subcommands:
+
+### `arc init`
+
+Initialize a new Arc project with type definitions for LSP support, code completion and type checking.
+
+```bash
+arc init /path/to/project
+```
+
+### `arc run`
+
+Execute Arc tasks defined in your `arc.lua` file.
 
 ```
-Usage:
-    arc [OPTIONS]
+Usage: arc run [OPTIONS]
 
 Options:
-  -v, --verbose...     Enable verbose output (repeat for increased verbosity)
   -t, --tag <TAG>      Filter tasks by tag
   -g, --group <GROUP>  Run tasks only on specific groups
   -d, --dry-run        Perform a dry run without executing commands or modifying the file system
-  -h, --help           Print help information
+  -h, --help           Print help
 ```
 
 ### Examples
 
-Run tasks with the "nginx" tag:
+Run all tasks:
 ```bash
-arc -t nginx
+arc run
 ```
 
-Run tasks on the "web-servers" group with verbose output:
+Run tasks with the "nginx" tag:
 ```bash
-arc -g web-servers -v
+arc run -t nginx
+```
+
+Run tasks on the "web-servers" group:
+```bash
+arc run -g web-servers
 ```
 
 Run tasks with multiple tags and groups:
 ```bash
-arc -t nginx -t security -g web-servers -g database-servers
+arc run -t nginx -t security -g web-servers -g database-servers
 ```
 
 Perform a dry run without executing commands:
 ```bash
-arc --dry-run
+arc run --dry-run
 ```
 
-## Arc Lua API Reference
+## Lua API Reference
 
 ### System Object
 
@@ -313,7 +339,7 @@ tasks["copy_config"] = {
 }
 ```
 
-### Format API
+### Format
 
 The `format` object provides utilities for working with JSON.
 
@@ -361,7 +387,7 @@ tasks["update_api_config"] = {
 }
 ```
 
-### Templates API
+### Template
 
 The `template` object allows rendering templates.
 
@@ -406,7 +432,7 @@ tasks["configure_web_server"] = {
 }
 ```
 
-### Logging API
+### Logging
 
 Various logging functions are available on the `log` object.
 
