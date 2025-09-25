@@ -99,6 +99,14 @@ pub struct SetPermissionsError {
 }
 
 #[derive(thiserror::Error, Debug)]
+#[error("Failed to list directory entries for remote file {path:?}")]
+pub struct DirectoryEntriesError {
+    path: PathBuf,
+    #[source]
+    source: ssh2::Error,
+}
+
+#[derive(thiserror::Error, Debug)]
 #[error("Failed to get metadata for remote file {path:?}")]
 pub struct MetadataError {
     path: PathBuf,
@@ -282,6 +290,68 @@ impl SshClient {
         })?;
 
         Ok(())
+    }
+
+    pub fn list_directory(
+        &self,
+        path: &Path,
+    ) -> Result<Vec<MetadataResult>, DirectoryEntriesError> {
+        let sftp = self.session.sftp().map_err(|e| DirectoryEntriesError {
+            path: path.to_path_buf(),
+            source: e,
+        })?;
+
+        let mut dir = sftp.opendir(path).map_err(|e| DirectoryEntriesError {
+            path: path.to_path_buf(),
+            source: e,
+        })?;
+
+        let mut entries = Vec::new();
+
+        loop {
+            match dir.readdir() {
+                Ok((entry_path, stat)) => {
+                    if entry_path == Path::new(".") || entry_path == Path::new("..") {
+                        continue;
+                    }
+
+                    let file_type = if stat.is_dir() {
+                        MetadataType::Directory
+                    } else if stat.is_file() {
+                        MetadataType::File
+                    } else {
+                        MetadataType::Unknown
+                    };
+
+                    let mut file_path = path.to_path_buf();
+                    file_path.push(entry_path);
+
+                    entries.push(MetadataResult {
+                        path: file_path,
+                        size: stat.size,
+                        permissions: stat.perm,
+                        r#type: file_type,
+                        uid: stat.uid,
+                        gid: stat.gid,
+                        accessed: stat.atime,
+                        modified: stat.mtime,
+                    });
+                }
+                Err(error) => match error.code() {
+                    ssh2::ErrorCode::Session(-16) => {
+                        break;
+                    }
+                    ssh2::ErrorCode::SFTP(_) | ssh2::ErrorCode::Session(_) => {
+                        Err(DirectoryEntriesError {
+                            path: path.to_path_buf(),
+                            source: error,
+                        })?
+                    }
+                },
+            }
+        }
+
+        Ok(entries)
     }
 
     pub fn metadata(&self, path: &Path) -> Result<Option<MetadataResult>, MetadataError> {

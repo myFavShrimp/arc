@@ -29,6 +29,24 @@ impl UserData for Directory {
                 .set_permissions(&this.path, mode)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
+        fields.add_field_method_get("entries", |lua, this| {
+            let directory_entries = this
+                .file_system_operator
+                .list_directory(&this.path)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
+
+            let mut result = Vec::with_capacity(directory_entries.len());
+
+            for entry in directory_entries {
+                result.push(
+                    entry.into_lua(lua).map_err(|e| {
+                        mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report())
+                    })?,
+                );
+            }
+
+            Ok(result)
+        });
     }
 
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {

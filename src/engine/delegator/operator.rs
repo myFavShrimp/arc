@@ -17,6 +17,24 @@ use crate::{
 };
 
 #[derive(Clone)]
+pub enum FileSystemEntry {
+    File(File),
+    Directory(Directory),
+}
+
+impl FileSystemEntry {
+    pub fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
+        match self {
+            FileSystemEntry::File(file) => Ok(mlua::Value::UserData(lua.create_userdata(file)?)),
+            FileSystemEntry::Directory(dir) => Ok(mlua::Value::UserData(lua.create_userdata(dir)?)),
+        }
+    }
+}
+
+// TODO: The ssh/local destinction makes no sense here. Better: { client: ssh | local, mode: active | dry } ?
+//       This allowed dry mode to track changes that would be made in active mode.
+
+#[derive(Clone)]
 pub enum FileSystemOperator {
     Ssh(SshClient),
     Dry,
@@ -170,6 +188,13 @@ pub enum SetPermissionsError {
 pub enum MetadataError {
     Ssh(#[from] ssh::MetadataError),
     Local(#[from] local::MetadataError),
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum ListDirectoryError {
+    Ssh(#[from] ssh::DirectoryEntriesError),
+    Local(#[from] local::DirectoryEntriesError),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -334,6 +359,34 @@ impl FileSystemOperator {
                 MetadataType::Unknown => Err(NotAFileError(path.clone()))?,
             },
         }
+    }
+
+    pub fn list_directory(
+        &self,
+        path: &PathBuf,
+    ) -> Result<Vec<FileSystemEntry>, ListDirectoryError> {
+        let directory_entries = match self {
+            FileSystemOperator::Ssh(ssh_client) => ssh_client.list_directory(path)?,
+            FileSystemOperator::Dry => Vec::new(),
+            FileSystemOperator::Local(local_client) => local_client.list_directory(path)?,
+        };
+
+        let result = directory_entries
+            .into_iter()
+            .filter_map(|entry| match entry.r#type {
+                MetadataType::File => Some(FileSystemEntry::File(File {
+                    path: entry.path,
+                    file_system_operator: self.clone(),
+                })),
+                MetadataType::Directory => Some(FileSystemEntry::Directory(Directory {
+                    path: entry.path,
+                    file_system_operator: self.clone(),
+                })),
+                MetadataType::Unknown => None,
+            })
+            .collect();
+
+        Ok(result)
     }
 
     pub fn directory(&self, path: &PathBuf) -> Result<Directory, DirectoryError> {

@@ -84,6 +84,14 @@ pub struct SetPermissionsError {
 }
 
 #[derive(thiserror::Error, Debug)]
+#[error("Failed to list directory entries for remote file {path:?}")]
+pub struct DirectoryEntriesError {
+    path: PathBuf,
+    #[source]
+    source: std::io::Error,
+}
+
+#[derive(thiserror::Error, Debug)]
 #[error("Failed to get metadata for local file {path:?}")]
 pub struct MetadataError {
     path: PathBuf,
@@ -160,6 +168,65 @@ impl LocalClient {
             path: path.clone(),
             source: e,
         })
+    }
+
+    pub fn list_directory(
+        &self,
+        path: &PathBuf,
+    ) -> Result<Vec<MetadataResult>, DirectoryEntriesError> {
+        let entries = std::fs::read_dir(path).map_err(|e| DirectoryEntriesError {
+            path: path.clone(),
+            source: e,
+        })?;
+
+        let mut result = Vec::new();
+
+        for entry in entries {
+            let entry = entry.map_err(|e| DirectoryEntriesError {
+                path: path.clone(),
+                source: e,
+            })?;
+
+            let path = entry.path();
+            let metadata = entry
+                .metadata()
+                .map_err(|e| MetadataError {
+                    path: path.clone(),
+                    source: e,
+                })
+                .map_err(|e| DirectoryEntriesError {
+                    path: path.clone(),
+                    source: std::io::Error::other(e),
+                })?;
+
+            let file_type = metadata.file_type();
+            let r#type = if file_type.is_file() {
+                MetadataType::File
+            } else if file_type.is_dir() {
+                MetadataType::Directory
+            } else {
+                MetadataType::Unknown
+            };
+
+            result.push(MetadataResult {
+                path: path.clone(),
+                size: Some(metadata.len()),
+                permissions: Some(metadata.permissions().mode() & 0o777),
+                r#type,
+                uid: None, // Would need nix crate to get this
+                gid: None, // Would need nix crate to get this
+                accessed: metadata
+                    .accessed()
+                    .ok()
+                    .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()),
+                modified: metadata
+                    .modified()
+                    .ok()
+                    .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()),
+            });
+        }
+
+        Ok(result)
     }
 
     pub fn metadata(&self, path: &PathBuf) -> Result<Option<MetadataResult>, MetadataError> {

@@ -219,6 +219,7 @@ The Directory object represents a directory on a remote system.
 
 - `path`: Path to the directory (can be read and set, setting renames the directory)
 - `permissions`: Directory permissions (can be read and set as numeric mode)
+- `entries`: Array of File and Directory objects representing the directory contents
 
 #### Methods
 
@@ -234,6 +235,21 @@ app_dir:create()
 
 -- Set permissions
 app_dir.permissions = tonumber("755", 8)
+
+-- Iterate through directory contents
+local dir = system:directory("/etc/nginx/sites-available")
+for _, entry in ipairs(dir.entries) do
+    -- Each entry is either a File or Directory object
+    print(entry.path)
+    print("Permissions: " .. entry.permissions)
+
+    local metadata = entry:metadata()
+    if metadata.type == "file" then
+        print("File size: " .. metadata.size .. " bytes")
+    elseif metadata.type == "directory" then
+        print("Directory")
+    end
+end
 
 -- Create, move and then delete a directory
 local dir = system:directory("/path/to/dir")

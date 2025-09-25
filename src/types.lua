@@ -39,6 +39,7 @@ function File:exists() end
 ---@class Directory
 ---@field path string Path to the directory (can be read and set, setting renames the directory)
 ---@field permissions integer Directory permissions (can be read and set as numeric mode)
+---@field entries (File|Directory)[] Array of File and Directory objects representing the directory contents
 local Directory = {}
 
 ---Create the directory
