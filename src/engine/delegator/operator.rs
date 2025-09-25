@@ -444,4 +444,17 @@ impl FileSystemOperator {
             },
         }
     }
+
+    pub fn file_name(&self, path: &PathBuf) -> Result<Option<String>, DirectoryError> {
+        Ok(path
+            .file_name()
+            .map(|file_name| file_name.to_string_lossy().to_string()))
+    }
+
+    pub fn set_file_name(&self, path: &PathBuf, new_name: &str) -> Result<(), RenameError> {
+        let mut new_path = path.clone();
+        new_path.set_file_name(new_name);
+
+        self.rename(path, &new_path)
+    }
 }
