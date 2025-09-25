@@ -55,5 +55,10 @@ impl UserData for File {
                 .remove_file(&this.path)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
+        methods.add_method("directory", |_, this, (): ()| {
+            this.file_system_operator
+                .parent_directory(&this.path)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+        });
     }
 }

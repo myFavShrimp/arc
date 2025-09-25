@@ -29,7 +29,25 @@ impl UserData for Directory {
                 .set_permissions(&this.path, mode)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
-        fields.add_field_method_get("entries", |lua, this| {
+    }
+
+    fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
+        methods.add_method("create", |_, this, (): ()| {
+            this.file_system_operator
+                .create_directory(&this.path)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+        });
+        methods.add_method("remove", |_, this, (): ()| {
+            this.file_system_operator
+                .remove_directory(&this.path)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+        });
+        methods.add_method("metadata", |_, this, (): ()| {
+            this.file_system_operator
+                .metadata(&this.path)
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+        });
+        methods.add_method("entries", |lua, this, (): ()| {
             let directory_entries = this
                 .file_system_operator
                 .list_directory(&this.path)
@@ -47,22 +65,9 @@ impl UserData for Directory {
 
             Ok(result)
         });
-    }
-
-    fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
-        methods.add_method("create", |_, this, (): ()| {
+        methods.add_method("parent", |_, this, (): ()| {
             this.file_system_operator
-                .create_directory(&this.path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
-        });
-        methods.add_method("remove", |_, this, (): ()| {
-            this.file_system_operator
-                .remove_directory(&this.path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
-        });
-        methods.add_method("metadata", |_, this, (): ()| {
-            this.file_system_operator
-                .metadata(&this.path)
+                .parent_directory(&this.path)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
     }

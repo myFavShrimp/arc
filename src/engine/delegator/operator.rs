@@ -414,4 +414,34 @@ impl FileSystemOperator {
             },
         }
     }
+
+    pub fn parent_directory(&self, path: &PathBuf) -> Result<Option<Directory>, DirectoryError> {
+        let Some(parent_path) = path.parent() else {
+            return Ok(None);
+        };
+
+        if let FileSystemOperator::Dry = self {
+            return Ok(Some(Directory {
+                path: parent_path.to_path_buf(),
+                file_system_operator: self.clone(),
+            }));
+        }
+
+        let metadata = self.metadata(path)?;
+
+        match metadata {
+            None => Ok(Some(Directory {
+                path: path.clone(),
+                file_system_operator: self.clone(),
+            })),
+            Some(metadata) => match metadata.r#type {
+                MetadataType::Directory => Ok(Some(Directory {
+                    path: path.clone(),
+                    file_system_operator: self.clone(),
+                })),
+                MetadataType::File => Err(UnexpectedFileError(path.clone()))?,
+                MetadataType::Unknown => Err(NotADirectoryError(path.clone()))?,
+            },
+        }
+    }
 }
