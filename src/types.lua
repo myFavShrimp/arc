@@ -20,6 +20,7 @@
 
 ---@class File
 ---@field path string Path to the file (can be read and set, setting renames the file)
+---@field file_name string The name of the file without the directory path
 ---@field content string Text content of the file (can be read and set)
 ---@field permissions integer File permissions (can be read and set as numeric mode)
 local File = {}
@@ -35,11 +36,15 @@ function File:remove() end
 ---@return boolean exists True if file exists
 function File:exists() end
 
+---Get the directory containing this file
+---@return Directory directory Directory object
+function File:directory() end
+
 
 ---@class Directory
 ---@field path string Path to the directory (can be read and set, setting renames the directory)
+---@field file_name string The name of the directory without the parent path
 ---@field permissions integer Directory permissions (can be read and set as numeric mode)
----@field entries (File|Directory)[] Array of File and Directory objects representing the directory contents
 local Directory = {}
 
 ---Create the directory
@@ -51,6 +56,14 @@ function Directory:remove() end
 ---Get directory metadata
 ---@return FileMetadata metadata Directory metadata information
 function Directory:metadata() end
+
+---Get directory entries
+---@return (File|Directory)[] entries Array of File and Directory objects representing the directory contents
+function Directory:entries() end
+
+---Get the parent directory
+---@return Directory parent Parent directory object
+function Directory:parent() end
 
 
 ---@class System

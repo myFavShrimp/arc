@@ -186,6 +186,7 @@ The File object represents a file on a remote system.
 #### Properties
 
 - `path`: Path to the file (can be read and set, setting renames the file)
+- `file_name`: The name of the file without the directory path
 - `content`: Text content of the file (can be read and set)
 - `permissions`: File permissions (can be read and set as numeric mode)
 
@@ -195,6 +196,12 @@ The File object represents a file on a remote system.
   - *Returns*: A table with file metadata (see Metadata Structure below)
 
 - `remove()`: Remove the file
+
+- `parent()`: Get the parent directory
+  - *Returns*: A Directory object representing the parent directory
+
+- `directory()`: Get the directory containing this file
+  - *Returns*: A Directory object
 
 Example:
 ```lua
@@ -218,6 +225,7 @@ The Directory object represents a directory on a remote system.
 #### Properties
 
 - `path`: Path to the directory (can be read and set, setting renames the directory)
+- `file_name`: The name of the directory without the parent path
 - `permissions`: Directory permissions (can be read and set as numeric mode)
 - `entries`: Array of File and Directory objects representing the directory contents
 
@@ -226,6 +234,10 @@ The Directory object represents a directory on a remote system.
 - `create()`: Create the directory
 - `remove()`: Remove the directory
 - `metadata()`: Get directory metadata
+- `parent()`: Get the parent directory
+  - *Returns*: A Directory object representing the parent directory
+- `directory()`: Get the directory itself
+  - *Returns*: A Directory object (returns self)
 
 Example:
 ```lua
