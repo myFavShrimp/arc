@@ -30,10 +30,10 @@ pub enum SshError {
 
 #[derive(thiserror::Error, Debug)]
 #[error("Failed to read remote file {path:?}")]
-pub struct FileError<E: std::error::Error> {
+pub struct FileReadError {
     path: PathBuf,
     #[source]
-    kind: E,
+    kind: FileReadErrorKind,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -41,6 +41,14 @@ pub struct FileError<E: std::error::Error> {
 pub enum FileReadErrorKind {
     Io(#[from] std::io::Error),
     Ssh(#[from] ssh2::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Failed to write remote file {path:?}")]
+pub struct FileWriteError {
+    path: PathBuf,
+    #[source]
+    kind: FileWriteErrorKind,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -154,20 +162,20 @@ impl SshClient {
         })
     }
 
-    pub fn read_file(&self, path: &PathBuf) -> Result<Vec<u8>, FileError<FileReadErrorKind>> {
+    pub fn read_file(&self, path: &PathBuf) -> Result<Vec<u8>, FileReadError> {
         // debug!("Reading remote file {:?}", path);
 
-        let sftp = self.session.sftp().map_err(|e| FileError {
+        let sftp = self.session.sftp().map_err(|e| FileReadError {
             path: path.clone(),
             kind: FileReadErrorKind::Ssh(e),
         })?;
-        let mut file = sftp.open(path).map_err(|e| FileError {
+        let mut file = sftp.open(path).map_err(|e| FileReadError {
             path: path.clone(),
             kind: FileReadErrorKind::Ssh(e),
         })?;
 
         let mut content = Vec::new();
-        file.read_to_end(&mut content).map_err(|e| FileError {
+        file.read_to_end(&mut content).map_err(|e| FileReadError {
             path: path.clone(),
             kind: FileReadErrorKind::Io(e),
         })?;
@@ -179,26 +187,31 @@ impl SshClient {
         &self,
         path: &Path,
         content: &[u8],
-    ) -> Result<FileWriteResult, FileError<FileWriteErrorKind>> {
+    ) -> Result<FileWriteResult, FileWriteError> {
         // debug!("Writing to remote file {:?}", path);
+        dbg!(content.len());
 
-        let sftp = self.session.sftp().map_err(|e| FileError {
+        let sftp = self.session.sftp().map_err(|e| FileWriteError {
             path: path.to_path_buf(),
             kind: FileWriteErrorKind::Ssh(e),
         })?;
-        let mut file = sftp.create(path).map_err(|e| FileError {
+        let mut file = sftp.create(path).map_err(|e| FileWriteError {
             path: path.to_path_buf(),
             kind: FileWriteErrorKind::Ssh(e),
         })?;
 
-        let bytes_written = file.write(content).map_err(|e| FileError {
+        dbg!("begin write");
+
+        file.write_all(content).map_err(|e| FileWriteError {
             path: path.to_path_buf(),
             kind: FileWriteErrorKind::Io(e),
         })?;
 
+        dbg!("end write");
+
         Ok(FileWriteResult {
             path: path.to_path_buf(),
-            bytes_written,
+            bytes_written: content.len(),
         })
     }
 

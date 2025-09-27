@@ -18,16 +18,24 @@ pub enum HostError {
 
 #[derive(thiserror::Error, Debug)]
 #[error("Failed to read local file {path:?}")]
-pub struct FileError<E: std::error::Error> {
+pub struct FileReadError {
     path: PathBuf,
     #[source]
-    kind: E,
+    kind: FileReadErrorKind,
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum FileReadErrorKind {
     Io(#[from] std::io::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Failed to write local file {path:?}")]
+pub struct FileWriteError {
+    path: PathBuf,
+    #[source]
+    kind: FileWriteErrorKind,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -110,8 +118,8 @@ impl LocalClient {
         })
     }
 
-    pub fn read_file(&self, path: &PathBuf) -> Result<Vec<u8>, FileError<FileReadErrorKind>> {
-        std::fs::read(path).map_err(|e| FileError {
+    pub fn read_file(&self, path: &PathBuf) -> Result<Vec<u8>, FileReadError> {
+        std::fs::read(path).map_err(|e| FileReadError {
             path: path.clone(),
             kind: FileReadErrorKind::Io(e),
         })
@@ -121,8 +129,8 @@ impl LocalClient {
         &self,
         path: &PathBuf,
         content: &[u8],
-    ) -> Result<FileWriteResult, FileError<FileWriteErrorKind>> {
-        std::fs::write(path, content).map_err(|e| FileError {
+    ) -> Result<FileWriteResult, FileWriteError> {
+        std::fs::write(path, content).map_err(|e| FileWriteError {
             path: path.clone(),
             kind: FileWriteErrorKind::Io(e),
         })?;

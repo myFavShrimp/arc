@@ -137,15 +137,15 @@ pub enum OperationTargetSetError {
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum FileReadError {
-    Ssh(#[from] ssh::FileError<ssh::FileReadErrorKind>),
-    Local(#[from] local::FileError<local::FileReadErrorKind>),
+    Ssh(#[from] ssh::FileReadError),
+    Local(#[from] local::FileReadError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum FileWriteError {
-    Ssh(#[from] ssh::FileError<ssh::FileWriteErrorKind>),
-    Local(#[from] local::FileError<local::FileWriteErrorKind>),
+    Ssh(#[from] ssh::FileWriteError),
+    Local(#[from] local::FileWriteError),
 }
 
 #[derive(thiserror::Error, Debug)]
