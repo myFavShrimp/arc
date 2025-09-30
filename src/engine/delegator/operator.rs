@@ -89,7 +89,7 @@ pub struct MetadataResult {
     pub modified: Option<u64>,
 }
 
-#[derive(Default, PartialEq, Eq)]
+#[derive(Default, PartialEq, Eq, Debug)]
 pub enum MetadataType {
     File,
     Directory,
@@ -221,17 +221,16 @@ pub enum DirectoryError {
     Ssh(#[from] ssh::MetadataError),
     Local(#[from] local::MetadataError),
     Metadata(#[from] MetadataError),
-    UnexpectedFile(#[from] UnexpectedFileError),
-    NotADirectory(#[from] NotADirectoryError),
+    UnexpectedType(#[from] UnexpectedTypeError),
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("{0:?} is a file - expected a directory")]
-pub struct UnexpectedFileError(PathBuf);
-
-#[derive(Debug, thiserror::Error)]
-#[error("{0:?} is not a directory")]
-pub struct NotADirectoryError(PathBuf);
+#[error("{path:?} is of type {actual} - expected {expected}")]
+pub struct UnexpectedTypeError {
+    path: PathBuf,
+    expected: MetadataType,
+    actual: MetadataType,
+}
 
 impl FileSystemOperator {
     pub fn read_file(&self, path: &PathBuf) -> Result<Vec<u8>, FileReadError> {
@@ -409,8 +408,11 @@ impl FileSystemOperator {
                     path: path.clone(),
                     file_system_operator: self.clone(),
                 }),
-                MetadataType::File => Err(UnexpectedFileError(path.clone()))?,
-                MetadataType::Unknown => Err(NotADirectoryError(path.clone()))?,
+                MetadataType::File | MetadataType::Unknown => Err(UnexpectedTypeError {
+                    path: path.clone(),
+                    expected: MetadataType::Directory,
+                    actual: metadata.r#type,
+                })?,
             },
         }
     }
@@ -439,8 +441,11 @@ impl FileSystemOperator {
                     path: path.clone(),
                     file_system_operator: self.clone(),
                 })),
-                MetadataType::File => Err(UnexpectedFileError(path.clone()))?,
-                MetadataType::Unknown => Err(NotADirectoryError(path.clone()))?,
+                MetadataType::File | MetadataType::Unknown => Err(UnexpectedTypeError {
+                    path: path.clone(),
+                    expected: MetadataType::Directory,
+                    actual: metadata.r#type,
+                })?,
             },
         }
     }
