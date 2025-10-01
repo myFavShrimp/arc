@@ -199,19 +199,19 @@ template = {}
 local Log = {}
 
 ---Log a debug message
----@param message string Debug message to log
+---@param message any Debug message to log
 function Log.debug(message) end
 
 ---Log an info message  
----@param message string Info message to log
+---@param message any Info message to log
 function Log.info(message) end
 
 ---Log a warning message
----@param message string Warning message to log
+---@param message any Warning message to log
 function Log.warn(message) end
 
 ---Log an error message
----@param message string Error message to log
+---@param message any Error message to log
 function Log.error(message) end
 
 ---Logging utilities
