@@ -8,7 +8,7 @@ use super::{
     executor::CommandResult,
     operator::{FileWriteResult, MetadataResult, MetadataType},
 };
-use crate::memory::target_systems::TargetSystem;
+use crate::memory::target_systems::RemoteTargetSystem;
 
 #[derive(Clone)]
 pub struct SshClient {
@@ -125,7 +125,7 @@ pub struct MetadataError {
 }
 
 impl SshClient {
-    pub fn connect(system: &TargetSystem) -> Result<Self, ConnectionError> {
+    pub fn connect(system: &RemoteTargetSystem) -> Result<Self, ConnectionError> {
         let tcp =
             TcpStream::connect(system.socket_address()).map_err(ConnectionError::TcpConnection)?;
 

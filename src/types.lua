@@ -66,39 +66,71 @@ function Directory:entries() end
 function Directory:parent() end
 
 
----@class System
+---@class RemoteSystem
 ---@field name string The name of the system as defined in targets.systems
+---@field type "remote" The type of system
 ---@field address string The IP address of the system
 ---@field port integer The SSH port of the system
 ---@field user string The SSH user used to connect to the system
-local System = {}
+local RemoteSystem = {}
 
 ---Execute a command on the remote system
 ---@param cmd string The command to execute
 ---@return CommandResult result Command execution result
-function System:run_command(cmd) end
+function RemoteSystem:run_command(cmd) end
 
 ---Get a File object representing a file on the remote system
 ---@param path string Path to the file
 ---@return File file File object
-function System:file(path) end
+function RemoteSystem:file(path) end
 
 ---Get a Directory object representing a directory on the remote system
 ---@param path string Path to the directory
 ---@return Directory directory Directory object
-function System:directory(path) end
+function RemoteSystem:directory(path) end
+
+
+---@class LocalSystem
+---@field name string The name of the system as defined in targets.systems
+---@field type "local" The type of system
+---@field address nil The IP address of the system
+---@field port nil The SSH port of the system
+---@field user nil The SSH user used to connect to the system
+local LocalSystem = {}
+
+---Execute a command on the local system
+---@param cmd string The command to execute
+---@return CommandResult result Command execution result
+function LocalSystem:run_command(cmd) end
+
+---Get a File object representing a file on the local system
+---@param path string Path to the file
+---@return File file File object
+function LocalSystem:file(path) end
+
+---Get a Directory object representing a directory on the local system
+---@param path string Path to the directory
+---@return Directory directory Directory object
+function LocalSystem:directory(path) end
+
 
 ---@class TaskDefinition
----@field handler fun(system: System): any The function that implements the task
+---@field handler fun(system: RemoteSystem|LocalSystem): any The function that implements the task
 ---@field dependencies? string[] Array of task names that must be executed before this task
 ---@field tags? string[] Array of tags associated with the task, used for filtering
 ---@field groups? string[] Array of group names this task should run on
 ---@field result? any The result of the task execution (available after execution)
 
----@class SystemDefinition
+---@class RemoteSystemDefinition
+---@field type? "remote" System type (optional, defaults to "remote")
 ---@field address string IP address or hostname of the system
 ---@field user string SSH username for the system
 ---@field port? integer SSH port (defaults to 22)
+
+---@class LocalSystemDefinition
+---@field type "local" System type - must be "local" to target the local system
+
+---@alias SystemDefinition RemoteSystemDefinition|LocalSystemDefinition
 
 ---@class GroupDefinition
 ---@field members string[] List of system names that belong to this group

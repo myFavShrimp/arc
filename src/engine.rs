@@ -14,10 +14,13 @@ use recipe::{Recipe, RecipeCreationError};
 use state::{State, TasksResultResetError, TasksResultStateSetError};
 
 use crate::{
+    engine::objects::system::SystemKind,
     error::MutexLockError,
     logger::{Logger, SharedLogger},
     memory::{
-        target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory, tasks::TasksMemory,
+        target_groups::TargetGroupsMemory,
+        target_systems::{TargetSystemKind, TargetSystemsMemory},
+        tasks::TasksMemory,
     },
 };
 
@@ -154,14 +157,23 @@ impl Engine {
 
             let system = System {
                 name: system_config.name.clone(),
-                address: system_config.address,
-                port: system_config.port,
-                user: system_config.user.clone(),
-                executor: Executor::new_for_system(&system_config, self.is_dry_run)?,
-                file_system_operator: FileSystemOperator::new_for_system(
-                    &system_config,
-                    self.is_dry_run,
-                )?,
+                kind: match &system_config.kind {
+                    TargetSystemKind::Remote(remote_target_system) => {
+                        SystemKind::Remote(objects::system::RemoteSystem {
+                            address: remote_target_system.address,
+                            port: remote_target_system.port,
+                            user: remote_target_system.user.clone(),
+                            executor: Executor::new_for_system(&system_config, self.is_dry_run)?,
+                            file_system_operator: FileSystemOperator::new_for_system(
+                                &system_config,
+                                self.is_dry_run,
+                            )?,
+                        })
+                    }
+                    TargetSystemKind::Local => {
+                        SystemKind::Local(Executor::new_local(), FileSystemOperator::new_local())
+                    }
+                },
             };
 
             for task_config in system_tasks {

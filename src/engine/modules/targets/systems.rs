@@ -1,5 +1,6 @@
 use std::net::AddrParseError;
 
+use clap::builder::TypedValueParser;
 use mlua::{FromLua, IntoLua, LuaSerdeExt, MetaMethod, UserData};
 use serde::Serialize;
 
@@ -7,49 +8,96 @@ use crate::{
     engine::readonly::set_readonly,
     error::{ErrorReport, MutexLockError},
     memory::{
-        target_systems::{
-            TargetSystem, TargetSystemAdditionError, TargetSystemRetrievalError,
-            TargetSystemsMemory,
-        },
         SharedMemory,
+        target_systems::{
+            RemoteTargetSystem, TargetSystem, TargetSystemAdditionError, TargetSystemKind,
+            TargetSystemRetrievalError, TargetSystemsMemory,
+        },
     },
 };
 
 #[derive(Debug, Clone, Serialize)]
-pub struct SystemConfig {
-    pub address: String,
-    pub port: u16,
-    pub user: String,
+pub enum SystemConfig {
+    Local,
+    Remote {
+        address: String,
+        port: u16,
+        user: String,
+    },
+}
+
+#[derive(Default)]
+enum SystemType {
+    Local,
+    #[default]
+    Remote,
+}
+
+static INVALID_TYPE_MESSAGE: &str = "\"type\" is invalid - must be either \"remote\" or \"local\"";
+
+impl SystemType {
+    fn try_from_string(value: String) -> Result<SystemType, ()> {
+        match value.as_str() {
+            "local" => Ok(Self::Local),
+            "remote" => Ok(Self::Remote),
+            _ => Err(()),
+        }
+    }
 }
 
 impl FromLua for SystemConfig {
     fn from_lua(value: mlua::Value, lua: &mlua::Lua) -> mlua::Result<Self> {
         match value {
             mlua::Value::Table(table) => {
-                let address_field = table
-                    .get::<mlua::Value>("address")
-                    .or(Err(mlua::Error::runtime("\"address\" is missing")))?;
-                let address = lua
-                    .from_value(address_field)
-                    .or(Err(mlua::Error::runtime("\"address\" is invalid")))?;
+                let r#type = {
+                    match table.get::<mlua::Value>("type") {
+                        Ok(mlua::Value::Nil) => SystemType::default(),
+                        Ok(type_value) => {
+                            let type_value = lua.from_value::<String>(type_value);
 
-                let user_field = table
-                    .get("user")
-                    .or(Err(mlua::Error::runtime("\"user\" is missing")))?;
-                let user = lua
-                    .from_value(user_field)
-                    .or(Err(mlua::Error::runtime("\"user\" is invalid")))?;
+                            match type_value {
+                                Ok(type_str) => SystemType::try_from_string(type_str)
+                                    .or(Err(mlua::Error::runtime(INVALID_TYPE_MESSAGE)))?,
+                                Err(_) => Err(mlua::Error::runtime(INVALID_TYPE_MESSAGE))?,
+                            }
+                        }
+                        Err(_) => SystemType::Remote,
+                    }
+                };
 
-                let port = table
-                    .get::<Option<u16>>("port")
-                    .or(Err(mlua::Error::runtime("\"port\" is invalid")))?
-                    .unwrap_or(22);
+                match r#type {
+                    SystemType::Local => Ok(SystemConfig::Local),
+                    SystemType::Remote => {
+                        let address = {
+                            let address_field = table
+                                .get::<mlua::Value>("address")
+                                .or(Err(mlua::Error::runtime("\"address\" is missing")))?;
 
-                Ok(SystemConfig {
-                    address,
-                    port,
-                    user,
-                })
+                            lua.from_value(address_field)
+                                .or(Err(mlua::Error::runtime("\"address\" is invalid")))?
+                        };
+
+                        let user = {
+                            let user_field = table
+                                .get("user")
+                                .or(Err(mlua::Error::runtime("\"user\" is missing")))?;
+
+                            lua.from_value(user_field)
+                                .or(Err(mlua::Error::runtime("\"user\" is invalid")))?
+                        };
+
+                        let port = table
+                            .get::<Option<u16>>("port")
+                            .or(Err(mlua::Error::runtime("\"port\" is invalid")))?
+                            .unwrap_or(22);
+
+                        Ok(SystemConfig::Remote {
+                            address,
+                            port,
+                            user,
+                        })
+                    }
+                }
             }
             mlua::Value::Function(_)
             | mlua::Value::Nil
@@ -71,11 +119,28 @@ impl FromLua for SystemConfig {
 
 impl IntoLua for TargetSystem {
     fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
+        let address = match &self.kind {
+            TargetSystemKind::Remote(remote_target_system) => {
+                Some(remote_target_system.address.to_string())
+            }
+            TargetSystemKind::Local => None,
+        };
+        let port = match &self.kind {
+            TargetSystemKind::Remote(remote_target_system) => Some(remote_target_system.port),
+            TargetSystemKind::Local => None,
+        };
+        let user = match &self.kind {
+            TargetSystemKind::Remote(remote_target_system) => {
+                Some(remote_target_system.user.clone())
+            }
+            TargetSystemKind::Local => None,
+        };
+
         let config_table = lua.create_table()?;
         config_table.set("name", self.name)?;
-        config_table.set("address", self.address.to_string())?;
-        config_table.set("port", self.port)?;
-        config_table.set("user", self.user)?;
+        config_table.set("address", address)?;
+        config_table.set("port", port)?;
+        config_table.set("user", user)?;
 
         let config_table = set_readonly(lua, config_table)
             .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
@@ -109,9 +174,18 @@ impl SystemsTable {
 
         guard.add(TargetSystem {
             name,
-            address: config.address.parse()?,
-            port: config.port,
-            user: config.user,
+            kind: match config {
+                SystemConfig::Local => TargetSystemKind::Local,
+                SystemConfig::Remote {
+                    address,
+                    port,
+                    user,
+                } => TargetSystemKind::Remote(RemoteTargetSystem {
+                    address: address.parse()?,
+                    port,
+                    user,
+                }),
+            },
         })?;
 
         Ok(())

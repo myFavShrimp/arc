@@ -6,12 +6,23 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct TargetSystem {
     pub name: String,
+    pub kind: TargetSystemKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum TargetSystemKind {
+    Remote(RemoteTargetSystem),
+    Local,
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoteTargetSystem {
     pub address: IpAddr,
     pub port: u16,
     pub user: String,
 }
 
-impl TargetSystem {
+impl RemoteTargetSystem {
     pub fn socket_address(&self) -> SocketAddr {
         SocketAddr::new(self.address, self.port)
     }

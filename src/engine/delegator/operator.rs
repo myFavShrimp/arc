@@ -1,4 +1,7 @@
-use std::{fmt::Display, path::PathBuf};
+use std::{
+    fmt::Display,
+    path::{Path, PathBuf},
+};
 
 use mlua::IntoLua;
 use serde::Serialize;
@@ -13,7 +16,7 @@ use crate::{
         readonly::set_readonly,
     },
     error::{ErrorReport, MutexLockError},
-    memory::target_systems::TargetSystem,
+    memory::target_systems::{TargetSystem, TargetSystemKind},
 };
 
 #[derive(Clone)]
@@ -46,9 +49,15 @@ impl FileSystemOperator {
         config: &TargetSystem,
         is_dry_run: bool,
     ) -> Result<Self, OperationTargetSetError> {
-        Ok(match is_dry_run {
-            true => Self::Dry,
-            false => Self::Ssh(SshClient::connect(config)?),
+        Ok(if is_dry_run {
+            Self::Dry
+        } else {
+            match &config.kind {
+                TargetSystemKind::Remote(remote_target_system) => {
+                    Self::Ssh(SshClient::connect(remote_target_system)?)
+                }
+                TargetSystemKind::Local => Self::new_local(),
+            }
         })
     }
 
@@ -450,7 +459,7 @@ impl FileSystemOperator {
         }
     }
 
-    pub fn file_name(&self, path: &PathBuf) -> Result<Option<String>, DirectoryError> {
+    pub fn file_name(&self, path: &Path) -> Result<Option<String>, DirectoryError> {
         Ok(path
             .file_name()
             .map(|file_name| file_name.to_string_lossy().to_string()))

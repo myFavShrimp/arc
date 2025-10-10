@@ -8,7 +8,7 @@ use super::{
 use crate::{
     engine::readonly::set_readonly,
     error::{ErrorReport, MutexLockError},
-    memory::target_systems::TargetSystem,
+    memory::target_systems::{TargetSystem, TargetSystemKind},
 };
 
 #[derive(Clone)]
@@ -23,9 +23,15 @@ impl Executor {
         config: &TargetSystem,
         is_dry_run: bool,
     ) -> Result<Self, ExecutionTargetSetError> {
-        Ok(match is_dry_run {
-            true => Self::Dry,
-            false => Self::Ssh(SshClient::connect(config)?),
+        Ok(if is_dry_run {
+            Self::Dry
+        } else {
+            match &config.kind {
+                TargetSystemKind::Remote(remote_target_system) => {
+                    Self::Ssh(SshClient::connect(remote_target_system)?)
+                }
+                TargetSystemKind::Local => Self::new_local(),
+            }
         })
     }
 

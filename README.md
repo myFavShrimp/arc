@@ -65,11 +65,15 @@ arc run
 
 ### Targets
 
-Targets define the remote systems where tasks will be executed. There are two types: individual systems and groups.
+Targets define the systems where tasks will be executed. There are two types: individual systems and groups.
 
 #### Systems
 
-Systems represent individual servers with SSH connection details:
+Systems can be either remote (accessed via SSH) or local (running on the Arc host machine).
+
+##### Remote Systems
+
+Remote systems represent individual servers with SSH connection details:
 
 ```lua
 targets.systems["frontend-server"] = {
@@ -84,6 +88,18 @@ targets.systems["api-server"] = {
     port = 2222,
 }
 ```
+
+##### Local Systems
+
+Local systems execute tasks on the machine where Arc is running:
+
+```lua
+targets.systems["localhost"] = {
+    type = "local"
+}
+```
+
+Local systems use the same API as remote systems (same methods for `run_command()`, `file()`, `directory()`, etc.), but operations execute locally instead of over SSH. The `address`, `port`, and `user` properties return `nil` for local systems.
 
 #### Groups
 
@@ -101,7 +117,7 @@ targets.groups["production"] = {
 
 ### Tasks
 
-Tasks define operations to execute on remote systems. Each task consists of a handler function and optional metadata.
+Tasks define operations to execute on target systems. Each task consists of a handler function and optional metadata.
 
 #### Basic Task Structure
 
@@ -197,26 +213,27 @@ Options:
 
 ### System Object
 
-The `system` object represents a connection to a remote system and is passed to task handlers.
+The `system` object represents a connection to a target system (remote or local) and is passed to task handlers.
 
 #### Properties
 
 - `name`: The name of the system as defined in `targets.systems`
-- `address`: The IP address of the system
-- `port`: The SSH port of the system
-- `user`: The SSH user used to connect to the system
+- `type`: The type of system - `"remote"` or `"local"`
+- `address`: The IP address of the system (nil for local systems)
+- `port`: The SSH port of the system (nil for local systems)
+- `user`: The SSH user used to connect to the system (nil for local systems)
 
 #### Methods
 
-- `run_command(cmd)`: Execute a command on the remote system
+- `run_command(cmd)`: Execute a command on the system
   - *Parameters*: `cmd` (string) - The command to execute
   - *Returns*: A table with `stdout`, `stderr`, and `exit_code`
 
-- `file(path)`: Get a File object representing a file on the remote system
+- `file(path)`: Get a File object representing a file on the system
   - *Parameters*: `path` (string) - Path to the file
   - *Returns*: A File object
 
-- `directory(path)`: Get a Directory object representing a directory on the remote system
+- `directory(path)`: Get a Directory object representing a directory on the system
   - *Parameters*: `path` (string) - Path to the directory
   - *Returns*: A Directory object
 
@@ -234,7 +251,7 @@ tasks["check_service"] = {
 
 ### File Object
 
-The File object represents a file on a remote system and provides access to file content, metadata, and operations.
+The File object represents a file on a target system and provides access to file content, metadata, and operations.
 
 #### Properties
 
@@ -288,7 +305,7 @@ tasks["manage_file"] = {
 
 ### Directory Object
 
-The Directory object represents a directory on a remote system and provides access to directory operations and contents.
+The Directory object represents a directory on a target system and provides access to directory operations and contents.
 
 #### Properties
 
