@@ -1,6 +1,5 @@
 use std::net::AddrParseError;
 
-use clap::builder::TypedValueParser;
 use mlua::{FromLua, IntoLua, LuaSerdeExt, MetaMethod, UserData};
 use serde::Serialize;
 

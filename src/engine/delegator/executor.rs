@@ -2,11 +2,14 @@ use mlua::IntoLua;
 use serde::Serialize;
 
 use super::{
-    local::{HostError, LocalClient},
+    host::{HostClient, HostError},
     ssh::{ConnectionError, SshClient, SshError},
 };
 use crate::{
-    engine::readonly::set_readonly,
+    engine::{
+        delegator::local::{LocalError, with_local_dir},
+        readonly::set_readonly,
+    },
     error::{ErrorReport, MutexLockError},
     memory::target_systems::{TargetSystem, TargetSystemKind},
 };
@@ -15,7 +18,8 @@ use crate::{
 pub enum Executor {
     Ssh(SshClient),
     Dry,
-    Host(LocalClient),
+    Host(HostClient),
+    Local(HostClient),
 }
 
 impl Executor {
@@ -36,7 +40,11 @@ impl Executor {
     }
 
     pub fn new_local() -> Self {
-        Self::Host(LocalClient)
+        Self::Local(HostClient)
+    }
+
+    pub fn new_host() -> Self {
+        Self::Host(HostClient)
     }
 }
 
@@ -77,7 +85,8 @@ pub struct UninitializedSshClientError;
 #[error("Failed to execute tasks")]
 pub enum TaskError {
     Ssh(#[from] SshError),
-    Local(#[from] HostError),
+    Host(#[from] HostError),
+    Local(#[from] LocalError),
     Lock(#[from] MutexLockError),
     UninitializedSshClientError(#[from] UninitializedSshClientError),
 }
@@ -86,12 +95,9 @@ impl Executor {
     pub fn run_command(&self, cmd: String) -> Result<CommandResult, TaskError> {
         Ok(match self {
             Executor::Ssh(ssh_client) => ssh_client.execute_command(&cmd)?,
-            Executor::Dry => {
-                // info!("Running command {:?}", cmd);
-
-                CommandResult::default()
-            }
+            Executor::Dry => CommandResult::default(),
             Executor::Host(local_client) => local_client.execute_command(&cmd)?,
+            Executor::Local(local_client) => with_local_dir(|| local_client.execute_command(&cmd))?,
         })
     }
 }

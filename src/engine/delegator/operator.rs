@@ -7,11 +7,12 @@ use mlua::IntoLua;
 use serde::Serialize;
 
 use super::{
-    local::{self, LocalClient},
+    host::{self, HostClient},
     ssh::{self, ConnectionError, SshClient},
 };
 use crate::{
     engine::{
+        delegator::local::{LocalError, with_local_dir},
         objects::{directory::Directory, file::File},
         readonly::set_readonly,
     },
@@ -40,8 +41,9 @@ impl FileSystemEntry {
 #[derive(Clone)]
 pub enum FileSystemOperator {
     Ssh(SshClient),
+    Local(HostClient),
+    Host(HostClient),
     Dry,
-    Local(LocalClient),
 }
 
 impl FileSystemOperator {
@@ -62,7 +64,11 @@ impl FileSystemOperator {
     }
 
     pub fn new_local() -> Self {
-        Self::Local(LocalClient)
+        Self::Local(HostClient)
+    }
+
+    pub fn new_host() -> Self {
+        Self::Host(HostClient)
     }
 }
 
@@ -147,70 +153,79 @@ pub enum OperationTargetSetError {
 #[error(transparent)]
 pub enum FileReadError {
     Ssh(#[from] ssh::FileReadError),
-    Local(#[from] local::FileReadError),
+    Local(#[from] host::FileReadError),
+    LocalDir(#[from] LocalError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum FileWriteError {
     Ssh(#[from] ssh::FileWriteError),
-    Local(#[from] local::FileWriteError),
+    Local(#[from] host::FileWriteError),
+    LocalDir(#[from] LocalError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum RenameError {
     Ssh(#[from] ssh::RenameError),
-    Local(#[from] local::RenameError),
+    Local(#[from] host::RenameError),
+    LocalDir(#[from] LocalError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum RemoveFileError {
     Ssh(#[from] ssh::RemoveFileError),
-    Local(#[from] local::RemoveFileError),
+    Local(#[from] host::RemoveFileError),
+    LocalDir(#[from] LocalError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum RemoveDirectoryError {
     Ssh(#[from] ssh::RemoveDirectoryError),
-    Local(#[from] local::RemoveDirectoryError),
+    Local(#[from] host::RemoveDirectoryError),
+    LocalDir(#[from] LocalError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum CreateDirectoryError {
     Ssh(#[from] ssh::CreateDirectoryError),
-    Local(#[from] local::CreateDirectoryError),
+    Local(#[from] host::CreateDirectoryError),
+    LocalDir(#[from] LocalError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum SetPermissionsError {
     Ssh(#[from] ssh::SetPermissionsError),
-    Local(#[from] local::SetPermissionsError),
+    Local(#[from] host::SetPermissionsError),
+    LocalDir(#[from] LocalError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum MetadataError {
     Ssh(#[from] ssh::MetadataError),
-    Local(#[from] local::MetadataError),
+    Local(#[from] host::MetadataError),
+    LocalDir(#[from] LocalError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum ListDirectoryError {
     Ssh(#[from] ssh::DirectoryEntriesError),
-    Local(#[from] local::DirectoryEntriesError),
+    Local(#[from] host::DirectoryEntriesError),
+    LocalDir(#[from] LocalError),
 }
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum FileError {
     Ssh(#[from] ssh::MetadataError),
-    Local(#[from] local::MetadataError),
+    Local(#[from] host::MetadataError),
     Metadata(#[from] MetadataError),
     UnexpectedDirectory(#[from] UnexpectedDirectoryError),
     NotAFile(#[from] NotAFileError),
@@ -228,7 +243,7 @@ pub struct NotAFileError(PathBuf);
 #[error(transparent)]
 pub enum DirectoryError {
     Ssh(#[from] ssh::MetadataError),
-    Local(#[from] local::MetadataError),
+    Local(#[from] host::MetadataError),
     Metadata(#[from] MetadataError),
     UnexpectedType(#[from] UnexpectedTypeError),
 }
@@ -245,12 +260,11 @@ impl FileSystemOperator {
     pub fn read_file(&self, path: &PathBuf) -> Result<Vec<u8>, FileReadError> {
         Ok(match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.read_file(path)?,
-            FileSystemOperator::Dry => {
-                // info!("CReading file {:?}", path);
-
-                Vec::new()
+            FileSystemOperator::Local(local_client) => {
+                with_local_dir(|| local_client.read_file(path))?
             }
-            FileSystemOperator::Local(local_client) => local_client.read_file(path)?,
+            FileSystemOperator::Dry => Vec::new(),
+            FileSystemOperator::Host(host_client) => host_client.read_file(path)?,
         })
     }
 
@@ -261,25 +275,25 @@ impl FileSystemOperator {
     ) -> Result<FileWriteResult, FileWriteError> {
         Ok(match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.write_file(path, content)?,
-            FileSystemOperator::Dry => {
-                // info!("Writing file {:?} with content {:?}", path, content);
-
-                FileWriteResult {
-                    path: path.clone(),
-                    ..Default::default()
-                }
+            FileSystemOperator::Dry => FileWriteResult {
+                path: path.clone(),
+                ..Default::default()
+            },
+            FileSystemOperator::Local(local_client) => {
+                with_local_dir(|| local_client.write_file(path, content))?
             }
-            FileSystemOperator::Local(local_client) => local_client.write_file(path, content)?,
+            FileSystemOperator::Host(host_client) => host_client.write_file(path, content)?,
         })
     }
 
     pub fn rename(&self, from: &PathBuf, to: &PathBuf) -> Result<(), RenameError> {
         match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.rename_file(from, to)?,
-            FileSystemOperator::Dry => {
-                // info!("Renaming file {:?} {:?}", from, to);
+            FileSystemOperator::Dry => {}
+            FileSystemOperator::Local(local_client) => {
+                with_local_dir(|| local_client.rename_file(from, to))?
             }
-            FileSystemOperator::Local(local_client) => local_client.rename_file(from, to)?,
+            FileSystemOperator::Host(host_client) => host_client.rename_file(from, to)?,
         };
         Ok(())
     }
@@ -287,10 +301,11 @@ impl FileSystemOperator {
     pub fn remove_file(&self, path: &PathBuf) -> Result<(), RemoveFileError> {
         match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.remove_file(path)?,
-            FileSystemOperator::Dry => {
-                // info!("Removing file {:?}", path);
+            FileSystemOperator::Dry => {}
+            FileSystemOperator::Local(local_client) => {
+                with_local_dir(|| local_client.remove_file(path))?
             }
-            FileSystemOperator::Local(local_client) => local_client.remove_file(path)?,
+            FileSystemOperator::Host(host_client) => host_client.remove_file(path)?,
         };
         Ok(())
     }
@@ -298,10 +313,11 @@ impl FileSystemOperator {
     pub fn remove_directory(&self, path: &PathBuf) -> Result<(), RemoveDirectoryError> {
         match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.remove_directory(path)?,
-            FileSystemOperator::Dry => {
-                // info!("Removing directory {:?}", path);
+            FileSystemOperator::Dry => {}
+            FileSystemOperator::Local(local_client) => {
+                with_local_dir(|| local_client.remove_directory(path))?
             }
-            FileSystemOperator::Local(local_client) => local_client.remove_directory(path)?,
+            FileSystemOperator::Host(host_client) => host_client.remove_directory(path)?,
         };
         Ok(())
     }
@@ -309,10 +325,11 @@ impl FileSystemOperator {
     pub fn create_directory(&self, path: &PathBuf) -> Result<(), CreateDirectoryError> {
         match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.create_directory(path)?,
-            FileSystemOperator::Dry => {
-                // info!("Creating directory {:?}", path);
+            FileSystemOperator::Dry => {}
+            FileSystemOperator::Local(local_client) => {
+                with_local_dir(|| local_client.create_directory(path))?
             }
-            FileSystemOperator::Local(local_client) => local_client.create_directory(path)?,
+            FileSystemOperator::Host(host_client) => host_client.create_directory(path)?,
         };
         Ok(())
     }
@@ -320,10 +337,11 @@ impl FileSystemOperator {
     pub fn set_permissions(&self, path: &PathBuf, mode: u32) -> Result<(), SetPermissionsError> {
         match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.set_permissions(path, mode)?,
-            FileSystemOperator::Dry => {
-                // info!("Setting permission of {:?} to {:o}", path, mode);
+            FileSystemOperator::Dry => {}
+            FileSystemOperator::Local(local_client) => {
+                with_local_dir(|| local_client.set_permissions(path, mode))?
             }
-            FileSystemOperator::Local(local_client) => local_client.set_permissions(path, mode)?,
+            FileSystemOperator::Host(host_client) => host_client.set_permissions(path, mode)?,
         };
         Ok(())
     }
@@ -331,15 +349,14 @@ impl FileSystemOperator {
     pub fn metadata(&self, path: &PathBuf) -> Result<Option<MetadataResult>, MetadataError> {
         Ok(match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.metadata(path)?,
-            FileSystemOperator::Dry => {
-                // info!("Retrieving metadata for {:?}", path);
-
-                Some(MetadataResult {
-                    path: path.clone(),
-                    ..Default::default()
-                })
+            FileSystemOperator::Dry => Some(MetadataResult {
+                path: path.clone(),
+                ..Default::default()
+            }),
+            FileSystemOperator::Local(local_client) => {
+                with_local_dir(|| local_client.metadata(path))?
             }
-            FileSystemOperator::Local(local_client) => local_client.metadata(path)?,
+            FileSystemOperator::Host(host_client) => host_client.metadata(path)?,
         })
     }
 
@@ -376,7 +393,10 @@ impl FileSystemOperator {
         let directory_entries = match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.list_directory(path)?,
             FileSystemOperator::Dry => Vec::new(),
-            FileSystemOperator::Local(local_client) => local_client.list_directory(path)?,
+            FileSystemOperator::Local(local_client) => {
+                with_local_dir(|| local_client.list_directory(path))?
+            }
+            FileSystemOperator::Host(host_client) => host_client.list_directory(path)?,
         };
 
         let result = directory_entries

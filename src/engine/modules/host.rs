@@ -22,8 +22,8 @@ pub struct Host {
 impl Host {
     pub fn new() -> Self {
         Self {
-            executor: Executor::new_local(),
-            file_system_operator: FileSystemOperator::new_local(),
+            executor: Executor::new_host(),
+            file_system_operator: FileSystemOperator::new_host(),
         }
     }
 }
