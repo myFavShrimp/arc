@@ -615,6 +615,22 @@ tasks["provision_database"] = {
 }
 ```
 
+## LSP Support
+
+Arc provides Language Server Protocol (LSP) support for Lua code editing with autocomplete, type checking, and inline documentation.
+
+### Setup
+
+1. Install the [Lua Language Server](https://github.com/LuaLS/lua-language-server) for the editor being used.
+
+2. Initialize an Arc project to generate type definitions:
+
+```bash
+arc init /path/to/project
+```
+
+The `init` command creates `.luarc.json` and type definition files that enable the Lua Language Server to recognize Arc's API types.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a pull request.
