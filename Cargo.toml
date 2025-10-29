@@ -7,6 +7,12 @@ authors = ["myFavShrimp <myfavshrimp@tuta.io>"]
 repository = "https://github.com/myFavShrimp/arc"
 license = "MIT"
 publish = true
+categories = [
+    "command-line-utilities",
+    "config",
+    "development-tools"
+]
+keywords = ["orchestration", "ssh", "lua", "infrastructure", "scripting"]
 
 [[bin]]
 name = "arc"
