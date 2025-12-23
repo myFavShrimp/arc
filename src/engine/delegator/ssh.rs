@@ -133,7 +133,12 @@ impl SshClient {
         session.set_tcp_stream(tcp);
         session.handshake()?;
 
-        session.userauth_agent(&system.user)?;
+        // Try to authenticate without agent (e.g. without credentials)
+        session.auth_methods(&system.user)?;
+
+        if !session.authenticated() {
+            session.userauth_agent(&system.user)?;
+        }
 
         let sftp = Arc::new(session.sftp()?);
 
