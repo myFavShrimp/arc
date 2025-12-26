@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 
 use mlua::{FromLua, IntoLua, Lua, MetaMethod, UserData};
 
@@ -9,14 +9,15 @@ use crate::{
     memory::{
         SharedMemory,
         target_groups::TargetGroupsMemory,
-        tasks::{Task, TaskAdditionError, TaskRetrievalError, TasksMemory},
+        tasks::{OnFailBehavior, Task, TaskAdditionError, TaskRetrievalError, TasksMemory},
     },
 };
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TaskConfig {
     pub handler: mlua::Function,
-    pub dependencies: Vec<String>,
+    pub when: Option<mlua::Function>,
+    pub on_fail: OnFailBehavior,
     pub tags: Vec<String>,
     pub groups: Vec<String>,
 }
@@ -34,10 +35,21 @@ impl FromLua for TaskConfig {
                     Err(mlua::Error::runtime("\"handler\" is invalid"))?
                 };
 
-                let dependencies = table
-                    .get::<Option<Vec<String>>>("dependencies")
-                    .or(Err(mlua::Error::runtime("\"dependencies\" is invalid")))?
-                    .unwrap_or_default();
+                let when: Option<mlua::Function> = table
+                    .get("when")
+                    .or(Err(mlua::Error::runtime("\"when\" is invalid")))?;
+
+                let on_fail_str: Option<String> = table
+                    .get("on_fail")
+                    .or(Err(mlua::Error::runtime("\"on_fail\" is invalid")))?;
+                let on_fail = match on_fail_str {
+                    Some(s) => OnFailBehavior::from_str(&s).or(Err(mlua::Error::runtime(format!(
+                        "Invalid on_fail value: \"{}\". Expected \"continue\", \"skip_system\", or \"abort\"",
+                        s
+                    ))))?,
+                    None => OnFailBehavior::default(),
+                };
+
                 let tags = table
                     .get::<Option<Vec<String>>>("tags")
                     .or(Err(mlua::Error::runtime("\"tags\" is invalid")))?
@@ -49,14 +61,16 @@ impl FromLua for TaskConfig {
 
                 Ok(TaskConfig {
                     handler,
-                    dependencies,
+                    when,
+                    on_fail,
                     tags,
                     groups,
                 })
             }
             mlua::Value::Function(handler) => Ok(TaskConfig {
                 handler,
-                dependencies: Default::default(),
+                when: None,
+                on_fail: OnFailBehavior::default(),
                 tags: Default::default(),
                 groups: Default::default(),
             }),
@@ -70,7 +84,7 @@ impl FromLua for TaskConfig {
             | mlua::Value::UserData(_)
             | mlua::Value::Error(_)
             | mlua::Value::Other(_) => Err(mlua::Error::runtime(format!(
-                "{:?} is not a valid system config",
+                "{:?} is not a valid task config",
                 value.type_name()
             ))),
         }
@@ -82,10 +96,13 @@ impl IntoLua for Task {
         let task_table = lua.create_table()?;
 
         task_table.set("name", self.name)?;
-        task_table.set("dependecies", self.dependencies)?;
         task_table.set("tags", self.tags)?;
         task_table.set("result", self.result)?;
         task_table.set("handler", self.handler)?;
+
+        task_table.set("on_fail", self.on_fail.to_string())?;
+        task_table.set("state", self.state.map(|state| state.to_string()))?;
+        task_table.set("error", self.error)?;
 
         let task_table = set_readonly(lua, task_table)
             .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
@@ -173,10 +190,13 @@ impl TasksTable {
         tasks.add(Task {
             name,
             handler: wrapped_handler,
-            dependencies: config.dependencies,
+            when: config.when,
+            on_fail: config.on_fail,
             tags: config.tags,
             groups: config.groups,
             result: None,
+            state: None,
+            error: None,
         })?;
 
         Ok(())

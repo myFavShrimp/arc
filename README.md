@@ -10,17 +10,10 @@ Arc (Automatic Remote Controller) is an infrastructure automation tool that uses
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-2. Clone the repository and navigate to the project directory:
+2. Install Arc using Cargo:
 
 ```bash
-git clone https://github.com/myFavShrimp/arc.git
-cd arc
-```
-
-3. Install Arc using Cargo:
-
-```bash
-cargo install --path .
+cargo install arc-automation
 ```
 
 This will compile and install the `arc` binary to the Cargo bin directory (usually `~/.cargo/bin/`).
@@ -127,24 +120,46 @@ tasks["task_name"] = {
         -- Task implementation
         return result
     end,
-    dependencies = {"other_task"},  -- optional
-    tags = {"tag1", "tag2"},        -- optional
-    groups = {"group1"},            -- optional
+    when = function()              -- optional: guard predicate
+        return true
+    end,
+    on_fail = "continue",          -- optional: "continue" | "skip_system" | "abort"
+    tags = {"tag1", "tag2"},       -- optional
+    groups = {"group1"},           -- optional
 }
 ```
 
 - `handler`: Function that implements the task logic. Receives a system object and returns a result.
-- `dependencies`: Array of task names that must execute before this task. Results from dependencies can be accessed via `tasks["dependency_name"].result`.
+- `when`: Optional guard predicate that determines if the task should run. Has access to previous task states and results via `tasks["task_name"]`. If it returns `false`, the task is skipped.
+- `on_fail`: Behavior when this task fails. `"continue"` (default) proceeds to next task, `"skip_system"` skips remaining tasks for this system, `"abort"` halts execution entirely.
 - `tags`: Array of tags for filtering tasks. Tasks are automatically tagged with the task name and path components when defined in separate files (e.g., `modules/web/nginx.lua` adds tags: `modules`, `web`, `nginx`).
 - `groups`: Array of group names where this task should run. If omitted, the task runs on all groups.
 
-#### Task Dependencies
+#### Task States and Results
 
-Dependencies ensure tasks execute in the correct order. Dependency results can be accessed within dependent tasks:
+Tasks execute in definition order. Each task has one of these states after execution:
+
+| State | Description |
+|-------|-------------|
+| `"success"` | Handler completed without error |
+| `"failed"` | Handler threw an error |
+| `"skipped"` | Task was skipped due to `when` returning false or `on_fail = "skip_system"` |
+
+After execution, each task exposes metadata accessible to subsequent tasks:
+
+```lua
+tasks["some_task"].result   -- Return value from handler (nil if failed/skipped)
+tasks["some_task"].state    -- "success" | "failed" | "skipped"
+tasks["some_task"].error    -- Error message string if failed (nil otherwise)
+```
+
+#### Conditional Execution
+
+The `when` predicate can be used to conditionally run tasks based on previous task states or results:
 
 ```lua
 tasks["check_nginx"] = {
-    handler = function (system)
+    handler = function(system)
         local result = system:run_command("nginx -v")
         return result.exit_code == 0
     end,
@@ -152,15 +167,69 @@ tasks["check_nginx"] = {
 }
 
 tasks["install_nginx"] = {
-    handler = function (system)
-        local nginx_installed = tasks["check_nginx"].result
-
-        if nginx_installed == false then
-            return system:run_command("apt install nginx -y")
+    handler = function(system)
+        log.info("Nginx not found, installing...")
+        local result = system:run_command("apt install nginx -y")
+        if result.exit_code ~= 0 then
+            error("Failed to install nginx: " .. result.stderr)
         end
     end,
-    dependencies = {"check_nginx"},
+    when = function()
+        return tasks["check_nginx"].result == false
+    end,
     tags = {"nginx"}
+}
+
+tasks["configure_nginx"] = {
+    handler = function(system)
+        -- Configure nginx...
+    end,
+    when = function()
+        -- Runs if nginx exists or was just installed
+        return tasks["check_nginx"].result == true
+            or tasks["install_nginx"].state == "success"
+    end,
+    tags = {"nginx"}
+}
+```
+
+#### Failure Handling
+
+Control what happens when a task fails using `on_fail`:
+
+```lua
+tasks["critical_check"] = {
+    handler = function(system)
+        local result = system:run_command("df / --output=pcent | tail -1")
+        local usage = tonumber(result.stdout:match("%d+"))
+        if usage > 90 then
+            error("Disk usage at " .. usage .. "%, need < 90%")
+        end
+        return usage
+    end,
+    on_fail = "skip_system",  -- Skip remaining tasks for this system if disk is full
+}
+
+tasks["start"] = {
+    handler = function(system)
+        local result = system:run_command("./start.sh")
+        if result.exit_code ~= 0 then
+            error("Deployment failed: " .. result.stderr)
+        end
+    end,
+    when = function()
+        return tasks["critical_check"].state == "success"
+    end,
+}
+
+tasks["rollback"] = {
+    handler = function(system)
+        log.warn("Deployment failed, rolling back...")
+        system:run_command("./rollback.sh")
+    end,
+    when = function()
+        return tasks["start"].state == "failed"
+    end,
 }
 ```
 

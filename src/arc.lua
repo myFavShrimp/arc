@@ -8,7 +8,6 @@ tasks["hello-world"] = {
         log.info("Hello World!")
     end,
     tags = {"hello_world"},
-    dependencies = {},
 }
 
 tasks["hello-arc"] = {
@@ -16,5 +15,7 @@ tasks["hello-arc"] = {
         log.info("Hello arc!")
     end,
     tags = {"hello_arc"},
-    dependencies = {"hello_world"},
+    when = function()
+        return tasks["hello-world"].state == "success"
+    end,
 }

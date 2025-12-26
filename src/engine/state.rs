@@ -3,7 +3,10 @@ use crate::{
     memory::{
         target_groups::{TargetGroups, TargetGroupsMemory},
         target_systems::{TargetSystems, TargetSystemsMemory},
-        tasks::{Tasks, TasksMemory, TasksResultSetError},
+        tasks::{
+            TaskState, Tasks, TasksErrorSetError, TasksMemory, TasksResultSetError,
+            TasksStateSetError,
+        },
         SharedMemory,
     },
 };
@@ -15,8 +18,8 @@ pub struct State {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("Failed to reset tasks results")]
-pub enum TasksResultResetError {
+#[error("Failed to reset task execution state")]
+pub enum TasksExecutionStateResetError {
     Lock(#[from] MutexLockError),
 }
 
@@ -25,6 +28,20 @@ pub enum TasksResultResetError {
 pub enum TasksResultStateSetError {
     Lock(#[from] MutexLockError),
     TaskResultSet(#[from] TasksResultSetError),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Failed to set task's state")]
+pub enum TasksStateStateSetError {
+    Lock(#[from] MutexLockError),
+    TaskStateSet(#[from] TasksStateSetError),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Failed to set task's error")]
+pub enum TasksErrorStateSetError {
+    Lock(#[from] MutexLockError),
+    TaskErrorSet(#[from] TasksErrorSetError),
 }
 
 impl State {
@@ -108,10 +125,10 @@ impl State {
         Ok(groups)
     }
 
-    pub fn reset_task_results(&self) -> Result<(), TasksResultResetError> {
+    pub fn reset_execution_state(&self) -> Result<(), TasksExecutionStateResetError> {
         let mut guard = self.tasks.lock().map_err(|_| MutexLockError)?;
 
-        guard.reset_results();
+        guard.reset_execution_state();
 
         Ok(())
     }
@@ -124,6 +141,30 @@ impl State {
         let mut guard = self.tasks.lock().map_err(|_| MutexLockError)?;
 
         guard.set_task_result(name, value)?;
+
+        Ok(())
+    }
+
+    pub fn set_task_state(
+        &self,
+        name: &str,
+        state: TaskState,
+    ) -> Result<(), TasksStateStateSetError> {
+        let mut guard = self.tasks.lock().map_err(|_| MutexLockError)?;
+
+        guard.set_task_state(name, state)?;
+
+        Ok(())
+    }
+
+    pub fn set_task_error(
+        &self,
+        name: &str,
+        error: String,
+    ) -> Result<(), TasksErrorStateSetError> {
+        let mut guard = self.tasks.lock().map_err(|_| MutexLockError)?;
+
+        guard.set_task_error(name, error)?;
 
         Ok(())
     }

@@ -10,8 +10,10 @@ use delegator::{
 use mlua::{Lua, LuaOptions, StdLib};
 use modules::{Modules, MountToGlobals};
 use objects::system::System;
-use recipe::{Recipe, RecipeCreationError};
-use state::{State, TasksResultResetError, TasksResultStateSetError};
+use state::{
+    State, TasksErrorStateSetError, TasksExecutionStateResetError, TasksResultStateSetError,
+    TasksStateStateSetError,
+};
 
 use crate::{
     engine::objects::system::SystemKind,
@@ -20,7 +22,7 @@ use crate::{
     memory::{
         target_groups::TargetGroupsMemory,
         target_systems::{TargetSystemKind, TargetSystemsMemory},
-        tasks::TasksMemory,
+        tasks::{OnFailBehavior, TaskState, TasksMemory},
     },
 };
 
@@ -28,7 +30,6 @@ pub mod delegator;
 pub mod modules;
 pub mod objects;
 mod readonly;
-mod recipe;
 pub mod state;
 
 pub struct Engine {
@@ -55,9 +56,15 @@ pub enum EngineExecutionError {
     OperationTargetSet(#[from] OperationTargetSetError),
     FilteredGroupDoesNotExistError(#[from] FilteredGroupDoesNotExistError),
     Lock(#[from] MutexLockError),
-    TasksResultResetError(#[from] TasksResultResetError),
+    TasksExecutionStateReset(#[from] TasksExecutionStateResetError),
     TasksResultSet(#[from] TasksResultStateSetError),
-    RecipeCreation(#[from] RecipeCreationError),
+    TasksStateSet(#[from] TasksStateStateSetError),
+    TasksErrorSet(#[from] TasksErrorStateSetError),
+    #[error("Task '{task}' aborted execution: {error}")]
+    TaskAborted {
+        task: String,
+        error: String,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -108,8 +115,7 @@ impl Engine {
             .state
             .tasks_for_selected_groups_and_tags(&groups, &tags)?;
 
-        let tasks_to_execute = tasks.values().cloned().collect::<Vec<_>>();
-        let recipe = Recipe::from_tasks(&tasks_to_execute)?;
+        let tasks_to_execute: Vec<_> = tasks.into_values().collect();
 
         let missing_selected_groups = self.state.missing_selected_groups(&groups)?;
         if !missing_selected_groups.is_empty() {
@@ -132,8 +138,7 @@ impl Engine {
                 .filter(|(_, config)| config.members.contains(&system_name))
                 .map(|(name, _)| name)
                 .collect::<Vec<&String>>();
-            let system_tasks = recipe
-                .tasks
+            let system_tasks = tasks_to_execute
                 .iter()
                 .filter(|task| {
                     system_groups.is_empty()
@@ -153,7 +158,7 @@ impl Engine {
                 continue;
             }
 
-            self.state.reset_task_results()?;
+            self.state.reset_execution_state()?;
 
             let system = System {
                 name: system_config.name.clone(),
@@ -176,9 +181,51 @@ impl Engine {
                 },
             };
 
+            let mut skip_system = false;
+
             for task_config in system_tasks {
-                let result = task_config.handler.call::<mlua::Value>(system.clone())?;
-                self.state.set_task_result(&task_config.name, result)?;
+                if skip_system {
+                    self.state
+                        .set_task_state(&task_config.name, TaskState::Skipped)?;
+                    continue;
+                }
+
+                if let Some(when_handler) = &task_config.when {
+                    let should_run: bool = when_handler.call(())?;
+                    if !should_run {
+                        self.state
+                            .set_task_state(&task_config.name, TaskState::Skipped)?;
+                        continue;
+                    }
+                }
+
+                match task_config.handler.call::<mlua::Value>(system.clone()) {
+                    Ok(result) => {
+                        self.state.set_task_result(&task_config.name, result)?;
+                        self.state
+                            .set_task_state(&task_config.name, TaskState::Success)?;
+                    }
+                    Err(e) => {
+                        let error_msg = e.to_string();
+                        self.state
+                            .set_task_state(&task_config.name, TaskState::Failed)?;
+                        self.state
+                            .set_task_error(&task_config.name, error_msg.clone())?;
+
+                        match task_config.on_fail {
+                            OnFailBehavior::Continue => {}
+                            OnFailBehavior::SkipSystem => {
+                                skip_system = true;
+                            }
+                            OnFailBehavior::Abort => {
+                                return Err(EngineExecutionError::TaskAborted {
+                                    task: task_config.name.clone(),
+                                    error: error_msg,
+                                });
+                            }
+                        }
+                    }
+                }
             }
 
             let mut logger = self.logger.lock().unwrap();

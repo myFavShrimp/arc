@@ -114,12 +114,20 @@ function LocalSystem:file(path) end
 function LocalSystem:directory(path) end
 
 
+---Behavior when a task fails
+---@alias FailureBehavior "continue" | "skip_system" | "abort"
+
+---Task execution state
+---@alias TaskState "success" | "failed" | "skipped"
+
 ---@class TaskDefinition
 ---@field handler fun(system: RemoteSystem|LocalSystem): any The function that implements the task
----@field dependencies? string[] Array of task names that must be executed before this task
+---@field when? fun(): boolean Guard predicate to determine if task should run (check previous task states/results)
+---@field on_fail? FailureBehavior Behavior when this task fails (default: "continue")
 ---@field tags? string[] Array of tags associated with the task, used for filtering
 ---@field groups? string[] Array of group names this task should run on
 ---@field result? any The result of the task execution (available after execution)
+---@field state? TaskState State of the task after execution
 
 ---@class RemoteSystemDefinition
 ---@field type? "remote" System type (optional, defaults to "remote")

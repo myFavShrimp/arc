@@ -1,48 +1,62 @@
-use std::collections::HashMap;
+use indexmap::IndexMap;
+use strum::EnumString;
+
+#[derive(Debug, Clone, Copy, PartialEq, Default, EnumString, strum::Display)]
+#[strum(serialize_all = "snake_case")]
+pub enum OnFailBehavior {
+    #[default]
+    Continue,
+    SkipSystem,
+    Abort,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, EnumString, strum::Display)]
+#[strum(serialize_all = "snake_case")]
+pub enum TaskState {
+    Success,
+    Failed,
+    Skipped,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Task {
     pub name: String,
     pub handler: mlua::Function,
-    pub dependencies: Vec<String>,
+    pub when: Option<mlua::Function>,
+    pub on_fail: OnFailBehavior,
     pub tags: Vec<String>,
     pub groups: Vec<String>,
     pub result: Option<mlua::Value>,
+    pub state: Option<TaskState>,
+    pub error: Option<String>,
 }
 
-pub type Tasks = HashMap<String, Task>;
+pub type Tasks = IndexMap<String, Task>;
 
 #[derive(Debug, Default)]
 pub struct TasksMemory {
     memory: Tasks,
 }
 
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to add task `{task}`")]
-pub struct TaskAdditionError {
-    pub task: String,
-    #[source]
-    pub kind: TaskAdditionErrorKind,
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error(transparent)]
-pub enum TaskAdditionErrorKind {
-    UnregisteredDependencies(#[from] UnregisteredDependenciesError),
-    DuplicateTask(#[from] DuplicateTaskError),
-}
-
 #[derive(Debug, thiserror::Error)]
-#[error("Unregistered task dependencies: {0:?}")]
-pub struct UnregisteredDependenciesError(pub Vec<String>);
-
-#[derive(Debug, thiserror::Error)]
-#[error("Duplicate task")]
-pub struct DuplicateTaskError;
+#[error("Failed to add task `{0}`: duplicate task")]
+pub struct TaskAdditionError(pub String);
 
 #[derive(Debug, thiserror::Error)]
 #[error("Failed to set task's result")]
 pub enum TasksResultSetError {
+    TaskNotDefined(#[from] TaskNotDefinedError),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Failed to set task's state")]
+pub enum TasksStateSetError {
+    TaskNotDefined(#[from] TaskNotDefinedError),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Failed to set task's error")]
+pub enum TasksErrorSetError {
     TaskNotDefined(#[from] TaskNotDefinedError),
 }
 
@@ -65,23 +79,7 @@ impl TasksMemory {
             .insert(task.name.clone(), task.clone())
             .is_some()
         {
-            Err(TaskAdditionError {
-                task: task.name.clone(),
-                kind: DuplicateTaskError.into(),
-            })?;
-        }
-
-        let mut unregistered_dependencies = Vec::with_capacity(task.dependencies.len());
-        for dep in &task.dependencies {
-            if !self.memory.contains_key(dep) {
-                unregistered_dependencies.push(dep.clone());
-            }
-        }
-        if !unregistered_dependencies.is_empty() {
-            Err(TaskAdditionError {
-                task: task.name,
-                kind: UnregisteredDependenciesError(unregistered_dependencies).into(),
-            })?;
+            return Err(TaskAdditionError(task.name));
         }
 
         Ok(())
@@ -91,10 +89,12 @@ impl TasksMemory {
         self.memory.clone()
     }
 
-    pub fn reset_results(&mut self) {
-        self.memory
-            .iter_mut()
-            .for_each(|(_, task)| task.result = None);
+    pub fn reset_execution_state(&mut self) {
+        self.memory.iter_mut().for_each(|(_, task)| {
+            task.result = None;
+            task.state = None;
+            task.error = None;
+        });
     }
 
     pub fn set_task_result(
@@ -105,6 +105,36 @@ impl TasksMemory {
         match self.memory.get_mut(task_name) {
             Some(task) => {
                 task.result = Some(value);
+            }
+            None => Err(TaskNotDefinedError(task_name.to_string()))?,
+        };
+
+        Ok(())
+    }
+
+    pub fn set_task_state(
+        &mut self,
+        task_name: &str,
+        state: TaskState,
+    ) -> Result<(), TasksStateSetError> {
+        match self.memory.get_mut(task_name) {
+            Some(task) => {
+                task.state = Some(state);
+            }
+            None => Err(TaskNotDefinedError(task_name.to_string()))?,
+        };
+
+        Ok(())
+    }
+
+    pub fn set_task_error(
+        &mut self,
+        task_name: &str,
+        error: String,
+    ) -> Result<(), TasksErrorSetError> {
+        match self.memory.get_mut(task_name) {
+            Some(task) => {
+                task.error = Some(error);
             }
             None => Err(TaskNotDefinedError(task_name.to_string()))?,
         };
