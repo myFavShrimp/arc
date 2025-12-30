@@ -17,25 +17,17 @@ use crate::{
 #[derive(Clone)]
 pub enum Executor {
     Ssh(SshClient),
-    Dry,
     Host(HostClient),
     Local(HostClient),
 }
 
 impl Executor {
-    pub fn new_for_system(
-        config: &TargetSystem,
-        is_dry_run: bool,
-    ) -> Result<Self, ExecutionTargetSetError> {
-        Ok(if is_dry_run {
-            Self::Dry
-        } else {
-            match &config.kind {
-                TargetSystemKind::Remote(remote_target_system) => {
-                    Self::Ssh(SshClient::connect(remote_target_system)?)
-                }
-                TargetSystemKind::Local => Self::new_local(),
+    pub fn new_for_system(config: &TargetSystem) -> Result<Self, ExecutionTargetSetError> {
+        Ok(match &config.kind {
+            TargetSystemKind::Remote(remote_target_system) => {
+                Self::Ssh(SshClient::connect(remote_target_system)?)
             }
+            TargetSystemKind::Local => Self::new_local(),
         })
     }
 
@@ -95,7 +87,6 @@ impl Executor {
     pub fn run_command(&self, cmd: String) -> Result<CommandResult, TaskError> {
         Ok(match self {
             Executor::Ssh(ssh_client) => ssh_client.execute_command(&cmd)?,
-            Executor::Dry => CommandResult::default(),
             Executor::Host(local_client) => local_client.execute_command(&cmd)?,
             Executor::Local(local_client) => with_local_dir(|| local_client.execute_command(&cmd))?,
         })

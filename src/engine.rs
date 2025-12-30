@@ -143,12 +143,6 @@ impl Engine {
 
         let selected_groups = self.state.selected_groups(&groups)?;
 
-        if self.is_dry_run {
-            let logger = self.logger.lock().unwrap();
-            logger.info("Starting dry run ...");
-            drop(logger);
-        }
-
         for (system_name, system_config) in systems {
             let system_groups = selected_groups
                 .iter()
@@ -175,6 +169,28 @@ impl Engine {
                 continue;
             }
 
+            if self.is_dry_run {
+                let mut logger = self.logger.lock().unwrap();
+
+                for task in &system_tasks {
+                    logger.info(&format!(
+                        "{} {}",
+                        task.name,
+                        task.tags
+                            .iter()
+                            .map(|t| format!("#{t}"))
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    ));
+                }
+
+                logger.reset_system();
+
+                drop(logger);
+
+                continue;
+            }
+
             self.state.reset_execution_state()?;
 
             let system = System {
@@ -185,10 +201,9 @@ impl Engine {
                             address: remote_target_system.address,
                             port: remote_target_system.port,
                             user: remote_target_system.user.clone(),
-                            executor: Executor::new_for_system(&system_config, self.is_dry_run)?,
+                            executor: Executor::new_for_system(&system_config)?,
                             file_system_operator: FileSystemOperator::new_for_system(
                                 &system_config,
-                                self.is_dry_run,
                             )?,
                         })
                     }

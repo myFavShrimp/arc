@@ -35,31 +35,20 @@ impl FileSystemEntry {
     }
 }
 
-// TODO: The ssh/local destinction makes no sense here. Better: { client: ssh | local, mode: active | dry } ?
-//       This allowed dry mode to track changes that would be made in active mode.
-
 #[derive(Clone)]
 pub enum FileSystemOperator {
     Ssh(SshClient),
     Local(HostClient),
     Host(HostClient),
-    Dry,
 }
 
 impl FileSystemOperator {
-    pub fn new_for_system(
-        config: &TargetSystem,
-        is_dry_run: bool,
-    ) -> Result<Self, OperationTargetSetError> {
-        Ok(if is_dry_run {
-            Self::Dry
-        } else {
-            match &config.kind {
-                TargetSystemKind::Remote(remote_target_system) => {
-                    Self::Ssh(SshClient::connect(remote_target_system)?)
-                }
-                TargetSystemKind::Local => Self::new_local(),
+    pub fn new_for_system(config: &TargetSystem) -> Result<Self, OperationTargetSetError> {
+        Ok(match &config.kind {
+            TargetSystemKind::Remote(remote_target_system) => {
+                Self::Ssh(SshClient::connect(remote_target_system)?)
             }
+            TargetSystemKind::Local => Self::new_local(),
         })
     }
 
@@ -263,7 +252,6 @@ impl FileSystemOperator {
             FileSystemOperator::Local(local_client) => {
                 with_local_dir(|| local_client.read_file(path))?
             }
-            FileSystemOperator::Dry => Vec::new(),
             FileSystemOperator::Host(host_client) => host_client.read_file(path)?,
         })
     }
@@ -275,10 +263,6 @@ impl FileSystemOperator {
     ) -> Result<FileWriteResult, FileWriteError> {
         Ok(match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.write_file(path, content)?,
-            FileSystemOperator::Dry => FileWriteResult {
-                path: path.clone(),
-                ..Default::default()
-            },
             FileSystemOperator::Local(local_client) => {
                 with_local_dir(|| local_client.write_file(path, content))?
             }
@@ -289,7 +273,6 @@ impl FileSystemOperator {
     pub fn rename(&self, from: &PathBuf, to: &PathBuf) -> Result<(), RenameError> {
         match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.rename_file(from, to)?,
-            FileSystemOperator::Dry => {}
             FileSystemOperator::Local(local_client) => {
                 with_local_dir(|| local_client.rename_file(from, to))?
             }
@@ -301,7 +284,6 @@ impl FileSystemOperator {
     pub fn remove_file(&self, path: &PathBuf) -> Result<(), RemoveFileError> {
         match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.remove_file(path)?,
-            FileSystemOperator::Dry => {}
             FileSystemOperator::Local(local_client) => {
                 with_local_dir(|| local_client.remove_file(path))?
             }
@@ -313,7 +295,6 @@ impl FileSystemOperator {
     pub fn remove_directory(&self, path: &PathBuf) -> Result<(), RemoveDirectoryError> {
         match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.remove_directory(path)?,
-            FileSystemOperator::Dry => {}
             FileSystemOperator::Local(local_client) => {
                 with_local_dir(|| local_client.remove_directory(path))?
             }
@@ -325,7 +306,6 @@ impl FileSystemOperator {
     pub fn create_directory(&self, path: &PathBuf) -> Result<(), CreateDirectoryError> {
         match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.create_directory(path)?,
-            FileSystemOperator::Dry => {}
             FileSystemOperator::Local(local_client) => {
                 with_local_dir(|| local_client.create_directory(path))?
             }
@@ -337,7 +317,6 @@ impl FileSystemOperator {
     pub fn set_permissions(&self, path: &PathBuf, mode: u32) -> Result<(), SetPermissionsError> {
         match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.set_permissions(path, mode)?,
-            FileSystemOperator::Dry => {}
             FileSystemOperator::Local(local_client) => {
                 with_local_dir(|| local_client.set_permissions(path, mode))?
             }
@@ -349,10 +328,6 @@ impl FileSystemOperator {
     pub fn metadata(&self, path: &PathBuf) -> Result<Option<MetadataResult>, MetadataError> {
         Ok(match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.metadata(path)?,
-            FileSystemOperator::Dry => Some(MetadataResult {
-                path: path.clone(),
-                ..Default::default()
-            }),
             FileSystemOperator::Local(local_client) => {
                 with_local_dir(|| local_client.metadata(path))?
             }
@@ -361,13 +336,6 @@ impl FileSystemOperator {
     }
 
     pub fn file(&self, path: &PathBuf) -> Result<File, FileError> {
-        if let FileSystemOperator::Dry = self {
-            return Ok(File {
-                path: path.clone(),
-                file_system_operator: self.clone(),
-            });
-        }
-
         let metadata = self.metadata(path)?;
 
         match metadata {
@@ -392,7 +360,6 @@ impl FileSystemOperator {
     ) -> Result<Vec<FileSystemEntry>, ListDirectoryError> {
         let directory_entries = match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.list_directory(path)?,
-            FileSystemOperator::Dry => Vec::new(),
             FileSystemOperator::Local(local_client) => {
                 with_local_dir(|| local_client.list_directory(path))?
             }
@@ -418,13 +385,6 @@ impl FileSystemOperator {
     }
 
     pub fn directory(&self, path: &PathBuf) -> Result<Directory, DirectoryError> {
-        if let FileSystemOperator::Dry = self {
-            return Ok(Directory {
-                path: path.clone(),
-                file_system_operator: self.clone(),
-            });
-        }
-
         let metadata = self.metadata(path)?;
 
         match metadata {
@@ -446,32 +406,25 @@ impl FileSystemOperator {
         }
     }
 
-    pub fn parent_directory(&self, path: &PathBuf) -> Result<Option<Directory>, DirectoryError> {
+    pub fn parent_directory(&self, path: &Path) -> Result<Option<Directory>, DirectoryError> {
         let Some(parent_path) = path.parent() else {
             return Ok(None);
         };
 
-        if let FileSystemOperator::Dry = self {
-            return Ok(Some(Directory {
-                path: parent_path.to_path_buf(),
-                file_system_operator: self.clone(),
-            }));
-        }
-
-        let metadata = self.metadata(path)?;
+        let metadata = self.metadata(&parent_path.to_path_buf())?;
 
         match metadata {
             None => Ok(Some(Directory {
-                path: path.clone(),
+                path: parent_path.to_path_buf(),
                 file_system_operator: self.clone(),
             })),
             Some(metadata) => match metadata.r#type {
                 MetadataType::Directory => Ok(Some(Directory {
-                    path: path.clone(),
+                    path: parent_path.to_path_buf(),
                     file_system_operator: self.clone(),
                 })),
                 MetadataType::File | MetadataType::Unknown => Err(UnexpectedTypeError {
-                    path: path.clone(),
+                    path: parent_path.to_path_buf(),
                     expected: MetadataType::Directory,
                     actual: metadata.r#type,
                 })?,
