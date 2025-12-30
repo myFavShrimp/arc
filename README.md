@@ -267,24 +267,22 @@ tasks["deploy_app"] = {
 }
 ```
 
-```bash
-arc run -t deploy
-# Dependency resolution:
-#   deploy_app depends on: setup, build
-#   - setup → includes install_packages
-#   - build → includes build_app
-#
-# Execution order (definition order): install_packages → build_app → deploy_app
-```
+Running `arc run -t deploy` resolves dependencies transitively:
+- `deploy_app` depends on tags `setup` and `build`
+- `setup` includes `install_packages`
+- `build` includes `build_app`
+
+Execution order follows definition order: `install_packages` → `build_app` → `deploy_app`
 
 Dependencies affect **which** tasks run, not **when** they run. Tasks always execute in definition order in the source file.
 
-The `--no-deps` flag can be used to skip dependency resolution and only run explicitly selected tasks:
+The `--no-deps` flag skips dependency resolution and only runs explicitly selected tasks:
 
 ```bash
 arc run -t deploy --no-deps
-# Only runs: deploy_app (no dependencies included)
 ```
+
+This only runs `deploy_app` without including its dependencies.
 
 ### Running Tasks
 
