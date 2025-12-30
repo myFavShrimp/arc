@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use indexmap::IndexMap;
 use strum::EnumString;
 
@@ -24,8 +26,9 @@ pub struct Task {
     pub handler: mlua::Function,
     pub when: Option<mlua::Function>,
     pub on_fail: OnFailBehavior,
-    pub tags: Vec<String>,
-    pub groups: Vec<String>,
+    pub tags: HashSet<String>,
+    pub groups: HashSet<String>,
+    pub dependencies: HashSet<String>,
     pub result: Option<mlua::Value>,
     pub state: Option<TaskState>,
     pub error: Option<String>,
@@ -72,7 +75,7 @@ pub struct TaskNotDefinedError(String);
 
 impl TasksMemory {
     pub fn add(&mut self, mut task: Task) -> Result<(), TaskAdditionError> {
-        task.tags.push(task.name.clone());
+        task.tags.insert(task.name.clone());
 
         if self
             .memory

@@ -126,8 +126,10 @@ function LocalSystem:directory(path) end
 ---@field on_fail? FailureBehavior Behavior when this task fails (default: "continue")
 ---@field tags? string[] Array of tags associated with the task, used for filtering
 ---@field groups? string[] Array of group names this task should run on
+---@field dependencies? string[] Array of tags that this task depends on
 ---@field result? any The result of the task execution (available after execution)
 ---@field state? TaskState State of the task after execution
+---@field error? string Error message if the task failed
 
 ---@class RemoteSystemDefinition
 ---@field type? "remote" System type (optional, defaults to "remote")

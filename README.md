@@ -103,8 +103,8 @@ targets.groups["web-servers"] = {
     members = {"frontend-server", "api-server"}
 }
 
-targets.groups["production"] = {
-    members = {"web-servers", "database-servers"}  -- can include other groups
+targets.groups["prod"] = {
+    members = {"prod-web-1", "prod-db-1"}
 }
 ```
 
@@ -126,6 +126,7 @@ tasks["task_name"] = {
     on_fail = "continue",          -- optional: "continue" | "skip_system" | "abort"
     tags = {"tag1", "tag2"},       -- optional
     groups = {"group1"},           -- optional
+    dependencies = {"setup"},      -- optional: tags this task depends on
 }
 ```
 
@@ -134,6 +135,7 @@ tasks["task_name"] = {
 - `on_fail`: Behavior when this task fails. `"continue"` (default) proceeds to next task, `"skip_system"` skips remaining tasks for this system, `"abort"` halts execution entirely.
 - `tags`: Array of tags for filtering tasks. Tasks are automatically tagged with the task name and path components when defined in separate files (e.g., `modules/web/nginx.lua` adds tags: `modules`, `web`, `nginx`).
 - `groups`: Array of group names where this task should run. If omitted, the task runs on all groups.
+- `dependencies`: Array of tags that this task depends on. When a task is selected, all tasks with matching dependency tags are automatically included in the execution set. See [Task Dependencies](#task-dependencies).
 
 #### Task States and Results
 
@@ -167,6 +169,9 @@ tasks["check_nginx"] = {
 }
 
 tasks["install_nginx"] = {
+    when = function()
+        return tasks["check_nginx"].result == false
+    end,
     handler = function(system)
         log.info("Nginx not found, installing...")
         local result = system:run_command("apt install nginx -y")
@@ -174,20 +179,17 @@ tasks["install_nginx"] = {
             error("Failed to install nginx: " .. result.stderr)
         end
     end,
-    when = function()
-        return tasks["check_nginx"].result == false
-    end,
     tags = {"nginx"}
 }
 
 tasks["configure_nginx"] = {
-    handler = function(system)
-        -- Configure nginx...
-    end,
     when = function()
         -- Runs if nginx exists or was just installed
         return tasks["check_nginx"].result == true
             or tasks["install_nginx"].state == "success"
+    end,
+    handler = function(system)
+        -- Configure nginx...
     end,
     tags = {"nginx"}
 }
@@ -211,26 +213,73 @@ tasks["critical_check"] = {
 }
 
 tasks["start"] = {
+    when = function()
+        return tasks["critical_check"].state == "success"
+    end,
     handler = function(system)
         local result = system:run_command("./start.sh")
         if result.exit_code ~= 0 then
             error("Deployment failed: " .. result.stderr)
         end
     end,
-    when = function()
-        return tasks["critical_check"].state == "success"
-    end,
 }
 
 tasks["rollback"] = {
+    when = function()
+        return tasks["start"].state == "failed"
+    end,
     handler = function(system)
         log.warn("Deployment failed, rolling back...")
         system:run_command("./rollback.sh")
     end,
-    when = function()
-        return tasks["start"].state == "failed"
-    end,
 }
+```
+
+#### Task Dependencies
+
+The `dependencies` field references tags. When a task is selected for execution, any tasks matching its dependency tags are automatically included. Dependency resolution is transitive and execution order remains definition order.
+
+```lua
+tasks["install_packages"] = {
+    tags = {"setup"},
+    handler = function(system)
+        system:run_command("apt update && apt install -y nginx")
+    end
+}
+
+tasks["build_app"] = {
+    tags = {"build"},
+    handler = function(system)
+        system:run_command("npm run build")
+    end
+}
+
+tasks["deploy_app"] = {
+    tags = {"deploy"},
+    dependencies = {"setup", "build"},  -- Depends on tasks tagged "setup" and "build"
+    handler = function(system)
+        system:run_command("./deploy.sh")
+    end
+}
+```
+
+```bash
+arc run -t deploy
+# Dependency resolution:
+#   deploy_app depends on: setup, build
+#   - setup → includes install_packages
+#   - build → includes build_app
+#
+# Execution order (definition order): install_packages → build_app → deploy_app
+```
+
+Dependencies affect **which** tasks run, not **when** they run. Tasks always execute in definition order in the source file.
+
+Use `--no-deps` to skip dependency resolution and only run explicitly selected tasks:
+
+```bash
+arc run -t deploy --no-deps
+# Only runs: deploy_app (no dependencies included)
 ```
 
 ### Running Tasks
@@ -252,6 +301,9 @@ arc run -t nginx -t security -g web-servers
 
 # Perform a dry run without executing commands
 arc run --dry-run
+
+# Skip dependency resolution
+arc run -t deploy --no-deps
 ```
 
 ## CLI Reference
@@ -275,6 +327,7 @@ Options:
   -t, --tag <TAG>      Filter tasks by tag
   -g, --group <GROUP>  Run tasks only on specific groups
   -d, --dry-run        Perform a dry run without executing commands or modifying the file system
+      --no-deps        Skip dependency resolution and only run explicitly selected tasks
   -h, --help           Print help
 ```
 
@@ -493,7 +546,7 @@ tasks["deploy_app"] = {
 
 ### Host Module
 
-The `host` module provides functions for interacting with the local system where Arc is running. It has the same interface as the `system` object but operates on the local machine.
+The `host` module provides functions for interacting with the local system where Arc is running. It has the same interface as the `system` object but operates on the local machine and it's working directory is the one arc was executed in.
 
 #### Methods
 

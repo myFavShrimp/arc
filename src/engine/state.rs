@@ -1,15 +1,22 @@
+use std::collections::HashSet;
+
 use crate::{
     error::MutexLockError,
     memory::{
+        SharedMemory,
         target_groups::{TargetGroups, TargetGroupsMemory},
         target_systems::{TargetSystems, TargetSystemsMemory},
         tasks::{
-            TaskState, Tasks, TasksErrorSetError, TasksMemory, TasksResultSetError,
+            Task, TaskState, Tasks, TasksErrorSetError, TasksMemory, TasksResultSetError,
             TasksStateSetError,
         },
-        SharedMemory,
     },
 };
+
+pub struct UndefinedDependency {
+    pub task_name: String,
+    pub tag: String,
+}
 
 pub struct State {
     target_systems: SharedMemory<TargetSystemsMemory>,
@@ -59,7 +66,7 @@ impl State {
 
     pub fn systems_for_selected_groups(
         &self,
-        selected_groups: &[String],
+        selected_groups: &HashSet<String>,
     ) -> Result<TargetSystems, MutexLockError> {
         let groups = self.target_groups.lock().map_err(|_| MutexLockError)?.all();
         let mut systems = self
@@ -86,38 +93,99 @@ impl State {
 
     pub fn tasks_for_selected_groups_and_tags(
         &self,
-        selected_groups: &[String],
-        tags: &[String],
+        selected_groups: &HashSet<String>,
+        selected_tags: &HashSet<String>,
     ) -> Result<Tasks, MutexLockError> {
         let mut tasks = self.tasks.lock().map_err(|_| MutexLockError)?.all();
 
         tasks.retain(|_, task| {
-            (selected_groups.is_empty()
-                || task
-                    .groups
-                    .iter()
-                    .any(|group| selected_groups.contains(group)))
-                && (tags.is_empty() || task.tags.iter().any(|config_tag| tags.contains(config_tag)))
+            (selected_groups.is_empty() || !task.groups.is_disjoint(selected_groups))
+                && (selected_tags.is_empty() || !task.tags.is_disjoint(selected_tags))
         });
 
         Ok(tasks)
     }
 
+    pub fn tasks_with_resolved_dependencies(
+        &self,
+        selected_groups: &HashSet<String>,
+        selected_tags: &HashSet<String>,
+    ) -> Result<(Tasks, Vec<UndefinedDependency>), MutexLockError> {
+        let all_tasks = self.tasks.lock().map_err(|_| MutexLockError)?.all();
+        let all_tags: HashSet<&String> = all_tasks
+            .values()
+            .flat_map(|task| task.tags.iter())
+            .collect();
+
+        let task_matches_groups = |task: &Task| -> bool {
+            selected_groups.is_empty() || !task.groups.is_disjoint(selected_groups)
+        };
+
+        let task_matches_tags = |task: &Task| -> bool {
+            selected_tags.is_empty() || !task.tags.is_disjoint(selected_tags)
+        };
+
+        let tasks_with_tag = |tag: &String| -> Vec<&String> {
+            all_tasks
+                .iter()
+                .filter(|(_, task)| task.tags.contains(tag) && task_matches_groups(task))
+                .map(|(name, _)| name)
+                .collect()
+        };
+
+        let mut selected_task_names: HashSet<String> = all_tasks
+            .iter()
+            .filter(|(_, task)| task_matches_groups(task) && task_matches_tags(task))
+            .map(|(name, _)| name.clone())
+            .collect();
+
+        let mut undefined_dependencies = Vec::new();
+        let mut tasks_to_expand: Vec<String> = selected_task_names.iter().cloned().collect();
+
+        while let Some(task_name) = tasks_to_expand.pop() {
+            let Some(task) = all_tasks.get(&task_name) else {
+                continue;
+            };
+
+            for dependency_tag in &task.dependencies {
+                if !all_tags.contains(dependency_tag) {
+                    undefined_dependencies.push(UndefinedDependency {
+                        task_name: task_name.clone(),
+                        tag: dependency_tag.clone(),
+                    });
+                    continue;
+                }
+
+                for name in tasks_with_tag(dependency_tag) {
+                    if selected_task_names.insert(name.clone()) {
+                        tasks_to_expand.push(name.clone());
+                    }
+                }
+            }
+        }
+
+        let mut selected_tasks = all_tasks;
+        selected_tasks.retain(|name, _| selected_task_names.contains(name));
+
+        Ok((selected_tasks, undefined_dependencies))
+    }
+
     pub fn missing_selected_groups(
         &self,
-        selected_groups: &[String],
+        selected_groups: &HashSet<String>,
     ) -> Result<Vec<String>, MutexLockError> {
         let groups = self.target_groups.lock().map_err(|_| MutexLockError)?.all();
 
-        let mut selected_groups = selected_groups.to_vec();
-        selected_groups.retain(|name| !groups.contains_key(name));
-
-        Ok(selected_groups)
+        Ok(selected_groups
+            .iter()
+            .filter(|name| !groups.contains_key(*name))
+            .cloned()
+            .collect())
     }
 
     pub fn selected_groups(
         &self,
-        selected_groups: &[String],
+        selected_groups: &HashSet<String>,
     ) -> Result<TargetGroups, MutexLockError> {
         let mut groups = self.target_groups.lock().map_err(|_| MutexLockError)?.all();
         groups.retain(|name, _| !selected_groups.contains(name));
@@ -157,11 +225,7 @@ impl State {
         Ok(())
     }
 
-    pub fn set_task_error(
-        &self,
-        name: &str,
-        error: String,
-    ) -> Result<(), TasksErrorStateSetError> {
+    pub fn set_task_error(&self, name: &str, error: String) -> Result<(), TasksErrorStateSetError> {
         let mut guard = self.tasks.lock().map_err(|_| MutexLockError)?;
 
         guard.set_task_error(name, error)?;

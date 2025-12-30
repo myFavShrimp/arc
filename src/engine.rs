@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -99,8 +100,9 @@ impl Engine {
 
     pub fn execute(
         &self,
-        tags: Vec<String>,
-        groups: Vec<String>,
+        tags: HashSet<String>,
+        groups: HashSet<String>,
+        no_deps: bool,
     ) -> Result<(), EngineExecutionError> {
         let entry_point_script_path = PathBuf::from(ENTRY_POINT_SCRIPT);
         let entry_point_script = std::fs::read_to_string(&entry_point_script_path)?;
@@ -111,9 +113,24 @@ impl Engine {
             .exec()?;
 
         let systems = self.state.systems_for_selected_groups(&groups)?;
-        let tasks = self
-            .state
-            .tasks_for_selected_groups_and_tags(&groups, &tags)?;
+        let tasks = if no_deps {
+            self.state
+                .tasks_for_selected_groups_and_tags(&groups, &tags)?
+        } else {
+            let (resolved_tasks, undefined_dependencies) = self
+                .state
+                .tasks_with_resolved_dependencies(&groups, &tags)?;
+
+            for undefined_dependency in undefined_dependencies {
+                let logger = self.logger.lock().unwrap();
+                logger.warn(&format!(
+                    "Task {:?} depends on tag {:?} but no tasks have that tag",
+                    undefined_dependency.task_name, undefined_dependency.tag
+                ));
+            }
+
+            resolved_tasks
+        };
 
         let tasks_to_execute: Vec<_> = tasks.into_values().collect();
 

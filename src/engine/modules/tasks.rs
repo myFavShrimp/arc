@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{collections::HashSet, path::PathBuf, str::FromStr};
 
 use mlua::{FromLua, IntoLua, Lua, MetaMethod, UserData};
 
@@ -18,8 +18,9 @@ pub struct TaskConfig {
     pub handler: mlua::Function,
     pub when: Option<mlua::Function>,
     pub on_fail: OnFailBehavior,
-    pub tags: Vec<String>,
-    pub groups: Vec<String>,
+    pub tags: HashSet<String>,
+    pub groups: HashSet<String>,
+    pub dependencies: HashSet<String>,
 }
 
 impl FromLua for TaskConfig {
@@ -50,14 +51,24 @@ impl FromLua for TaskConfig {
                     None => OnFailBehavior::default(),
                 };
 
-                let tags = table
+                let tags: HashSet<String> = table
                     .get::<Option<Vec<String>>>("tags")
                     .or(Err(mlua::Error::runtime("\"tags\" is invalid")))?
-                    .unwrap_or_default();
-                let groups = table
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect();
+                let groups: HashSet<String> = table
                     .get::<Option<Vec<String>>>("groups")
                     .or(Err(mlua::Error::runtime("\"groups\" is invalid")))?
-                    .unwrap_or_default();
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect();
+                let dependencies: HashSet<String> = table
+                    .get::<Option<Vec<String>>>("dependencies")
+                    .or(Err(mlua::Error::runtime("\"dependencies\" is invalid")))?
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect();
 
                 Ok(TaskConfig {
                     handler,
@@ -65,6 +76,7 @@ impl FromLua for TaskConfig {
                     on_fail,
                     tags,
                     groups,
+                    dependencies,
                 })
             }
             mlua::Value::Function(handler) => Ok(TaskConfig {
@@ -73,6 +85,7 @@ impl FromLua for TaskConfig {
                 on_fail: OnFailBehavior::default(),
                 tags: Default::default(),
                 groups: Default::default(),
+                dependencies: Default::default(),
             }),
             mlua::Value::Nil
             | mlua::Value::Boolean(_)
@@ -96,7 +109,8 @@ impl IntoLua for Task {
         let task_table = lua.create_table()?;
 
         task_table.set("name", self.name)?;
-        task_table.set("tags", self.tags)?;
+        task_table.set("tags", self.tags.into_iter().collect::<Vec<_>>())?;
+        task_table.set("dependencies", self.dependencies.into_iter().collect::<Vec<_>>())?;
         task_table.set("result", self.result)?;
         task_table.set("handler", self.handler)?;
 
@@ -160,11 +174,15 @@ impl TasksTable {
         let groups = self.groups_memory.lock().map_err(|_| MutexLockError)?.all();
 
         {
-            let mut task_groups = config.groups.clone();
-            task_groups.retain(|name| !groups.contains_key(name));
+            let undefined_groups: Vec<String> = config
+                .groups
+                .iter()
+                .filter(|name| !groups.contains_key(*name))
+                .cloned()
+                .collect();
 
-            if !task_groups.is_empty() {
-                Err(GroupFilterNotDefinedError(name.clone(), task_groups))?
+            if !undefined_groups.is_empty() {
+                Err(GroupFilterNotDefinedError(name.clone(), undefined_groups))?
             }
         }
 
@@ -194,6 +212,7 @@ impl TasksTable {
             on_fail: config.on_fail,
             tags: config.tags,
             groups: config.groups,
+            dependencies: config.dependencies,
             result: None,
             state: None,
             error: None,
@@ -251,7 +270,7 @@ impl UserData for TasksTable {
                 });
 
                 if let Some(Some(additional_tags)) = additional_tags {
-                    config.tags.extend_from_slice(additional_tags.as_slice());
+                    config.tags.extend(additional_tags);
                 }
 
                 this.add(lua, name, config)

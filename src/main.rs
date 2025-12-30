@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use clap::Parser;
 use cli::Cli;
 use engine::Engine;
@@ -22,14 +24,18 @@ fn main() -> Result<(), error::ErrorReport> {
             tag,
             group,
             dry_run,
+            no_deps,
         } => {
             if let Err(error) = dotenvy::dotenv_override() {
                 logger.warn(&format!("Failed to load .env: {}", error));
             };
 
+            let tags: HashSet<String> = tag.into_iter().collect();
+            let groups: HashSet<String> = group.into_iter().collect();
+
             Engine::new(logger, dry_run)
                 .map_err(error::ErrorReport::boxed_from)?
-                .execute(tag, group)
+                .execute(tags, groups, no_deps)
                 .map_err(error::ErrorReport::boxed_from)?;
         }
     }

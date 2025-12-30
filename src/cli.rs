@@ -26,6 +26,9 @@ pub enum Command {
         /// Perform a dry run without executing commands or modifying the file system
         #[arg(short, long)]
         dry_run: bool,
+        /// Skip dependency resolution and only run explicitly selected tasks
+        #[arg(long)]
+        no_deps: bool,
     },
 }
 
@@ -35,6 +38,7 @@ impl Default for Command {
             tag: Vec::new(),
             group: Vec::new(),
             dry_run: false,
+            no_deps: false,
         }
     }
 }
