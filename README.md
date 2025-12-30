@@ -54,6 +54,8 @@ Run the task:
 arc run
 ```
 
+See [myfavshrimp/cfg](https://github.com/myfavshrimp/cfg) for an example managing local development machine configurations.
+
 ## Core Concepts
 
 ### Targets
