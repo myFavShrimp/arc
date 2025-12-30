@@ -277,7 +277,7 @@ arc run -t deploy
 
 Dependencies affect **which** tasks run, not **when** they run. Tasks always execute in definition order in the source file.
 
-Use `--no-deps` to skip dependency resolution and only run explicitly selected tasks:
+The `--no-deps` flag can be used to skip dependency resolution and only run explicitly selected tasks:
 
 ```bash
 arc run -t deploy --no-deps
