@@ -99,8 +99,11 @@ impl State {
         let mut tasks = self.tasks.lock().map_err(|_| MutexLockError)?.all();
 
         tasks.retain(|_, task| {
-            (selected_groups.is_empty() || !task.groups.is_disjoint(selected_groups))
-                && (selected_tags.is_empty() || !task.tags.is_disjoint(selected_tags))
+            let matches_groups =
+                selected_groups.is_empty() || !task.groups.is_disjoint(selected_groups);
+            let matches_tags = selected_tags.is_empty() || !task.tags.is_disjoint(selected_tags);
+
+            matches_groups && (task.important || matches_tags)
         });
 
         Ok(tasks)
@@ -135,7 +138,9 @@ impl State {
 
         let mut selected_task_names: HashSet<String> = all_tasks
             .iter()
-            .filter(|(_, task)| task_matches_groups(task) && task_matches_tags(task))
+            .filter(|(_, task)| {
+                task_matches_groups(task) && (task.important || task_matches_tags(task))
+            })
             .map(|(name, _)| name.clone())
             .collect();
 

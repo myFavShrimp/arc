@@ -127,6 +127,7 @@ tasks["task_name"] = {
     tags = {"tag1", "tag2"},       -- optional
     groups = {"group1"},           -- optional
     dependencies = {"setup"},      -- optional: tags this task depends on
+    important = false,             -- optional: always run regardless of filters
 }
 ```
 
@@ -136,6 +137,7 @@ tasks["task_name"] = {
 - `tags`: Array of tags for filtering tasks. Tasks are automatically tagged with the task name and path components when defined in separate files (e.g., `modules/web/nginx.lua` adds tags: `modules`, `web`, `nginx`).
 - `groups`: Array of group names where this task should run. If omitted, the task runs on all groups.
 - `dependencies`: Array of tags that this task depends on. When a task is selected, all tasks with matching dependency tags are automatically included in the execution set. See [Task Dependencies](#task-dependencies).
+- `important`: If `true`, the task always runs regardless of `--no-deps`, tag filters, and `skip_system` behavior. Useful for tasks like OS detection that must always execute.
 
 #### Task States and Results
 

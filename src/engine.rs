@@ -201,7 +201,7 @@ impl Engine {
             let mut skip_system = false;
 
             for task_config in system_tasks {
-                if skip_system {
+                if skip_system && !task_config.important {
                     self.state
                         .set_task_state(&task_config.name, TaskState::Skipped)?;
                     continue;
