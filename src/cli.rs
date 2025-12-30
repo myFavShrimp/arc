@@ -23,7 +23,7 @@ pub enum Command {
         /// Run tasks only on specific groups
         #[arg(short, long)]
         group: Vec<String>,
-        /// Perform a dry run without executing commands or modifying the file system
+        /// Print tasks that would be executed without running them
         #[arg(short, long)]
         dry_run: bool,
         /// Skip dependency resolution and only run explicitly selected tasks

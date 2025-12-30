@@ -301,7 +301,7 @@ arc run --group web-servers
 # Combine multiple filters
 arc run -t nginx -t security -g web-servers
 
-# Perform a dry run without executing commands
+# Print tasks that would be executed without running them
 arc run --dry-run
 
 # Skip dependency resolution
@@ -328,7 +328,7 @@ Usage: arc run [OPTIONS]
 Options:
   -t, --tag <TAG>      Filter tasks by tag
   -g, --group <GROUP>  Run tasks only on specific groups
-  -d, --dry-run        Perform a dry run without executing commands or modifying the file system
+  -d, --dry-run        Print tasks that would be executed without running them
       --no-deps        Skip dependency resolution and only run explicitly selected tasks
   -h, --help           Print help
 ```
