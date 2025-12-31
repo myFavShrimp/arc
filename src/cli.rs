@@ -25,7 +25,7 @@ pub enum Command {
         #[arg(short, long)]
         group: Vec<String>,
         /// Run tasks only on specific systems
-        #[arg(short, long, conflicts_with = "all_systems")]
+        #[arg(short, long)]
         system: Vec<String>,
         /// Print tasks that would be executed without running them
         #[arg(short, long)]
