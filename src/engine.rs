@@ -18,7 +18,7 @@ use state::{
 use crate::{
     engine::{
         objects::system::SystemKind,
-        state::{GroupSelection, TagSelection},
+        state::{GroupSelection, SystemSelection, TagSelection},
     },
     error::MutexLockError,
     logger::{Logger, SharedLogger},
@@ -103,6 +103,7 @@ impl Engine {
         &self,
         tags: TagSelection,
         groups: GroupSelection,
+        systems: SystemSelection,
         no_deps: bool,
     ) -> Result<(), EngineExecutionError> {
         let entry_point_script_path = PathBuf::from(ENTRY_POINT_SCRIPT);
@@ -113,7 +114,7 @@ impl Engine {
             .set_name(entry_point_script_path.to_string_lossy())
             .exec()?;
 
-        let systems = self.state.systems_for_selected_groups(&groups)?;
+        let systems = self.state.selected_systems(&systems, &groups)?;
         let tasks = if no_deps {
             self.state
                 .tasks_for_selected_groups_and_tags(&groups, &tags)?
@@ -231,11 +232,20 @@ impl Engine {
                             .set_task_state(&task_config.name, TaskState::Success)?;
                     }
                     Err(e) => {
-                        let error_msg = e.to_string();
+                        let error_message = e.to_string();
+
+                        {
+                            let logger = self.logger.lock().unwrap();
+                            logger.error(&format!(
+                                "Task '{}' failed: {}",
+                                task_config.name, error_message
+                            ));
+                        }
+
                         self.state
                             .set_task_state(&task_config.name, TaskState::Failed)?;
                         self.state
-                            .set_task_error(&task_config.name, error_msg.clone())?;
+                            .set_task_error(&task_config.name, error_message.clone())?;
 
                         match task_config.on_fail {
                             OnFailBehavior::Continue => {}
@@ -245,7 +255,7 @@ impl Engine {
                             OnFailBehavior::Abort => {
                                 return Err(EngineExecutionError::TaskAborted {
                                     task: task_config.name.clone(),
-                                    error: error_msg,
+                                    error: error_message,
                                 });
                             }
                         }

@@ -39,6 +39,10 @@ impl Logger {
         println!("ARC | {}{} : {}", "WARN".yellow(), "".clear(), message);
     }
 
+    pub fn error(&self, message: &str) {
+        println!("ARC | {}{} : {}", "ERROR".red(), "".clear(), message);
+    }
+
     pub fn current_system(&mut self, system_name: &str) {
         self.current_system = Some(system_name.to_string());
 

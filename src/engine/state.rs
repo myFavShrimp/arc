@@ -94,6 +94,20 @@ impl TagSelection {
     }
 }
 
+pub enum SystemSelection {
+    All,
+    Set(HashSet<String>),
+}
+
+impl SystemSelection {
+    fn contains(&self, system_name: &str) -> bool {
+        match self {
+            SystemSelection::All => true,
+            SystemSelection::Set(selected_set) => selected_set.contains(system_name),
+        }
+    }
+}
+
 impl State {
     pub fn new(
         target_systems: SharedMemory<TargetSystemsMemory>,
@@ -107,8 +121,9 @@ impl State {
         }
     }
 
-    pub fn systems_for_selected_groups(
+    pub fn selected_systems(
         &self,
+        selected_systems: &SystemSelection,
         selected_groups: &GroupSelection,
     ) -> Result<TargetSystems, MutexLockError> {
         let groups = self.target_groups.lock().map_err(|_| MutexLockError)?.all();
@@ -122,12 +137,12 @@ impl State {
         filtered_group_configs.retain(|name, _| selected_groups.contains(name));
 
         systems.retain(|name, _| {
-            let is_in_group_selection = filtered_group_configs
+            let matches_groups = filtered_group_configs
                 .iter()
                 .any(|(_, group)| group.members.contains(name));
-            let has_no_group = !groups.iter().any(|(_, group)| group.members.contains(name));
+            let matches_systems = selected_systems.contains(name);
 
-            is_in_group_selection || has_no_group
+            matches_groups && matches_systems
         });
 
         Ok(systems)
