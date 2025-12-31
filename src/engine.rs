@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -12,12 +11,15 @@ use mlua::{Lua, LuaOptions, StdLib};
 use modules::{Modules, MountToGlobals};
 use objects::system::System;
 use state::{
-    State, TasksErrorStateSetError, TasksExecutionStateResetError, TasksResultStateSetError,
-    TasksStateStateSetError,
+    SelectedGroupsError, State, TasksErrorStateSetError, TasksExecutionStateResetError,
+    TasksResultStateSetError, TasksStateStateSetError,
 };
 
 use crate::{
-    engine::objects::system::SystemKind,
+    engine::{
+        objects::system::SystemKind,
+        state::{GroupSelection, TagSelection},
+    },
     error::MutexLockError,
     logger::{Logger, SharedLogger},
     memory::{
@@ -55,7 +57,7 @@ pub enum EngineExecutionError {
     Lua(#[from] mlua::Error),
     ExecutionTargetSet(#[from] ExecutionTargetSetError),
     OperationTargetSet(#[from] OperationTargetSetError),
-    FilteredGroupDoesNotExistError(#[from] FilteredGroupDoesNotExistError),
+    SelectedGroups(#[from] SelectedGroupsError),
     Lock(#[from] MutexLockError),
     TasksExecutionStateReset(#[from] TasksExecutionStateResetError),
     TasksResultSet(#[from] TasksResultStateSetError),
@@ -68,15 +70,11 @@ pub enum EngineExecutionError {
     },
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("The filtered group {0:?} does not exist")]
-pub struct FilteredGroupDoesNotExistError(Vec<String>);
-
 impl Engine {
     pub fn new(logger: Logger, is_dry_run: bool) -> Result<Self, EngineBuilderCreationError> {
         let logger = Arc::new(Mutex::new(logger));
         let mut lua = Lua::new_with(
-            StdLib::TABLE & StdLib::STRING & StdLib::PACKAGE & StdLib::BIT & StdLib::MATH,
+            StdLib::TABLE | StdLib::STRING | StdLib::PACKAGE | StdLib::BIT | StdLib::MATH,
             LuaOptions::new().catch_rust_panics(true),
         )?;
 
@@ -103,8 +101,8 @@ impl Engine {
 
     pub fn execute(
         &self,
-        tags: HashSet<String>,
-        groups: HashSet<String>,
+        tags: TagSelection,
+        groups: GroupSelection,
         no_deps: bool,
     ) -> Result<(), EngineExecutionError> {
         let entry_point_script_path = PathBuf::from(ENTRY_POINT_SCRIPT);
@@ -136,14 +134,6 @@ impl Engine {
         };
 
         let tasks_to_execute: Vec<_> = tasks.into_values().collect();
-
-        let missing_selected_groups = self.state.missing_selected_groups(&groups)?;
-        if !missing_selected_groups.is_empty() {
-            Err(FilteredGroupDoesNotExistError(
-                missing_selected_groups.clone(),
-            ))?
-        }
-
         let selected_groups = self.state.selected_groups(&groups)?;
 
         for (system_name, system_config) in systems {

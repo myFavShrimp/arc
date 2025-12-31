@@ -29,7 +29,7 @@ pub enum Command {
         #[arg(long)]
         no_deps: bool,
         /// Run all tasks
-        #[arg(short, long)]
+        #[arg(long)]
         all_tags: bool,
     },
 }

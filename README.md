@@ -155,7 +155,7 @@ Options:
   -g, --group <GROUP>  Run tasks only on specific groups
   -d, --dry-run        Print tasks that would be executed without running them
       --no-deps        Skip dependency resolution and only run explicitly selected tasks
-  -a, --all-tags       Run all tasks
+      --all-tags       Run all tasks
   -h, --help           Print help
 ```
 
