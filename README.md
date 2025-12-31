@@ -108,181 +108,30 @@ targets.groups["prod"] = {
 
 ### Tasks
 
-Tasks define operations to execute on target systems. Each task consists of a handler function and optional metadata.
-
-#### Basic Task Structure
+Tasks define operations to execute on target systems. Tasks execute in definition order on each system.
 
 ```lua
-tasks["task_name"] = {
-    handler = function(system)
-        -- Task implementation
-        return result
-    end,
-    when = function()              -- optional: guard predicate
-        return true
-    end,
-    on_fail = "continue",          -- optional: "continue" | "skip_system" | "abort"
-    tags = {"tag1", "tag2"},       -- optional
-    groups = {"group1"},           -- optional
-    dependencies = {"setup"},      -- optional: tags this task depends on
-    important = false,             -- optional: always run regardless of filters
-}
-```
-
-- `handler`: Function that implements the task logic. Receives a system object and returns a result.
-- `when`: Optional guard predicate that determines if the task should run. Has access to previous task states and results via `tasks["task_name"]`. If it returns `false`, the task is skipped.
-- `on_fail`: Behavior when this task fails. `"continue"` (default) proceeds to next task, `"skip_system"` skips remaining tasks for this system, `"abort"` halts execution entirely.
-- `tags`: Array of tags for filtering tasks. Tasks are automatically tagged with the task name and path components when defined in separate files (e.g., `modules/web/nginx.lua` adds tags: `modules`, `web`, `nginx`).
-- `groups`: Array of group names where this task should run. If omitted, the task runs on all groups.
-- `dependencies`: Array of tags that this task depends on. When a task is selected, all tasks with matching dependency tags are automatically included in the execution set. See [Task Dependencies](#task-dependencies).
-- `important`: If `true`, the task always runs regardless of `--no-deps`, tag filters, and `skip_system` behavior. Useful for tasks like OS detection that must always execute.
-
-#### Task States and Results
-
-Tasks execute in definition order. Each task has one of these states after execution:
-
-| State | Description |
-|-------|-------------|
-| `"success"` | Handler completed without error |
-| `"failed"` | Handler threw an error |
-| `"skipped"` | Task was skipped due to `when` returning false or `on_fail = "skip_system"` |
-
-After execution, each task exposes metadata accessible to subsequent tasks:
-
-```lua
-tasks["some_task"].result   -- Return value from handler (nil if failed/skipped)
-tasks["some_task"].state    -- "success" | "failed" | "skipped"
-tasks["some_task"].error    -- Error message string if failed (nil otherwise)
-```
-
-#### Task Dependencies
-
-The `dependencies` field references tags. When a task is selected for execution, any tasks matching its dependency tags are automatically included.
-
-```lua
-tasks["install_packages"] = {
-    tags = {"setup"},
-    handler = function(system)
-        system:run_command("apt update && apt install -y nginx")
-    end
-}
-
-tasks["build_app"] = {
-    tags = {"build"},
-    handler = function(system)
-        system:run_command("npm run build")
-    end
-}
-
-tasks["deploy_app"] = {
-    tags = {"deploy"},
-    dependencies = {"setup", "build"},  -- Depends on tasks tagged "setup" and "build"
-    handler = function(system)
-        system:run_command("./deploy.sh")
-    end
-}
-```
-
-Running `arc run -t deploy` resolves dependencies transitively:
-- `deploy_app` depends on tags `setup` and `build`
-- `setup` includes `install_packages`
-- `build` includes `build_app`
-
-Execution order follows definition order: `install_packages` → `build_app` → `deploy_app`
-
-Dependencies affect **which** tasks run, not **when** they run. Tasks always execute in definition order. If a task depends on something defined later, the dependency runs *after* the dependent task.
-
-The `--no-deps` flag skips dependency resolution and only runs explicitly selected tasks.
-
-```bash
-arc run -t deploy --no-deps
-```
-
-This only runs `deploy_app` without including its dependencies.
-
-#### Conditional Execution
-
-The `when` predicate can be used to conditionally run tasks based on previous task states or results.
-
-```lua
-tasks["check_nginx"] = {
-    handler = function(system)
-        local result = system:run_command("nginx -v")
-        return result.exit_code == 0
-    end,
-    tags = {"nginx"}
-}
-
 tasks["install_nginx"] = {
-    dependencies = {"check_nginx"},
-    when = function()
-        return tasks["check_nginx"].result == false
-    end,
     handler = function(system)
-        log.info("Nginx not found, installing...")
         local result = system:run_command("apt install nginx -y")
         if result.exit_code ~= 0 then
             error("Failed to install nginx: " .. result.stderr)
         end
     end,
-    tags = {"nginx"}
+    tags = {"nginx", "setup"},
 }
 
 tasks["configure_nginx"] = {
-    dependencies = {"check_nginx", "install_nginx"},
-    when = function()
-        -- Runs if nginx exists or was just installed
-        return tasks["check_nginx"].result == true
-            or tasks["install_nginx"].state == "success"
-    end,
+    dependencies = {"install_nginx"},
     handler = function(system)
-        -- Configure nginx...
+        local config = system:file("/etc/nginx/nginx.conf")
+        config.content = "..."
     end,
-    tags = {"nginx"}
+    tags = {"nginx"},
 }
 ```
 
-#### Failure Handling
-
-`on_fail` controls what happens when a task fails.
-
-```lua
-tasks["critical_check"] = {
-    handler = function(system)
-        local result = system:run_command("df / --output=pcent | tail -1")
-        local usage = tonumber(result.stdout:match("%d+"))
-        if usage > 90 then
-            error("Disk usage at " .. usage .. "%, need < 90%")
-        end
-        return usage
-    end,
-    on_fail = "skip_system",  -- Skip remaining tasks for this system if disk is full
-}
-
-tasks["start"] = {
-    dependencies = {"critical_check"},
-    when = function()
-        return tasks["critical_check"].state == "success"
-    end,
-    handler = function(system)
-        local result = system:run_command("./start.sh")
-        if result.exit_code ~= 0 then
-            error("Deployment failed: " .. result.stderr)
-        end
-    end,
-}
-
-tasks["rollback"] = {
-    dependencies = {"start"},
-    when = function()
-        return tasks["start"].state == "failed"
-    end,
-    handler = function(system)
-        log.warn("Deployment failed, rolling back...")
-        system:run_command("./rollback.sh")
-    end,
-}
-```
+See [Tasks API](#tasks-1) for all available fields.
 
 ## CLI Reference
 
@@ -311,6 +160,64 @@ Options:
 ```
 
 ## Lua API Reference
+
+### Tasks
+
+Tasks are defined by assigning to the global `tasks` table. Tasks execute in definition order on each system.
+
+#### Properties
+
+- `handler`: Function that implements the task logic
+  - *Parameters*: `system` - The system object to operate on
+  - *Returns*: Optional result value accessible via `tasks["name"].result`
+
+- `tags` (optional): Array of tags for filtering tasks. Tasks are automatically tagged with their name and source file path components (e.g., `modules/web/nginx.lua` adds tags: `modules`, `web`, `nginx`).
+
+- `groups` (optional): Array of group names where this task should run. If omitted, runs on all groups.
+
+- `dependencies` (optional): Array of tags this task depends on. Tasks with matching tags are included when this task is selected. Resolved transitively.
+
+- `when` (optional): Guard predicate that determines if the task should run
+  - *Returns*: `boolean` - If `false`, task is skipped
+
+- `on_fail` (optional): Behavior when this task fails
+  - `"continue"` (default): Proceed to next task
+  - `"skip_system"`: Skip remaining tasks for this system
+  - `"abort"`: Halt execution entirely
+
+- `important` (optional): If `true`, always runs regardless of tag filters, `--no-deps`, and `skip_system`
+
+#### State (read-only, available after execution)
+
+- `result`: Return value from handler (nil if failed/skipped)
+- `state`: `"success"`, `"failed"`, or `"skipped"`
+- `error`: Error message if failed (nil otherwise)
+
+Example:
+
+```lua
+tasks["check_nginx"] = {
+    handler = function(system)
+        return system:run_command("which nginx").exit_code == 0
+    end
+}
+
+tasks["install_nginx"] = {
+    dependencies = {"check_nginx"},
+    when = function()
+        return tasks["check_nginx"].result == false
+    end,
+    handler = function(system)
+        local result = system:run_command("apt install nginx -y")
+        if result.exit_code ~= 0 then
+            error("Failed: " .. result.stderr)
+        end
+    end,
+    on_fail = "skip_system",
+}
+```
+
+Dependencies affect **which** tasks run, not **when**. Tasks always execute in definition order. If a task depends on something defined later, the dependency runs *after* the dependent task.
 
 ### System Object
 
