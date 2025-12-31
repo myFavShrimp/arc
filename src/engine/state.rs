@@ -59,6 +59,7 @@ pub enum SelectedGroupsError {
     GroupsDoNotExist(Vec<String>),
 }
 
+#[derive(Debug)]
 pub enum GroupSelection {
     All,
     Set(HashSet<String>),
@@ -80,6 +81,7 @@ impl GroupSelection {
     }
 }
 
+#[derive(Debug)]
 pub enum TagSelection {
     All,
     Set(HashSet<String>),
@@ -94,6 +96,7 @@ impl TagSelection {
     }
 }
 
+#[derive(Debug)]
 pub enum SystemSelection {
     All,
     Set(HashSet<String>),
@@ -137,9 +140,10 @@ impl State {
         filtered_group_configs.retain(|name, _| selected_groups.contains(name));
 
         systems.retain(|name, _| {
-            let matches_groups = filtered_group_configs
-                .iter()
-                .any(|(_, group)| group.members.contains(name));
+            let matches_groups = filtered_group_configs.is_empty()
+                || filtered_group_configs
+                    .iter()
+                    .any(|(_, group)| group.members.contains(name));
             let matches_systems = selected_systems.contains(name);
 
             matches_groups && matches_systems
