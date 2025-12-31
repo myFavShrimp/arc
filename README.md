@@ -161,6 +161,15 @@ Options:
 
 ## Lua API Reference
 
+Arc uses a restricted Lua environment. The following standard library modules are available:
+
+- [Modules](https://www.lua.org/manual/5.1/manual.html#5.3) (`require`)
+- [String Manipulation](https://www.lua.org/manual/5.1/manual.html#5.4) (`string.format`, `string.match`, `string.gsub`, etc.)
+- [Table Manipulation](https://www.lua.org/manual/5.1/manual.html#5.5) (`table.insert`, `table.remove`, `table.sort`, etc.)
+- [Mathemetical Functions](https://www.lua.org/manual/5.1/manual.html#5.6) (`math.floor`, `math.random`, etc.)
+
+Not available: `io`, `os`, `debug`, `coroutine`. Use the provided Arc APIs (`system:run_command()`, `system:file()`, `env.get()`, etc.) instead.
+
 ### Tasks
 
 Tasks are defined by assigning to the global `tasks` table. Tasks execute in definition order on each system.
