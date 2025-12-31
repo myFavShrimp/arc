@@ -12,10 +12,9 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    Init {
-        // Initialize project with type definitions for luau-lsp
-        project_root: PathBuf,
-    },
+    /// Initialize project with type definitions for luau-lsp
+    Init { project_root: PathBuf },
+    /// Execute tasks
     Run {
         /// Select tasks by tag
         #[arg(short, long)]
