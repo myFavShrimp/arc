@@ -155,86 +155,6 @@ tasks["some_task"].state    -- "success" | "failed" | "skipped"
 tasks["some_task"].error    -- Error message string if failed (nil otherwise)
 ```
 
-#### Conditional Execution
-
-The `when` predicate can be used to conditionally run tasks based on previous task states or results.
-
-```lua
-tasks["check_nginx"] = {
-    handler = function(system)
-        local result = system:run_command("nginx -v")
-        return result.exit_code == 0
-    end,
-    tags = {"nginx"}
-}
-
-tasks["install_nginx"] = {
-    when = function()
-        return tasks["check_nginx"].result == false
-    end,
-    handler = function(system)
-        log.info("Nginx not found, installing...")
-        local result = system:run_command("apt install nginx -y")
-        if result.exit_code ~= 0 then
-            error("Failed to install nginx: " .. result.stderr)
-        end
-    end,
-    tags = {"nginx"}
-}
-
-tasks["configure_nginx"] = {
-    when = function()
-        -- Runs if nginx exists or was just installed
-        return tasks["check_nginx"].result == true
-            or tasks["install_nginx"].state == "success"
-    end,
-    handler = function(system)
-        -- Configure nginx...
-    end,
-    tags = {"nginx"}
-}
-```
-
-#### Failure Handling
-
-`on_fail` controls what happens when a task fails.
-
-```lua
-tasks["critical_check"] = {
-    handler = function(system)
-        local result = system:run_command("df / --output=pcent | tail -1")
-        local usage = tonumber(result.stdout:match("%d+"))
-        if usage > 90 then
-            error("Disk usage at " .. usage .. "%, need < 90%")
-        end
-        return usage
-    end,
-    on_fail = "skip_system",  -- Skip remaining tasks for this system if disk is full
-}
-
-tasks["start"] = {
-    when = function()
-        return tasks["critical_check"].state == "success"
-    end,
-    handler = function(system)
-        local result = system:run_command("./start.sh")
-        if result.exit_code ~= 0 then
-            error("Deployment failed: " .. result.stderr)
-        end
-    end,
-}
-
-tasks["rollback"] = {
-    when = function()
-        return tasks["start"].state == "failed"
-    end,
-    handler = function(system)
-        log.warn("Deployment failed, rolling back...")
-        system:run_command("./rollback.sh")
-    end,
-}
-```
-
 #### Task Dependencies
 
 The `dependencies` field references tags. When a task is selected for execution, any tasks matching its dependency tags are automatically included.
@@ -279,6 +199,90 @@ arc run -t deploy --no-deps
 ```
 
 This only runs `deploy_app` without including its dependencies.
+
+#### Conditional Execution
+
+The `when` predicate can be used to conditionally run tasks based on previous task states or results.
+
+```lua
+tasks["check_nginx"] = {
+    handler = function(system)
+        local result = system:run_command("nginx -v")
+        return result.exit_code == 0
+    end,
+    tags = {"nginx"}
+}
+
+tasks["install_nginx"] = {
+    dependencies = {"check_nginx"},
+    when = function()
+        return tasks["check_nginx"].result == false
+    end,
+    handler = function(system)
+        log.info("Nginx not found, installing...")
+        local result = system:run_command("apt install nginx -y")
+        if result.exit_code ~= 0 then
+            error("Failed to install nginx: " .. result.stderr)
+        end
+    end,
+    tags = {"nginx"}
+}
+
+tasks["configure_nginx"] = {
+    dependencies = {"check_nginx", "install_nginx"},
+    when = function()
+        -- Runs if nginx exists or was just installed
+        return tasks["check_nginx"].result == true
+            or tasks["install_nginx"].state == "success"
+    end,
+    handler = function(system)
+        -- Configure nginx...
+    end,
+    tags = {"nginx"}
+}
+```
+
+#### Failure Handling
+
+`on_fail` controls what happens when a task fails.
+
+```lua
+tasks["critical_check"] = {
+    handler = function(system)
+        local result = system:run_command("df / --output=pcent | tail -1")
+        local usage = tonumber(result.stdout:match("%d+"))
+        if usage > 90 then
+            error("Disk usage at " .. usage .. "%, need < 90%")
+        end
+        return usage
+    end,
+    on_fail = "skip_system",  -- Skip remaining tasks for this system if disk is full
+}
+
+tasks["start"] = {
+    dependencies = {"critical_check"},
+    when = function()
+        return tasks["critical_check"].state == "success"
+    end,
+    handler = function(system)
+        local result = system:run_command("./start.sh")
+        if result.exit_code ~= 0 then
+            error("Deployment failed: " .. result.stderr)
+        end
+    end,
+}
+
+tasks["rollback"] = {
+    dependencies = {"start"},
+    when = function()
+        return tasks["start"].state == "failed"
+    end,
+    handler = function(system)
+        log.warn("Deployment failed, rolling back...")
+        system:run_command("./rollback.sh")
+    end,
+}
+```
 
 ## CLI Reference
 
