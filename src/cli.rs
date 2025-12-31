@@ -17,7 +17,7 @@ pub enum Command {
         project_root: PathBuf,
     },
     Run {
-        /// Filter tasks by tag
+        /// Select tasks by tag
         #[arg(short, long)]
         tag: Vec<String>,
         /// Run tasks only on specific groups
@@ -29,6 +29,9 @@ pub enum Command {
         /// Skip dependency resolution and only run explicitly selected tasks
         #[arg(long)]
         no_deps: bool,
+        /// Run all tasks
+        #[arg(short, long)]
+        all_tags: bool,
     },
 }
 
@@ -39,6 +42,7 @@ impl Default for Command {
             group: Vec::new(),
             dry_run: false,
             no_deps: false,
+            all_tags: false,
         }
     }
 }

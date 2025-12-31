@@ -4,11 +4,7 @@ Arc (Automatic Remote Controller) is an infrastructure automation tool that uses
 
 ## Installation
 
-1. Install Rust:
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
+1. Install [Rust](https://rust-lang.org/)
 
 2. Install Arc using Cargo:
 
@@ -51,7 +47,7 @@ tasks["hello"] = {
 Run the task:
 
 ```bash
-arc run
+arc run -t hello
 ```
 
 See [myfavshrimp/cfg](https://github.com/myfavshrimp/cfg) for an example managing local development machine configurations.
@@ -68,7 +64,7 @@ Systems can be either remote (accessed via SSH) or local (running on the Arc hos
 
 ##### Remote Systems
 
-Remote systems represent individual servers with SSH connection details:
+Remote systems represent individual servers with SSH connection details.
 
 ```lua
 targets.systems["frontend-server"] = {
@@ -86,7 +82,7 @@ targets.systems["api-server"] = {
 
 ##### Local Systems
 
-Local systems execute tasks on the machine where Arc is running:
+Local systems execute tasks on the machine where Arc is running.
 
 ```lua
 targets.systems["localhost"] = {
@@ -98,7 +94,7 @@ Local systems use the same API as remote systems (same methods for `run_command(
 
 #### Groups
 
-Groups organize multiple systems for batch operations:
+Groups organize multiple systems.
 
 ```lua
 targets.groups["web-servers"] = {
@@ -161,7 +157,7 @@ tasks["some_task"].error    -- Error message string if failed (nil otherwise)
 
 #### Conditional Execution
 
-The `when` predicate can be used to conditionally run tasks based on previous task states or results:
+The `when` predicate can be used to conditionally run tasks based on previous task states or results.
 
 ```lua
 tasks["check_nginx"] = {
@@ -201,7 +197,7 @@ tasks["configure_nginx"] = {
 
 #### Failure Handling
 
-Control what happens when a task fails using `on_fail`:
+`on_fail` controls what happens when a task fails.
 
 ```lua
 tasks["critical_check"] = {
@@ -241,7 +237,7 @@ tasks["rollback"] = {
 
 #### Task Dependencies
 
-The `dependencies` field references tags. When a task is selected for execution, any tasks matching its dependency tags are automatically included. Dependency resolution is transitive and execution order remains definition order.
+The `dependencies` field references tags. When a task is selected for execution, any tasks matching its dependency tags are automatically included.
 
 ```lua
 tasks["install_packages"] = {
@@ -274,39 +270,15 @@ Running `arc run -t deploy` resolves dependencies transitively:
 
 Execution order follows definition order: `install_packages` → `build_app` → `deploy_app`
 
-Dependencies affect **which** tasks run, not **when** they run. Tasks always execute in definition order in the source file.
+Dependencies affect **which** tasks run, not **when** they run. Tasks always execute in definition order. If a task depends on something defined later, the dependency runs *after* the dependent task.
 
-The `--no-deps` flag skips dependency resolution and only runs explicitly selected tasks:
+The `--no-deps` flag skips dependency resolution and only runs explicitly selected tasks.
 
 ```bash
 arc run -t deploy --no-deps
 ```
 
 This only runs `deploy_app` without including its dependencies.
-
-### Running Tasks
-
-Execute tasks using the `arc run` command with optional filters:
-
-```bash
-# Run all tasks on all systems
-arc run
-
-# Run tasks with specific tag
-arc run --tag nginx
-
-# Run tasks on specific group
-arc run --group web-servers
-
-# Combine multiple filters
-arc run -t nginx -t security -g web-servers
-
-# Print tasks that would be executed without running them
-arc run --dry-run
-
-# Skip dependency resolution
-arc run -t deploy --no-deps
-```
 
 ## CLI Reference
 
@@ -320,16 +292,17 @@ arc init /path/to/project
 
 ### `arc run`
 
-Execute Arc tasks defined in the `arc.lua` file.
+Executes Arc tasks defined in the `arc.lua` file.
 
 ```
 Usage: arc run [OPTIONS]
 
 Options:
-  -t, --tag <TAG>      Filter tasks by tag
+  -t, --tag <TAG>      Select tasks by tag
   -g, --group <GROUP>  Run tasks only on specific groups
   -d, --dry-run        Print tasks that would be executed without running them
       --no-deps        Skip dependency resolution and only run explicitly selected tasks
+  -a, --all-tags       Run all tasks
   -h, --help           Print help
 ```
 

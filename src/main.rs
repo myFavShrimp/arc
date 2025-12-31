@@ -25,7 +25,15 @@ fn main() -> Result<(), error::ErrorReport> {
             group,
             dry_run,
             no_deps,
+            all_tags,
         } => {
+            if tag.is_empty() && !all_tags {
+                logger
+                    .error("Error: No tags specified. Use -t/--tag to select tasks or --all-tags.");
+
+                std::process::exit(1);
+            }
+
             if let Err(error) = dotenvy::dotenv_override() {
                 logger.warn(&format!("Failed to load .env: {}", error));
             };
