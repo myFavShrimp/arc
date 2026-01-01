@@ -53,7 +53,7 @@ static ENTRY_POINT_SCRIPT: &str = "arc.lua";
 #[derive(thiserror::Error, Debug)]
 #[error("Failed to run scripts")]
 pub enum EngineExecutionError {
-    Io(#[from] std::io::Error),
+    EntrypointExecution(#[from] EntrypointExecutionError),
     Lua(#[from] mlua::Error),
     ExecutionTargetSet(#[from] ExecutionTargetSetError),
     OperationTargetSet(#[from] OperationTargetSetError),
@@ -68,6 +68,13 @@ pub enum EngineExecutionError {
         task: String,
         error: String,
     },
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Failed to execute arc entrypoint")]
+pub enum EntrypointExecutionError {
+    Lua(#[from] mlua::Error),
+    Io(#[from] std::io::Error),
 }
 
 impl Engine {
@@ -99,13 +106,7 @@ impl Engine {
         })
     }
 
-    pub fn execute(
-        &self,
-        tags: TagSelection,
-        groups: GroupSelection,
-        systems: SystemSelection,
-        no_deps: bool,
-    ) -> Result<(), EngineExecutionError> {
+    pub fn execute_entrypoint(&self) -> Result<(), EntrypointExecutionError> {
         let entry_point_script_path = PathBuf::from(ENTRY_POINT_SCRIPT);
         let entry_point_script = std::fs::read_to_string(&entry_point_script_path)?;
 
@@ -113,6 +114,18 @@ impl Engine {
             .load(entry_point_script)
             .set_name(entry_point_script_path.to_string_lossy())
             .exec()?;
+
+        Ok(())
+    }
+
+    pub fn execute(
+        &self,
+        tags: TagSelection,
+        groups: GroupSelection,
+        systems: SystemSelection,
+        no_deps: bool,
+    ) -> Result<(), EngineExecutionError> {
+        self.execute_entrypoint()?;
 
         let systems = self.state.selected_systems(&systems, &groups)?;
         let tasks = if no_deps {
