@@ -11,8 +11,8 @@ use mlua::{Lua, LuaOptions, StdLib};
 use modules::{Modules, MountToGlobals};
 use objects::system::System;
 use selection::{
-    GroupSelection, SystemSelection, TagSelection, select_groups, select_systems, select_tasks,
-    select_tasks_with_dependencies,
+    GroupSelection, SystemSelection, TagSelection, select_groups, select_groups_for_system,
+    select_systems, select_tasks, select_tasks_for_system, select_tasks_with_dependencies,
 };
 use state::{
     State, TasksErrorStateSetError, TasksExecutionStateResetError, TasksResultStateSetError,
@@ -193,27 +193,14 @@ impl Engine {
         )?;
 
         for (system_name, system_config) in selected_systems {
-            let system_groups: Vec<&String> = selected_groups
-                .iter()
-                .filter(|(_, config)| config.members.contains(&system_name))
-                .map(|(name, _)| name)
-                .collect();
+            let system_groups = select_groups_for_system(&selected_groups, &system_name);
+            let system_tasks = select_tasks_for_system(&tasks_to_execute, &system_groups);
 
-            let system_tasks: Vec<_> = tasks_to_execute
-                .iter()
-                .filter(|(_task_name, task)| {
-                    system_groups.is_empty()
-                        || task.groups.is_empty()
-                        || task
-                            .groups
-                            .iter()
-                            .any(|group| system_groups.contains(&group))
-                })
-                .collect();
-
-            let mut logger = self.logger.lock().unwrap();
-            logger.current_system(&system_name);
-            drop(logger);
+            {
+                let mut logger = self.logger.lock().unwrap();
+                logger.current_system(&system_name);
+                drop(logger);
+            }
 
             if system_tasks.is_empty() {
                 continue;
@@ -296,6 +283,7 @@ impl Engine {
                                 "Task '{}' failed: {}",
                                 task_config.name, error_message
                             ));
+                            drop(logger);
                         }
 
                         self.state

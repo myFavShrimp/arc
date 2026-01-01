@@ -152,3 +152,31 @@ pub fn select_tasks_with_dependencies(
 
     selected_tasks
 }
+
+pub fn select_groups_for_system<'a>(
+    groups: &'a TargetGroups,
+    system_name: &String,
+) -> Vec<&'a String> {
+    groups
+        .iter()
+        .filter(|(_, group)| group.members.contains(system_name))
+        .map(|(name, _)| name)
+        .collect()
+}
+
+pub fn select_tasks_for_system<'a>(
+    tasks: &'a Tasks,
+    system_groups: &[&String],
+) -> Vec<(&'a String, &'a Task)> {
+    tasks
+        .iter()
+        .filter(|(_, task)| {
+            system_groups.is_empty()
+                || task.groups.is_empty()
+                || task
+                    .groups
+                    .iter()
+                    .any(|group| system_groups.contains(&group))
+        })
+        .collect()
+}
