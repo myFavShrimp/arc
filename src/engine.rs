@@ -181,6 +181,22 @@ impl Engine {
         })
     }
 
+    fn print_dry_run_tasks(&self, tasks: &[(&String, &Task)]) {
+        let mut logger = self.logger.lock().unwrap();
+
+        for (_task_name, task) in tasks {
+            logger.info(&format!(
+                "{} {}",
+                task.name,
+                task.tags
+                    .iter()
+                    .map(|tag| format!("#{tag}"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ));
+        }
+    }
+
     fn run_tasks_on_system(
         &self,
         system: System,
@@ -277,26 +293,18 @@ impl Engine {
             }
 
             if system_tasks.is_empty() {
+                let logger = self.logger.lock().unwrap();
+                logger.info("No tasks to execute.");
+                drop(logger);
+
                 continue;
             }
 
             if self.is_dry_run {
+                self.print_dry_run_tasks(&system_tasks);
+
                 let mut logger = self.logger.lock().unwrap();
-
-                for (_task_name, task) in &system_tasks {
-                    logger.info(&format!(
-                        "{} {}",
-                        task.name,
-                        task.tags
-                            .iter()
-                            .map(|tag| format!("#{tag}"))
-                            .collect::<Vec<_>>()
-                            .join(" ")
-                    ));
-                }
-
                 logger.reset_system();
-
                 drop(logger);
 
                 continue;
