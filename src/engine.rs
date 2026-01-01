@@ -31,7 +31,7 @@ use crate::{
     memory::{
         target_groups::{TargetGroups, TargetGroupsMemory},
         target_systems::{TargetSystemKind, TargetSystems, TargetSystemsMemory},
-        tasks::{OnFailBehavior, TaskState, Tasks, TasksMemory},
+        tasks::{OnFailBehavior, Task, TaskState, Tasks, TasksMemory},
     },
 };
 
@@ -69,18 +69,10 @@ static ENTRY_POINT_SCRIPT: &str = "arc.lua";
 pub enum EngineExecutionError {
     EntrypointExecution(#[from] EntrypointExecutionError),
     Validation(#[from] ValidationError),
-    Lua(#[from] mlua::Error),
+    TaskExecution(#[from] TaskExecutionError),
     ExecutionTargetSet(#[from] ExecutionTargetSetError),
     OperationTargetSet(#[from] OperationTargetSetError),
     TasksExecutionStateReset(#[from] TasksExecutionStateResetError),
-    TasksResultSet(#[from] TasksResultStateSetError),
-    TasksStateSet(#[from] TasksStateStateSetError),
-    TasksErrorSet(#[from] TasksErrorStateSetError),
-    #[error("Task '{task}' aborted execution: {error}")]
-    TaskAborted {
-        task: String,
-        error: String,
-    },
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -98,6 +90,23 @@ pub enum ValidationError {
     MissingSelectedTag(#[from] MissingSelectedTagError),
     UndefinedDependencies(#[from] UndefinedDependenciesError),
     Lock(#[from] MutexLockError),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Task {task:?} aborted execution: {error}")]
+pub struct TaskAbortedError {
+    pub task: String,
+    pub error: String,
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Failed to run tasks on system")]
+pub enum TaskExecutionError {
+    Lua(#[from] mlua::Error),
+    TasksResultSet(#[from] TasksResultStateSetError),
+    TasksStateSet(#[from] TasksStateStateSetError),
+    TasksErrorSet(#[from] TasksErrorStateSetError),
+    TaskAborted(#[from] TaskAbortedError),
 }
 
 impl Engine {
@@ -170,6 +179,71 @@ impl Engine {
             systems,
             tasks,
         })
+    }
+
+    fn run_tasks_on_system(
+        &self,
+        system: System,
+        tasks: Vec<(&String, &Task)>,
+    ) -> Result<(), TaskExecutionError> {
+        let mut skip_system = false;
+
+        for (_task_name, task_config) in tasks {
+            if skip_system && !task_config.important {
+                self.state
+                    .set_task_state(&task_config.name, TaskState::Skipped)?;
+                continue;
+            }
+
+            if let Some(when_handler) = &task_config.when {
+                let should_run: bool = when_handler.call(())?;
+                if !should_run {
+                    self.state
+                        .set_task_state(&task_config.name, TaskState::Skipped)?;
+                    continue;
+                }
+            }
+
+            match task_config.handler.call::<mlua::Value>(system.clone()) {
+                Ok(result) => {
+                    self.state.set_task_result(&task_config.name, result)?;
+                    self.state
+                        .set_task_state(&task_config.name, TaskState::Success)?;
+                }
+                Err(e) => {
+                    let error_message = e.to_string();
+
+                    {
+                        let logger = self.logger.lock().unwrap();
+                        logger.error(&format!(
+                            "Task '{}' failed: {}",
+                            task_config.name, error_message
+                        ));
+                    }
+
+                    self.state
+                        .set_task_state(&task_config.name, TaskState::Failed)?;
+                    self.state
+                        .set_task_error(&task_config.name, error_message.clone())?;
+
+                    match task_config.on_fail {
+                        OnFailBehavior::Continue => {}
+                        OnFailBehavior::SkipSystem => {
+                            skip_system = true;
+                        }
+                        OnFailBehavior::Abort => {
+                            return Err(TaskAbortedError {
+                                task: task_config.name.clone(),
+                                error: error_message,
+                            }
+                            .into());
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     pub fn execute(
@@ -250,62 +324,7 @@ impl Engine {
                 },
             };
 
-            let mut skip_system = false;
-
-            for (_task_name, task_config) in system_tasks {
-                if skip_system && !task_config.important {
-                    self.state
-                        .set_task_state(&task_config.name, TaskState::Skipped)?;
-                    continue;
-                }
-
-                if let Some(when_handler) = &task_config.when {
-                    let should_run: bool = when_handler.call(())?;
-                    if !should_run {
-                        self.state
-                            .set_task_state(&task_config.name, TaskState::Skipped)?;
-                        continue;
-                    }
-                }
-
-                match task_config.handler.call::<mlua::Value>(system.clone()) {
-                    Ok(result) => {
-                        self.state.set_task_result(&task_config.name, result)?;
-                        self.state
-                            .set_task_state(&task_config.name, TaskState::Success)?;
-                    }
-                    Err(e) => {
-                        let error_message = e.to_string();
-
-                        {
-                            let logger = self.logger.lock().unwrap();
-                            logger.error(&format!(
-                                "Task '{}' failed: {}",
-                                task_config.name, error_message
-                            ));
-                            drop(logger);
-                        }
-
-                        self.state
-                            .set_task_state(&task_config.name, TaskState::Failed)?;
-                        self.state
-                            .set_task_error(&task_config.name, error_message.clone())?;
-
-                        match task_config.on_fail {
-                            OnFailBehavior::Continue => {}
-                            OnFailBehavior::SkipSystem => {
-                                skip_system = true;
-                            }
-                            OnFailBehavior::Abort => {
-                                return Err(EngineExecutionError::TaskAborted {
-                                    task: task_config.name.clone(),
-                                    error: error_message,
-                                });
-                            }
-                        }
-                    }
-                }
-            }
+            self.run_tasks_on_system(system, system_tasks)?;
 
             let mut logger = self.logger.lock().unwrap();
             logger.reset_system();
