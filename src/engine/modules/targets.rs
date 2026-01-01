@@ -6,7 +6,7 @@ use crate::{
     engine::readonly::set_readonly,
     error::ErrorReport,
     memory::{
-        target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory, SharedMemory,
+        SharedMemory, target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory,
     },
 };
 

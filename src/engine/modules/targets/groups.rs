@@ -5,11 +5,11 @@ use crate::{
     engine::readonly::set_readonly,
     error::{ErrorReport, MutexLockError},
     memory::{
+        SharedMemory,
         target_groups::{
             TargetGroup, TargetGroupAdditionError, TargetGroupRetrievalError, TargetGroupsMemory,
         },
         target_systems::TargetSystemsMemory,
-        SharedMemory,
     },
 };
 

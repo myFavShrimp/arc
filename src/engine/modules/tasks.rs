@@ -117,7 +117,10 @@ impl IntoLua for Task {
 
         task_table.set("name", self.name)?;
         task_table.set("tags", self.tags.into_iter().collect::<Vec<_>>())?;
-        task_table.set("dependencies", self.dependencies.into_iter().collect::<Vec<_>>())?;
+        task_table.set(
+            "dependencies",
+            self.dependencies.into_iter().collect::<Vec<_>>(),
+        )?;
         task_table.set("important", self.important)?;
         task_table.set("result", self.result)?;
         task_table.set("handler", self.handler)?;

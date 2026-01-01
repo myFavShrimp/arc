@@ -3,7 +3,7 @@ use cli::Cli;
 use engine::Engine;
 use logger::Logger;
 
-use crate::engine::state::{GroupSelection, SystemSelection, TagSelection};
+use crate::engine::selection::{GroupSelection, SystemSelection, TagSelection};
 
 mod cli;
 mod engine;

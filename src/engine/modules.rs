@@ -1,8 +1,8 @@
 use crate::{
     logger::SharedLogger,
     memory::{
-        target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory, tasks::TasksMemory,
-        SharedMemory,
+        SharedMemory, target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory,
+        tasks::TasksMemory,
     },
 };
 

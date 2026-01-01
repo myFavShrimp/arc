@@ -10,16 +10,22 @@ use delegator::{
 use mlua::{Lua, LuaOptions, StdLib};
 use modules::{Modules, MountToGlobals};
 use objects::system::System;
+use selection::{
+    GroupSelection, SystemSelection, TagSelection, select_groups, select_systems, select_tasks,
+    select_tasks_with_dependencies,
+};
 use state::{
-    SelectedGroupsError, State, TasksErrorStateSetError, TasksExecutionStateResetError,
-    TasksResultStateSetError, TasksStateStateSetError,
+    State, TasksErrorStateSetError, TasksExecutionStateResetError, TasksResultStateSetError,
+    TasksStateStateSetError,
+};
+use validation::{
+    MissingSelectedGroupError, MissingSelectedSystemError, MissingSelectedTagError,
+    UndefinedDependenciesError, validate_selected_groups, validate_selected_systems,
+    validate_selected_tags, validate_task_dependencies,
 };
 
 use crate::{
-    engine::{
-        objects::system::SystemKind,
-        state::{GroupSelection, SystemSelection, TagSelection},
-    },
+    engine::objects::system::SystemKind,
     error::MutexLockError,
     logger::{Logger, SharedLogger},
     memory::{
@@ -33,7 +39,9 @@ pub mod delegator;
 pub mod modules;
 pub mod objects;
 mod readonly;
+pub mod selection;
 pub mod state;
+pub mod validation;
 
 pub struct Engine {
     lua: Lua,
@@ -51,13 +59,16 @@ pub enum EngineBuilderCreationError {
 static ENTRY_POINT_SCRIPT: &str = "arc.lua";
 
 #[derive(thiserror::Error, Debug)]
-#[error("Failed to run scripts")]
+#[error("Runtime error")]
 pub enum EngineExecutionError {
     EntrypointExecution(#[from] EntrypointExecutionError),
     Lua(#[from] mlua::Error),
     ExecutionTargetSet(#[from] ExecutionTargetSetError),
     OperationTargetSet(#[from] OperationTargetSetError),
-    SelectedGroups(#[from] SelectedGroupsError),
+    MissingSelectedGroup(#[from] MissingSelectedGroupError),
+    MissingSelectedSystem(#[from] MissingSelectedSystemError),
+    MissingSelectedTag(#[from] MissingSelectedTagError),
+    UndefinedDependencies(#[from] UndefinedDependenciesError),
     Lock(#[from] MutexLockError),
     TasksExecutionStateReset(#[from] TasksExecutionStateResetError),
     TasksResultSet(#[from] TasksResultStateSetError),
@@ -120,45 +131,46 @@ impl Engine {
 
     pub fn execute(
         &self,
-        tags: TagSelection,
-        groups: GroupSelection,
-        systems: SystemSelection,
+        tags_selection: TagSelection,
+        groups_selection: GroupSelection,
+        systems_selection: SystemSelection,
         no_deps: bool,
     ) -> Result<(), EngineExecutionError> {
         self.execute_entrypoint()?;
 
-        let systems = self.state.selected_systems(&systems, &groups)?;
-        let tasks = if no_deps {
-            self.state
-                .tasks_for_selected_groups_and_tags(&groups, &tags)?
+        let all_groups = self.state.all_groups()?;
+        let all_systems = self.state.all_systems()?;
+        let all_tasks = self.state.all_tasks()?;
+
+        validate_selected_groups(&all_groups, &groups_selection)?;
+        validate_selected_systems(&all_systems, &systems_selection)?;
+        validate_selected_tags(&all_tasks, &tags_selection)?;
+        validate_task_dependencies(&all_tasks)?;
+
+        let selected_groups = select_groups(all_groups, &groups_selection);
+        let selected_systems = select_systems(
+            all_systems,
+            &selected_groups,
+            &systems_selection,
+            &groups_selection,
+        );
+
+        let tasks_to_execute = if no_deps {
+            select_tasks(all_tasks, &groups_selection, &tags_selection)
         } else {
-            let (resolved_tasks, undefined_dependencies) = self
-                .state
-                .tasks_with_resolved_dependencies(&groups, &tags)?;
-
-            for undefined_dependency in undefined_dependencies {
-                let logger = self.logger.lock().unwrap();
-                logger.warn(&format!(
-                    "Task {:?} depends on tag {:?} but no tasks have that tag",
-                    undefined_dependency.task_name, undefined_dependency.tag
-                ));
-            }
-
-            resolved_tasks
+            select_tasks_with_dependencies(all_tasks, &groups_selection, &tags_selection)
         };
 
-        let tasks_to_execute: Vec<_> = tasks.into_values().collect();
-        let selected_groups = self.state.selected_groups(&groups)?;
-
-        for (system_name, system_config) in systems {
-            let system_groups = selected_groups
+        for (system_name, system_config) in selected_systems {
+            let system_groups: Vec<&String> = selected_groups
                 .iter()
                 .filter(|(_, config)| config.members.contains(&system_name))
                 .map(|(name, _)| name)
-                .collect::<Vec<&String>>();
-            let system_tasks = tasks_to_execute
+                .collect();
+
+            let system_tasks: Vec<_> = tasks_to_execute
                 .iter()
-                .filter(|task| {
+                .filter(|(_task_name, task)| {
                     system_groups.is_empty()
                         || task.groups.is_empty()
                         || task
@@ -166,7 +178,7 @@ impl Engine {
                             .iter()
                             .any(|group| system_groups.contains(&group))
                 })
-                .collect::<Vec<_>>();
+                .collect();
 
             let mut logger = self.logger.lock().unwrap();
             logger.current_system(&system_name);
@@ -179,7 +191,7 @@ impl Engine {
             if self.is_dry_run {
                 let mut logger = self.logger.lock().unwrap();
 
-                for task in &system_tasks {
+                for (_task_name, task) in &system_tasks {
                     logger.info(&format!(
                         "{} {}",
                         task.name,
@@ -222,7 +234,7 @@ impl Engine {
 
             let mut skip_system = false;
 
-            for task_config in system_tasks {
+            for (_task_name, task_config) in system_tasks {
                 if skip_system && !task_config.important {
                     self.state
                         .set_task_state(&task_config.name, TaskState::Skipped)?;
