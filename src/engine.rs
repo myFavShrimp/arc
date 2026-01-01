@@ -182,7 +182,7 @@ impl Engine {
     }
 
     fn print_dry_run_tasks(&self, tasks: &[(&String, &Task)]) {
-        let mut logger = self.logger.lock().unwrap();
+        let logger = self.logger.lock().unwrap();
 
         for (_task_name, task) in tasks {
             logger.info(&format!(
