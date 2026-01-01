@@ -29,9 +29,9 @@ use crate::{
     error::MutexLockError,
     logger::{Logger, SharedLogger},
     memory::{
-        target_groups::TargetGroupsMemory,
-        target_systems::{TargetSystemKind, TargetSystemsMemory},
-        tasks::{OnFailBehavior, TaskState, TasksMemory},
+        target_groups::{TargetGroups, TargetGroupsMemory},
+        target_systems::{TargetSystemKind, TargetSystems, TargetSystemsMemory},
+        tasks::{OnFailBehavior, TaskState, Tasks, TasksMemory},
     },
 };
 
@@ -42,6 +42,12 @@ mod readonly;
 pub mod selection;
 pub mod state;
 pub mod validation;
+
+struct FilteredSelection {
+    groups: TargetGroups,
+    systems: TargetSystems,
+    tasks: Tasks,
+}
 
 pub struct Engine {
     lua: Lua,
@@ -62,14 +68,10 @@ static ENTRY_POINT_SCRIPT: &str = "arc.lua";
 #[error("Runtime error")]
 pub enum EngineExecutionError {
     EntrypointExecution(#[from] EntrypointExecutionError),
+    Validation(#[from] ValidationError),
     Lua(#[from] mlua::Error),
     ExecutionTargetSet(#[from] ExecutionTargetSetError),
     OperationTargetSet(#[from] OperationTargetSetError),
-    MissingSelectedGroup(#[from] MissingSelectedGroupError),
-    MissingSelectedSystem(#[from] MissingSelectedSystemError),
-    MissingSelectedTag(#[from] MissingSelectedTagError),
-    UndefinedDependencies(#[from] UndefinedDependenciesError),
-    Lock(#[from] MutexLockError),
     TasksExecutionStateReset(#[from] TasksExecutionStateResetError),
     TasksResultSet(#[from] TasksResultStateSetError),
     TasksStateSet(#[from] TasksStateStateSetError),
@@ -86,6 +88,16 @@ pub enum EngineExecutionError {
 pub enum EntrypointExecutionError {
     Lua(#[from] mlua::Error),
     Io(#[from] std::io::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Failed to validate and filter selection")]
+pub enum ValidationError {
+    MissingSelectedGroup(#[from] MissingSelectedGroupError),
+    MissingSelectedSystem(#[from] MissingSelectedSystemError),
+    MissingSelectedTag(#[from] MissingSelectedTagError),
+    UndefinedDependencies(#[from] UndefinedDependenciesError),
+    Lock(#[from] MutexLockError),
 }
 
 impl Engine {
@@ -117,7 +129,7 @@ impl Engine {
         })
     }
 
-    pub fn execute_entrypoint(&self) -> Result<(), EntrypointExecutionError> {
+    fn execute_entrypoint(&self) -> Result<(), EntrypointExecutionError> {
         let entry_point_script_path = PathBuf::from(ENTRY_POINT_SCRIPT);
         let entry_point_script = std::fs::read_to_string(&entry_point_script_path)?;
 
@@ -129,6 +141,37 @@ impl Engine {
         Ok(())
     }
 
+    fn validate_and_filter_by_selection(
+        &self,
+        tags_selection: &TagSelection,
+        groups_selection: &GroupSelection,
+        systems_selection: &SystemSelection,
+        no_deps: bool,
+    ) -> Result<FilteredSelection, ValidationError> {
+        let all_groups = self.state.all_groups()?;
+        let all_systems = self.state.all_systems()?;
+        let all_tasks = self.state.all_tasks()?;
+
+        validate_selected_groups(&all_groups, groups_selection)?;
+        validate_selected_systems(&all_systems, systems_selection)?;
+        validate_selected_tags(&all_tasks, tags_selection)?;
+        validate_task_dependencies(&all_tasks)?;
+
+        let groups = select_groups(all_groups, groups_selection);
+        let systems = select_systems(all_systems, &groups, systems_selection, groups_selection);
+        let tasks = if no_deps {
+            select_tasks(all_tasks, groups_selection, tags_selection)
+        } else {
+            select_tasks_with_dependencies(all_tasks, groups_selection, tags_selection)
+        };
+
+        Ok(FilteredSelection {
+            groups,
+            systems,
+            tasks,
+        })
+    }
+
     pub fn execute(
         &self,
         tags_selection: TagSelection,
@@ -138,28 +181,16 @@ impl Engine {
     ) -> Result<(), EngineExecutionError> {
         self.execute_entrypoint()?;
 
-        let all_groups = self.state.all_groups()?;
-        let all_systems = self.state.all_systems()?;
-        let all_tasks = self.state.all_tasks()?;
-
-        validate_selected_groups(&all_groups, &groups_selection)?;
-        validate_selected_systems(&all_systems, &systems_selection)?;
-        validate_selected_tags(&all_tasks, &tags_selection)?;
-        validate_task_dependencies(&all_tasks)?;
-
-        let selected_groups = select_groups(all_groups, &groups_selection);
-        let selected_systems = select_systems(
-            all_systems,
-            &selected_groups,
-            &systems_selection,
+        let FilteredSelection {
+            groups: selected_groups,
+            systems: selected_systems,
+            tasks: tasks_to_execute,
+        } = self.validate_and_filter_by_selection(
+            &tags_selection,
             &groups_selection,
-        );
-
-        let tasks_to_execute = if no_deps {
-            select_tasks(all_tasks, &groups_selection, &tags_selection)
-        } else {
-            select_tasks_with_dependencies(all_tasks, &groups_selection, &tags_selection)
-        };
+            &systems_selection,
+            no_deps,
+        )?;
 
         for (system_name, system_config) in selected_systems {
             let system_groups: Vec<&String> = selected_groups
@@ -197,7 +228,7 @@ impl Engine {
                         task.name,
                         task.tags
                             .iter()
-                            .map(|t| format!("#{t}"))
+                            .map(|tag| format!("#{tag}"))
                             .collect::<Vec<_>>()
                             .join(" ")
                     ));
