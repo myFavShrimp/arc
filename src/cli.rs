@@ -4,7 +4,7 @@ use clap::{ArgGroup, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 #[command(name = "arc")]
-#[command(about = "A scriptable automation tool.", long_about = None)]
+#[command(version, about = "A scriptable automation tool.", long_about = None)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
