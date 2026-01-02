@@ -1,12 +1,12 @@
-# Arc
+# arc
 
-Arc (Automatic Remote Controller) is an infrastructure automation tool that uses Lua for scripting. It executes tasks on remote systems via SSH with a flexible API for managing configurations, files, and commands across multiple servers.
+arc (Automatic Remote Controller) is an infrastructure automation tool that uses Lua for scripting. It executes tasks on remote systems via SSH with a flexible API for managing configurations, files, and commands across multiple servers.
 
 ## Installation
 
 1. Install [Rust](https://rust-lang.org/)
 
-2. Install Arc using Cargo:
+2. Install arc using Cargo:
 
 ```bash
 cargo install arc-automation
@@ -18,7 +18,7 @@ This will compile and install the `arc` binary to the Cargo bin directory (usual
 
 ### Creating a New Project
 
-Initialize a new Arc project with type definitions for LSP support:
+Initialize a new arc project with type definitions for LSP support:
 
 ```bash
 arc init /path/to/project
@@ -37,7 +37,7 @@ targets.systems["web-server"] = {
 
 -- Define a simple task
 tasks["hello"] = {
-    handler = function (system)
+    handler = function(system)
         local result = system:run_command("echo 'Hello from ' $(hostname)")
         print(result.stdout)
     end
@@ -47,7 +47,7 @@ tasks["hello"] = {
 Run the task:
 
 ```bash
-arc run -t hello
+arc run -s web-server -t hello
 ```
 
 See [myfavshrimp/cfg](https://github.com/myfavshrimp/cfg) for an example managing local development machine configurations.
@@ -60,7 +60,7 @@ Targets define the systems where tasks will be executed. There are two types: in
 
 #### Systems
 
-Systems can be either remote (accessed via SSH) or local (running on the Arc host machine).
+Systems can be either remote (accessed via SSH) or local (running on the arc host machine).
 
 ##### Remote Systems
 
@@ -82,7 +82,7 @@ targets.systems["api-server"] = {
 
 ##### Local Systems
 
-Local systems execute tasks on the machine where Arc is running.
+Local systems execute tasks on the machine where arc is running.
 
 ```lua
 targets.systems["localhost"] = {
@@ -137,7 +137,7 @@ See [Tasks API](#tasks-1) for all available fields.
 
 ### `arc init`
 
-Initialize a new Arc project with type definitions for LSP support, code completion and type checking.
+Initialize a new arc project with type definitions for LSP support, code completion and type checking.
 
 ```bash
 arc init /path/to/project
@@ -145,7 +145,7 @@ arc init /path/to/project
 
 ### `arc run`
 
-Executes Arc tasks defined in the `arc.lua` file.
+Executes arc tasks defined in the `arc.lua` file.
 
 ```
 Usage: arc run [OPTIONS]
@@ -161,14 +161,14 @@ Options:
 
 ## Lua API Reference
 
-Arc uses a restricted Lua environment. The following standard library modules are available:
+arc uses a restricted Lua environment. The following standard library modules are available:
 
 - [Modules](https://www.lua.org/manual/5.1/manual.html#5.3) (`require`)
 - [String Manipulation](https://www.lua.org/manual/5.1/manual.html#5.4) (`string.format`, `string.match`, `string.gsub`, etc.)
 - [Table Manipulation](https://www.lua.org/manual/5.1/manual.html#5.5) (`table.insert`, `table.remove`, `table.sort`, etc.)
 - [Mathemetical Functions](https://www.lua.org/manual/5.1/manual.html#5.6) (`math.floor`, `math.random`, etc.)
 
-Not available: `io`, `os`, `debug`, `coroutine`. Use the provided Arc APIs (`system:run_command()`, `system:file()`, `env.get()`, etc.) instead.
+Not available: `io`, `os`, `debug`, `coroutine`. Use the provided arc APIs (`system:run_command()`, `system:file()`, `env.get()`, etc.) instead.
 
 ### Tasks
 
@@ -417,7 +417,7 @@ tasks["check_metadata"] = {
 
 ### Environment Variables (env)
 
-The `env` module provides access to environment variables. Arc automatically loads variables from `.env` files in the project directory.
+The `env` module provides access to environment variables. arc automatically loads variables from `.env` files in the project directory.
 
 #### Methods
 
@@ -441,7 +441,7 @@ tasks["deploy_app"] = {
 
 ### Host Module
 
-The `host` module provides functions for interacting with the local system where Arc is running. It has the same interface as the `system` object but operates on the local machine and it's working directory is the one arc was executed in.
+The `host` module provides functions for interacting with the local system where arc is running. It has the same interface as the `system` object but operates on the local machine and it's working directory is the one arc was executed in.
 
 #### Methods
 
@@ -463,11 +463,11 @@ Example:
 tasks["deploy_from_local"] = {
     handler = function(system)
         -- Read a local template
-        local template = host:file("templates/nginx.conf").content
+        local config_template = host:file("templates/nginx.conf").content
 
         -- Write to remote system
         local remote_config = system:file("/etc/nginx/nginx.conf")
-        remote_config.content = template
+        remote_config.content = config_template
 
         -- Restart service
         system:run_command("systemctl restart nginx")
@@ -576,9 +576,9 @@ tasks["configure_web_server"] = {
 
         -- Validate and reload
         local validation = system:run_command("nginx -t")
+
         if validation.exit_code == 0 then
             system:run_command("systemctl reload nginx")
-            return true
         else
             error("Nginx configuration is invalid: " .. validation.stderr)
         end
@@ -609,44 +609,43 @@ Example:
 ```lua
 tasks["provision_database"] = {
     handler = function(system)
-        log.info("Starting database provisioning on " .. system.name)
+        log.info("Provisioning database on " .. system.name)
 
         local result = system:run_command("systemctl status postgresql")
 
-        -- Log complex values like tables
-        log.debug(result)
+        log.debug("systemctl exit code: " .. result.exit_code)
 
         if result.exit_code ~= 0 then
             log.warn("PostgreSQL not running, attempting to install")
 
-            local install = system:run_command("apt-get install -y postgresql")
-            if install.exit_code ~= 0 then
-                log.error("Failed to install PostgreSQL: " .. install.stderr)
-                return false
+            local install_result = system:run_command("apt-get install -y postgresql")
+            if install_result.exit_code ~= 0 then
+                log.error("Failed to install PostgreSQL: " .. install_result.stderr)
+
+                error(install_result.stderr)
             end
         end
 
         log.debug("PostgreSQL installed and running")
-        return true
     end
 }
 ```
 
 ## LSP Support
 
-Arc provides Language Server Protocol (LSP) support for Lua code editing with autocomplete, type checking, and inline documentation.
+arc provides Language Server Protocol (LSP) support for Lua code editing with autocomplete, type checking, and inline documentation.
 
 ### Setup
 
 1. Install the [Lua Language Server](https://github.com/LuaLS/lua-language-server) for the editor being used.
 
-2. Initialize an Arc project to generate type definitions:
+2. Initialize an arc project to generate type definitions:
 
 ```bash
 arc init /path/to/project
 ```
 
-The `init` command creates `.luarc.json` and type definition files that enable the Lua Language Server to recognize Arc's API types.
+The `init` command creates `.luarc.json` and type definition files that enable the Lua Language Server to recognize arc's API types.
 
 ## Contributing
 
