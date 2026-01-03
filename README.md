@@ -294,7 +294,7 @@ The File object represents a file on a target system and provides access to file
 - `remove()`: Remove the file
 
 - `directory()`: Get the directory containing this file
-  - *Returns*: A Directory object
+  - *Returns*: A Directory object, or `nil` if at root path
 
 Example:
 
@@ -345,7 +345,7 @@ The Directory object represents a directory on a target system and provides acce
 - `metadata()`: Get directory metadata
   - *Returns*: A table with directory metadata (see Metadata Structure section), or `nil` if directory doesn't exist
 - `parent()`: Get the parent directory
-  - *Returns*: A Directory object representing the parent directory
+  - *Returns*: A Directory object representing the parent directory, or `nil` if at root path
 - `entries()`: Get directory entries
   - *Returns*: Array of File and Directory objects representing the directory contents
 

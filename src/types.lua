@@ -20,8 +20,8 @@
 
 ---@class File
 ---@field path string Path to the file (can be read and set, setting renames the file)
----@field file_name string The name of the file without the directory path
----@field content string Text content of the file (can be read and set)
+---@field file_name string The name of the file without the directory path (can be read and set; setting renames the file)
+---@field content string Binary content of the file (can be read and set)
 ---@field permissions integer|nil File permissions (can be read and set as numeric mode; nil if file doesn't exist)
 local File = {}
 
@@ -36,14 +36,14 @@ function File:remove() end
 ---@return boolean exists True if file exists
 function File:exists() end
 
----Get the directory containing this file
----@return Directory directory Directory object
+---Get the directory containing this file. Returns nil if at root path.
+---@return Directory|nil directory Directory object, or nil if at root
 function File:directory() end
 
 
 ---@class Directory
 ---@field path string Path to the directory (can be read and set, setting renames the directory)
----@field file_name string The name of the directory without the parent path
+---@field file_name string The name of the directory without the parent path (can be read and set; setting renames the directory)
 ---@field permissions integer|nil Directory permissions (can be read and set as numeric mode; nil if directory doesn't exist)
 local Directory = {}
 
@@ -65,8 +65,8 @@ function Directory:metadata() end
 ---@return (File|Directory)[] entries Array of File and Directory objects representing the directory contents
 function Directory:entries() end
 
----Get the parent directory
----@return Directory parent Parent directory object
+---Get the parent directory. Returns nil if at root path.
+---@return Directory|nil parent Parent directory object, or nil if at root
 function Directory:parent() end
 
 
