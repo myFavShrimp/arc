@@ -12,6 +12,21 @@ arc (Automatic Remote Controller) is an infrastructure automation tool that uses
 cargo install arc-automation
 ```
 
+You may need additional dependencies,
+
+**Fedora**
+
+```bash
+sudo dnf group install development-tools
+sudo dnf install openssl-devel
+```
+
+**Ubuntu / Debian**
+
+```bash
+sudo apt install build-essential libssl-dev
+```
+
 This will compile and install the `arc` binary to the Cargo bin directory (usually `~/.cargo/bin/`).
 
 ## Quick Start
