@@ -12,7 +12,7 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Initialize project with type definitions for luau-lsp
+    /// Initialize project with type definitions
     Init { project_root: PathBuf },
     /// Execute tasks
     #[command(group = ArgGroup::new("tags").required(true).args(["tag", "all_tags"]))]
