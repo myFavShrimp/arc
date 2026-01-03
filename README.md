@@ -284,9 +284,6 @@ The File object represents a file on a target system and provides access to file
 
 - `remove()`: Remove the file
 
-- `parent()`: Get the parent directory
-  - *Returns*: A Directory object representing the parent directory
-
 - `directory()`: Get the directory containing this file
   - *Returns*: A Directory object
 
@@ -339,8 +336,6 @@ The Directory object represents a directory on a target system and provides acce
   - *Returns*: A table with directory metadata (see Metadata Structure section)
 - `parent()`: Get the parent directory
   - *Returns*: A Directory object representing the parent directory
-- `directory()`: Get the directory itself
-  - *Returns*: A Directory object (returns self)
 
 Example:
 
