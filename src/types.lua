@@ -9,24 +9,24 @@
 
 ---@class FileMetadata
 ---@field path string Path to the file or directory
----@field size integer Size in bytes
----@field permissions integer Permission mode as number
+---@field size integer|nil Size in bytes (nil if unavailable)
+---@field permissions integer|nil Permission mode as number (nil if unavailable)
 ---@field type "file"|"directory"|"unknown" Type of the item
----@field uid integer User ID of the owner
----@field gid integer Group ID of the owner
----@field accessed integer Last access time as Unix timestamp
----@field modified integer Last modification time as Unix timestamp
+---@field uid integer|nil User ID of the owner (always nil on local systems)
+---@field gid integer|nil Group ID of the owner (always nil on local systems)
+---@field accessed integer|nil Last access time as Unix timestamp (nil if unavailable)
+---@field modified integer|nil Last modification time as Unix timestamp (nil if unavailable)
 
 
 ---@class File
 ---@field path string Path to the file (can be read and set, setting renames the file)
 ---@field file_name string The name of the file without the directory path
 ---@field content string Text content of the file (can be read and set)
----@field permissions integer File permissions (can be read and set as numeric mode)
+---@field permissions integer|nil File permissions (can be read and set as numeric mode; nil if file doesn't exist)
 local File = {}
 
----Get file metadata
----@return FileMetadata metadata File metadata information
+---Get file metadata. Returns nil if the file does not exist.
+---@return FileMetadata|nil metadata File metadata information, or nil if file doesn't exist
 function File:metadata() end
 
 ---Remove the file
@@ -44,7 +44,7 @@ function File:directory() end
 ---@class Directory
 ---@field path string Path to the directory (can be read and set, setting renames the directory)
 ---@field file_name string The name of the directory without the parent path
----@field permissions integer Directory permissions (can be read and set as numeric mode)
+---@field permissions integer|nil Directory permissions (can be read and set as numeric mode; nil if directory doesn't exist)
 local Directory = {}
 
 ---Create the directory
@@ -53,8 +53,12 @@ function Directory:create() end
 ---Remove the directory
 function Directory:remove() end
 
----Get directory metadata
----@return FileMetadata metadata Directory metadata information
+---Check if directory exists
+---@return boolean exists True if directory exists
+function Directory:exists() end
+
+---Get directory metadata. Returns nil if the directory does not exist.
+---@return FileMetadata|nil metadata Directory metadata information, or nil if directory doesn't exist
 function Directory:metadata() end
 
 ---Get directory entries

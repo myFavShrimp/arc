@@ -106,6 +106,8 @@ targets.groups["prod"] = {
 }
 ```
 
+Systems must be defined before they can be referenced in groups. Groups must be defined before they can be referenced in tasks.
+
 ### Tasks
 
 Tasks define operations to execute on target systems. Tasks execute in definition order on each system.
@@ -171,6 +173,8 @@ arc uses a restricted Lua environment. The following standard library modules ar
 - [Mathemetical Functions](https://www.lua.org/manual/5.1/manual.html#5.6) (`math.floor`, `math.random`, etc.)
 
 Not available: `io`, `os`, `debug`, `coroutine`. Use the provided arc APIs (`system:run_command()`, `system:file()`, `env.get()`, etc.) instead.
+
+The global `print()` function is an alias for `log.info()`.
 
 ### Tasks
 
@@ -277,12 +281,15 @@ The File object represents a file on a target system and provides access to file
 - `path`: Path to the file (can be read and set; setting the path moves the file)
 - `file_name`: The name of the file without the directory path (can be read and set)
 - `content`: Content of the file as binary string (can be read and set)
-- `permissions`: File permissions (can be read and set as numeric mode)
+- `permissions`: File permissions (can be read and set as numeric mode; returns `nil` if file doesn't exist)
 
 #### Methods
 
+- `exists()`: Check if file exists
+  - *Returns*: `boolean` - `true` if file exists, `false` otherwise
+
 - `metadata()`: Get file metadata
-  - *Returns*: A table with file metadata (see Metadata Structure section)
+  - *Returns*: A table with file metadata (see Metadata Structure section), or `nil` if file doesn't exist
 
 - `remove()`: Remove the file
 
@@ -327,14 +334,16 @@ The Directory object represents a directory on a target system and provides acce
 
 - `path`: Path to the directory (can be read and set; setting the path renames the directory)
 - `file_name`: The name of the directory without the parent path
-- `permissions`: Directory permissions (can be read and set as numeric mode)
+- `permissions`: Directory permissions (can be read and set as numeric mode; returns `nil` if directory doesn't exist)
 
 #### Methods
 
 - `create()`: Create the directory
 - `remove()`: Remove the directory
+- `exists()`: Check if directory exists
+  - *Returns*: `boolean` - `true` if directory exists, `false` otherwise
 - `metadata()`: Get directory metadata
-  - *Returns*: A table with directory metadata (see Metadata Structure section)
+  - *Returns*: A table with directory metadata (see Metadata Structure section), or `nil` if directory doesn't exist
 - `parent()`: Get the parent directory
   - *Returns*: A Directory object representing the parent directory
 - `entries()`: Get directory entries
@@ -386,16 +395,16 @@ tasks["manage_directory"] = {
 
 ### Metadata Structure
 
-The `metadata()` method on File or Directory objects returns a table with the following fields:
+The `metadata()` method on File or Directory objects returns a table with the following fields, or `nil` if the file/directory doesn't exist:
 
 - `path`: Path to the file or directory
-- `size`: Size in bytes (number)
-- `permissions`: Permission mode (number)
+- `size`: Size in bytes (number, or `nil` if unavailable)
+- `permissions`: Permission mode (number, or `nil` if unavailable)
 - `type`: Type of the item ("file", "directory", or "unknown")
-- `uid`: User ID of the owner (number)
-- `gid`: Group ID of the owner (number)
-- `accessed`: Last access time as a Unix timestamp (number)
-- `modified`: Last modification time as a Unix timestamp (number)
+- `uid`: User ID of the owner (number, or `nil`; **always `nil` on local systems**)
+- `gid`: Group ID of the owner (number, or `nil`; **always `nil` on local systems**)
+- `accessed`: Last access time as a Unix timestamp (number, or `nil` if unavailable)
+- `modified`: Last modification time as a Unix timestamp (number, or `nil` if unavailable)
 
 Example:
 
@@ -405,10 +414,14 @@ tasks["check_metadata"] = {
         local file = system:file("/etc/hostname")
         local metadata = file:metadata()
 
-        log.info("File size: " .. metadata.size)
-        log.info("File type: " .. metadata.type)
-        log.info("File permissions: " .. metadata.permissions)
-        log.info("Last modified: " .. metadata.modified)
+        if metadata then
+            log.info("File size: " .. (metadata.size or "unknown"))
+            log.info("File type: " .. metadata.type)
+            log.info("File permissions: " .. (metadata.permissions or "unknown"))
+            log.info("Last modified: " .. (metadata.modified or "unknown"))
+        else
+            log.info("File does not exist")
+        end
     end
 }
 ```

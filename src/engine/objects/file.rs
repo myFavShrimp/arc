@@ -73,5 +73,11 @@ impl UserData for File {
                 .parent_directory(&this.path)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
+        methods.add_method("exists", |_, this, (): ()| {
+            this.file_system_operator
+                .metadata(&this.path)
+                .map(|maybe_metadata| maybe_metadata.is_some())
+                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+        });
     }
 }
