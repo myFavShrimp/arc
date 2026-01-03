@@ -43,7 +43,7 @@ function File:directory() end
 
 ---@class Directory
 ---@field path string Path to the directory (can be read and set, setting renames the directory)
----@field file_name string The name of the directory without the parent path (can be read and set; setting renames the directory)
+---@field file_name string The name of the directory without the parent path (can be read and set)
 ---@field permissions integer|nil Directory permissions (can be read and set as numeric mode; nil if directory doesn't exist)
 local Directory = {}
 

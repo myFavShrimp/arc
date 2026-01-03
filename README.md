@@ -170,7 +170,7 @@ arc uses a restricted Lua environment. The following standard library modules ar
 - [Modules](https://www.lua.org/manual/5.1/manual.html#5.3) (`require`)
 - [String Manipulation](https://www.lua.org/manual/5.1/manual.html#5.4) (`string.format`, `string.match`, `string.gsub`, etc.)
 - [Table Manipulation](https://www.lua.org/manual/5.1/manual.html#5.5) (`table.insert`, `table.remove`, `table.sort`, etc.)
-- [Mathemetical Functions](https://www.lua.org/manual/5.1/manual.html#5.6) (`math.floor`, `math.random`, etc.)
+- [Mathematical Functions](https://www.lua.org/manual/5.1/manual.html#5.6) (`math.floor`, `math.random`, etc.)
 
 Not available: `io`, `os`, `debug`, `coroutine`. Use the provided arc APIs (`system:run_command()`, `system:file()`, `env.get()`, etc.) instead.
 
@@ -301,16 +301,16 @@ Example:
 ```lua
 tasks["configure_nginx"] = {
     handler = function(system)
-        -- Create and write to a file
         local config_file = system:file("/etc/nginx/sites-available/default")
-        config_file.content = "server {\n    listen 80 default_server;\n    root /var/www/html;\n}"
 
-        -- Set permissions
+        config_file.content = "server {\n    listen 80 default_server;\n    root /var/www/html;\n}"
         config_file.permissions = tonumber("644", 8)
 
-        -- Get metadata
         local metadata = config_file:metadata()
-        log.info("File size: " .. metadata.size .. " bytes")
+
+        if metadata and metadata.size then
+            log.info("File size: " .. metadata.size .. " bytes")
+        end
     end
 }
 
@@ -333,7 +333,7 @@ The Directory object represents a directory on a target system and provides acce
 #### Properties
 
 - `path`: Path to the directory (can be read and set; setting the path renames the directory)
-- `file_name`: The name of the directory without the parent path
+- `file_name`: The name of the directory without the parent path (can be read and set)
 - `permissions`: Directory permissions (can be read and set as numeric mode; returns `nil` if directory doesn't exist)
 
 #### Methods
@@ -373,7 +373,8 @@ tasks["list_configs"] = {
             print("Permissions: " .. entry.permissions)
 
             local metadata = entry:metadata()
-            if metadata.type == "file" then
+
+            if metadata and metadata.type == "file" and metadata.size then
                 print("File size: " .. metadata.size .. " bytes")
             elseif metadata.type == "directory" then
                 print("Directory")
