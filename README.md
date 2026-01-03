@@ -148,15 +148,17 @@ arc init /path/to/project
 Executes arc tasks defined in the `arc.lua` file.
 
 ```
-Usage: arc run [OPTIONS]
+Usage: arc run [OPTIONS] <--tag <TAG>|--all-tags> <--group <GROUP>|--system <SYSTEM>|--all-systems>
 
 Options:
-  -t, --tag <TAG>      Select tasks by tag
-  -g, --group <GROUP>  Run tasks only on specific groups
-  -d, --dry-run        Print tasks that would be executed without running them
-      --no-deps        Skip dependency resolution and only run explicitly selected tasks
-      --all-tags       Run all tasks
-  -h, --help           Print help
+  -t, --tag <TAG>        Select tasks by tag
+  -g, --group <GROUP>    Run tasks only on specific groups
+  -s, --system <SYSTEM>  Run tasks only on specific systems
+  -d, --dry-run          Print tasks that would be executed without running them
+      --no-deps          Skip dependency resolution and only run explicitly selected tasks
+      --all-tags         Run all tasks
+      --all-systems      Run on all systems
+  -h, --help             Print help
 ```
 
 ## Lua API Reference
@@ -272,9 +274,9 @@ The File object represents a file on a target system and provides access to file
 
 #### Properties
 
-- `path`: Path to the file (can be read and set; setting the path renames the file)
-- `file_name`: The name of the file without the directory path
-- `content`: Text content of the file (can be read and set)
+- `path`: Path to the file (can be read and set; setting the path moves the file)
+- `file_name`: The name of the file without the directory path (can be read and set)
+- `content`: Content of the file as binary string (can be read and set)
 - `permissions`: File permissions (can be read and set as numeric mode)
 
 #### Methods
@@ -413,7 +415,7 @@ tasks["check_metadata"] = {
 
 ### Environment Variables (env)
 
-The `env` module provides access to environment variables. arc automatically loads variables from `.env` files in the project directory.
+The `env` module provides access to environment variables. arc automatically loads variables from `.env` files in the project directory. Variables defined in the `.env` file take precedence over already defined ones.
 
 #### Methods
 

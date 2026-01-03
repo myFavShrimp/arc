@@ -174,7 +174,7 @@ function Env.get(var_name) end
 ---@type EnvModule
 env = {}
 
---- Global host class for aaccessing the host system
+--- Global host class for accessing the host system
 ---@class Host
 local Host = {}
 
@@ -193,7 +193,7 @@ function Host:file(path) end
 ---@return Directory directory Directory object
 function Host:directory(path) end
 
---- Global host instance for aaccessing the host system
+--- Global host instance for accessing the host system
 ---@type Host
 host = {}
 
