@@ -85,16 +85,8 @@ impl FromLua for TaskConfig {
                     important,
                 })
             }
-            mlua::Value::Function(handler) => Ok(TaskConfig {
-                handler,
-                when: None,
-                on_fail: OnFailBehavior::default(),
-                tags: Default::default(),
-                groups: Default::default(),
-                dependencies: Default::default(),
-                important: false,
-            }),
-            mlua::Value::Nil
+            mlua::Value::Function(_)
+            | mlua::Value::Nil
             | mlua::Value::Boolean(_)
             | mlua::Value::LightUserData(_)
             | mlua::Value::Integer(_)
