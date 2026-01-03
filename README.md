@@ -661,7 +661,7 @@ The `init` command creates `.luarc.json` and type definition files that enable t
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a pull request.
+Contributions are welcome! Please feel free to submit any issue or pull request.
 
 ## License
 
