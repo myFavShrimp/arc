@@ -1,5 +1,5 @@
 ---@meta _
----Type definitions for Arc
+---Type definitions for arc v{version}
 
 ---@class CommandResult
 ---@field stdout string The command output

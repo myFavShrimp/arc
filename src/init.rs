@@ -42,7 +42,11 @@ pub fn init_project(project_root: PathBuf) -> Result<(), InitializationFailure> 
         .open(lsp_types_path)
         .map_err(LspTypesCreationError)?;
     lsp_types_file
-        .write_all(TYPES_LUA.as_bytes())
+        .write_all(
+            TYPES_LUA
+                .replacen("{version}", env!("CARGO_PKG_VERSION"), 1)
+                .as_bytes(),
+        )
         .map_err(LspTypesCreationError)?;
 
     let mut arc_lua_path = project_root.clone();
