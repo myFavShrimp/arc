@@ -326,7 +326,6 @@ The Directory object represents a directory on a target system and provides acce
 - `path`: Path to the directory (can be read and set; setting the path renames the directory)
 - `file_name`: The name of the directory without the parent path
 - `permissions`: Directory permissions (can be read and set as numeric mode)
-- `entries`: Array of File and Directory objects representing the directory contents
 
 #### Methods
 
@@ -336,6 +335,8 @@ The Directory object represents a directory on a target system and provides acce
   - *Returns*: A table with directory metadata (see Metadata Structure section)
 - `parent()`: Get the parent directory
   - *Returns*: A Directory object representing the parent directory
+- `entries()`: Get directory entries
+  - *Returns*: Array of File and Directory objects representing the directory contents
 
 Example:
 
