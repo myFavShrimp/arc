@@ -353,7 +353,7 @@ The Directory object represents a directory on a target system and provides acce
 
 #### Methods
 
-- `create()`: Create the directory
+- `create()`: Create the directory (including any missing ancestor directories)
 - `remove()`: Remove the directory
 - `exists()`: Check if directory exists
   - *Returns*: `boolean` - `true` if directory exists, `false` otherwise
