@@ -162,7 +162,7 @@ arc init /path/to/project
 
 ### `arc run`
 
-Executes arc tasks defined in the `arc.lua` file.
+Executes tasks defined in the `arc.lua` file.
 
 ```
 Usage: arc run [OPTIONS] <--tag <TAG>|--all-tags> <--group <GROUP>|--system <SYSTEM>|--all-systems>

@@ -1,5 +1,5 @@
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use super::{
@@ -80,7 +80,15 @@ pub struct RemoveDirectoryError {
 pub struct CreateDirectoryError {
     path: PathBuf,
     #[source]
-    source: std::io::Error,
+    kind: CreateDirectoryErrorKind,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum CreateDirectoryErrorKind {
+    #[error("path {0:?} is not a directory")]
+    NotADirectory(PathBuf),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -107,6 +115,40 @@ pub struct MetadataError {
     source: std::io::Error,
 }
 
+#[derive(thiserror::Error, Debug)]
+#[error("Invalid path {path:?}")]
+pub struct DirectoryValidityError {
+    path: PathBuf,
+    #[source]
+    kind: DirectoryValidityErrorKind,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum DirectoryValidityErrorKind {
+    #[error("Ancestor {0:?} is not a directory")]
+    AncestorNotADirectory(PathBuf),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Invalid path {path:?}")]
+pub struct FileValidityError {
+    path: PathBuf,
+    #[source]
+    kind: FileValidityErrorKind,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum FileValidityErrorKind {
+    #[error("Path is a directory")]
+    IsADirectory,
+    #[error(transparent)]
+    DirectoryValidity(#[from] DirectoryValidityErrorKind),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+}
+
 impl HostClient {
     pub fn execute_command(&self, command: &str) -> Result<CommandResult, HostError> {
         let output = Command::new("sh").arg("-c").arg(command).output()?;
@@ -119,9 +161,9 @@ impl HostClient {
     }
 
     pub fn read_file(&self, path: &PathBuf) -> Result<Vec<u8>, FileReadError> {
-        std::fs::read(path).map_err(|e| FileReadError {
+        std::fs::read(path).map_err(|error| FileReadError {
             path: path.clone(),
-            kind: FileReadErrorKind::Io(e),
+            kind: FileReadErrorKind::Io(error),
         })
     }
 
@@ -130,9 +172,9 @@ impl HostClient {
         path: &PathBuf,
         content: &[u8],
     ) -> Result<FileWriteResult, FileWriteError> {
-        std::fs::write(path, content).map_err(|e| FileWriteError {
+        std::fs::write(path, content).map_err(|error| FileWriteError {
             path: path.clone(),
-            kind: FileWriteErrorKind::Io(e),
+            kind: FileWriteErrorKind::Io(error),
         })?;
 
         Ok(FileWriteResult {
@@ -142,56 +184,85 @@ impl HostClient {
     }
 
     pub fn rename_file(&self, from: &PathBuf, to: &PathBuf) -> Result<(), RenameError> {
-        std::fs::rename(from, to).map_err(|e| RenameError {
+        std::fs::rename(from, to).map_err(|error| RenameError {
             from: from.clone(),
             to: to.clone(),
-            kind: RenameErrorKind::Io(e),
+            kind: RenameErrorKind::Io(error),
         })
     }
 
     pub fn remove_file(&self, path: &PathBuf) -> Result<(), RemoveFileError> {
-        std::fs::remove_file(path).map_err(|e| RemoveFileError {
+        std::fs::remove_file(path).map_err(|error| RemoveFileError {
             path: path.clone(),
-            source: e,
+            source: error,
         })
     }
 
     pub fn remove_directory(&self, path: &PathBuf) -> Result<(), RemoveDirectoryError> {
-        std::fs::remove_dir_all(path).map_err(|e| RemoveDirectoryError {
+        std::fs::remove_dir_all(path).map_err(|error| RemoveDirectoryError {
             path: path.clone(),
-            source: e,
+            source: error,
         })
     }
 
-    pub fn create_directory(&self, path: &PathBuf) -> Result<(), CreateDirectoryError> {
-        std::fs::create_dir_all(path).map_err(|e| CreateDirectoryError {
-            path: path.clone(),
-            source: e,
-        })
+    pub fn create_directory(&self, path: &Path) -> Result<(), CreateDirectoryError> {
+        let ancestors = path
+            .ancestors()
+            .filter(|p| !p.as_os_str().is_empty())
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect::<Vec<_>>();
+
+        for ancestor_path in ancestors {
+            match std::fs::metadata(ancestor_path) {
+                Ok(meta) if meta.is_dir() => continue,
+                Ok(_) => {
+                    return Err(CreateDirectoryError {
+                        path: path.to_path_buf(),
+                        kind: CreateDirectoryErrorKind::NotADirectory(ancestor_path.to_path_buf()),
+                    });
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    std::fs::create_dir(ancestor_path).map_err(|error| CreateDirectoryError {
+                        path: path.to_path_buf(),
+                        kind: error.into(),
+                    })?;
+                }
+                Err(error) => {
+                    return Err(CreateDirectoryError {
+                        path: path.to_path_buf(),
+                        kind: error.into(),
+                    });
+                }
+            }
+        }
+
+        Ok(())
     }
 
-    pub fn set_permissions(&self, path: &PathBuf, mode: u32) -> Result<(), SetPermissionsError> {
+    pub fn set_permissions(&self, path: &Path, mode: u32) -> Result<(), SetPermissionsError> {
         let perms = std::fs::Permissions::from_mode(mode);
-        std::fs::set_permissions(path, perms).map_err(|e| SetPermissionsError {
-            path: path.clone(),
-            source: e,
+        std::fs::set_permissions(path, perms).map_err(|error| SetPermissionsError {
+            path: path.to_path_buf(),
+            source: error,
         })
     }
 
     pub fn list_directory(
         &self,
-        path: &PathBuf,
+        path: &Path,
     ) -> Result<Vec<MetadataResult>, DirectoryEntriesError> {
-        let entries = std::fs::read_dir(path).map_err(|e| DirectoryEntriesError {
-            path: path.clone(),
-            source: e,
+        let entries = std::fs::read_dir(path).map_err(|error| DirectoryEntriesError {
+            path: path.to_path_buf(),
+            source: error,
         })?;
 
         let mut result = Vec::new();
 
         for entry in entries {
             let entry = entry.map_err(|e| DirectoryEntriesError {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 source: e,
             })?;
 
@@ -237,7 +308,7 @@ impl HostClient {
         Ok(result)
     }
 
-    pub fn metadata(&self, path: &PathBuf) -> Result<Option<MetadataResult>, MetadataError> {
+    pub fn metadata(&self, path: &Path) -> Result<Option<MetadataResult>, MetadataError> {
         match std::fs::metadata(path) {
             Ok(metadata) => {
                 let file_type = metadata.file_type();
@@ -250,32 +321,99 @@ impl HostClient {
                 };
 
                 Ok(Some(MetadataResult {
-                    path: path.clone(),
+                    path: path.to_path_buf(),
                     size: Some(metadata.len()),
                     permissions: Some(metadata.permissions().mode() & 0o777),
                     r#type,
                     uid: None, // Would need nix crate to get this
                     gid: None, // Would need nix crate to get this
-                    accessed: metadata
-                        .accessed()
-                        .ok()
-                        .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()),
-                    modified: metadata
-                        .modified()
-                        .ok()
-                        .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()),
+                    accessed: metadata.accessed().ok().map(|time| {
+                        time.duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs()
+                    }),
+                    modified: metadata.modified().ok().map(|time| {
+                        time.duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs()
+                    }),
                 }))
             }
-            Err(e) => {
-                if e.kind() == std::io::ErrorKind::NotFound {
+            Err(error) => {
+                if error.kind() == std::io::ErrorKind::NotFound {
                     Ok(None)
                 } else {
                     Err(MetadataError {
-                        path: path.clone(),
-                        source: e,
+                        path: path.to_path_buf(),
+                        source: error,
                     })
                 }
             }
         }
+    }
+
+    pub fn check_directory_validity(&self, path: &Path) -> Result<(), DirectoryValidityError> {
+        let ancestors = path
+            .ancestors()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect::<Vec<_>>();
+
+        for ancestor in ancestors {
+            if ancestor.as_os_str().is_empty() {
+                break;
+            }
+
+            match std::fs::metadata(ancestor) {
+                Ok(meta) if meta.is_dir() => continue,
+                Ok(_) => {
+                    return Err(DirectoryValidityError {
+                        path: path.to_path_buf(),
+                        kind: DirectoryValidityErrorKind::AncestorNotADirectory(
+                            ancestor.to_path_buf(),
+                        ),
+                    });
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+                Err(error) => {
+                    return Err(DirectoryValidityError {
+                        path: path.to_path_buf(),
+                        kind: error.into(),
+                    });
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn check_file_validity(&self, path: &Path) -> Result<(), FileValidityError> {
+        if let Some(parent_path) = path.parent() {
+            self.check_directory_validity(parent_path)
+                .map_err(|error| FileValidityError {
+                    path: path.to_path_buf(),
+                    kind: error.kind.into(),
+                })?;
+        }
+
+        match std::fs::metadata(path) {
+            Ok(meta) if meta.is_dir() => {
+                return Err(FileValidityError {
+                    path: path.to_path_buf(),
+                    kind: FileValidityErrorKind::IsADirectory,
+                });
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(FileValidityError {
+                    path: path.to_path_buf(),
+                    kind: error.into(),
+                });
+            }
+        }
+
+        Ok(())
     }
 }

@@ -212,37 +212,30 @@ pub enum ListDirectoryError {
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
-pub enum FileError {
-    Ssh(#[from] ssh::MetadataError),
-    Local(#[from] host::MetadataError),
-    Metadata(#[from] MetadataError),
-    UnexpectedDirectory(#[from] UnexpectedDirectoryError),
-    NotAFile(#[from] NotAFileError),
+pub enum DirectoryValidityError {
+    Ssh(#[from] ssh::DirectoryValidityError),
+    Local(#[from] host::DirectoryValidityError),
+    LocalDir(#[from] LocalError),
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("{0:?} is a directory - expected a file")]
-pub struct UnexpectedDirectoryError(PathBuf);
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum FileValidityError {
+    Ssh(#[from] ssh::FileValidityError),
+    Local(#[from] host::FileValidityError),
+    LocalDir(#[from] LocalError),
+}
 
-#[derive(Debug, thiserror::Error)]
-#[error("{0:?} is not a file")]
-pub struct NotAFileError(PathBuf);
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub enum FileError {
+    FileValidity(#[from] FileValidityError),
+}
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum DirectoryError {
-    Ssh(#[from] ssh::MetadataError),
-    Local(#[from] host::MetadataError),
-    Metadata(#[from] MetadataError),
-    UnexpectedType(#[from] UnexpectedTypeError),
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("{path:?} is of type {actual} - expected {expected}")]
-pub struct UnexpectedTypeError {
-    path: PathBuf,
-    expected: MetadataType,
-    actual: MetadataType,
+    DirectoryValidity(#[from] DirectoryValidityError),
 }
 
 impl FileSystemOperator {
@@ -303,7 +296,7 @@ impl FileSystemOperator {
         Ok(())
     }
 
-    pub fn create_directory(&self, path: &PathBuf) -> Result<(), CreateDirectoryError> {
+    pub fn create_directory(&self, path: &Path) -> Result<(), CreateDirectoryError> {
         match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.create_directory(path)?,
             FileSystemOperator::Local(local_client) => {
@@ -314,7 +307,7 @@ impl FileSystemOperator {
         Ok(())
     }
 
-    pub fn set_permissions(&self, path: &PathBuf, mode: u32) -> Result<(), SetPermissionsError> {
+    pub fn set_permissions(&self, path: &Path, mode: u32) -> Result<(), SetPermissionsError> {
         match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.set_permissions(path, mode)?,
             FileSystemOperator::Local(local_client) => {
@@ -325,7 +318,7 @@ impl FileSystemOperator {
         Ok(())
     }
 
-    pub fn metadata(&self, path: &PathBuf) -> Result<Option<MetadataResult>, MetadataError> {
+    pub fn metadata(&self, path: &Path) -> Result<Option<MetadataResult>, MetadataError> {
         Ok(match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.metadata(path)?,
             FileSystemOperator::Local(local_client) => {
@@ -335,29 +328,38 @@ impl FileSystemOperator {
         })
     }
 
-    pub fn file(&self, path: &PathBuf) -> Result<File, FileError> {
-        let metadata = self.metadata(path)?;
-
-        match metadata {
-            None => Ok(File {
-                path: path.clone(),
-                file_system_operator: self.clone(),
-            }),
-            Some(metadata) => match metadata.r#type {
-                MetadataType::File => Ok(File {
-                    path: path.clone(),
-                    file_system_operator: self.clone(),
-                }),
-                MetadataType::Directory => Err(UnexpectedDirectoryError(path.clone()))?,
-                MetadataType::Unknown => Err(NotAFileError(path.clone()))?,
-            },
-        }
+    pub fn check_directory_validity(&self, path: &Path) -> Result<(), DirectoryValidityError> {
+        match self {
+            FileSystemOperator::Ssh(ssh_client) => ssh_client.check_directory_validity(path)?,
+            FileSystemOperator::Local(local_client) => {
+                with_local_dir(|| local_client.check_directory_validity(path))?
+            }
+            FileSystemOperator::Host(host_client) => host_client.check_directory_validity(path)?,
+        };
+        Ok(())
     }
 
-    pub fn list_directory(
-        &self,
-        path: &PathBuf,
-    ) -> Result<Vec<FileSystemEntry>, ListDirectoryError> {
+    pub fn check_file_validity(&self, path: &Path) -> Result<(), FileValidityError> {
+        match self {
+            FileSystemOperator::Ssh(ssh_client) => ssh_client.check_file_validity(path)?,
+            FileSystemOperator::Local(local_client) => {
+                with_local_dir(|| local_client.check_file_validity(path))?
+            }
+            FileSystemOperator::Host(host_client) => host_client.check_file_validity(path)?,
+        };
+        Ok(())
+    }
+
+    pub fn file(&self, path: &Path) -> Result<File, FileError> {
+        self.check_file_validity(path)?;
+
+        Ok(File {
+            path: path.to_path_buf(),
+            file_system_operator: self.clone(),
+        })
+    }
+
+    pub fn list_directory(&self, path: &Path) -> Result<Vec<FileSystemEntry>, ListDirectoryError> {
         let directory_entries = match self {
             FileSystemOperator::Ssh(ssh_client) => ssh_client.list_directory(path)?,
             FileSystemOperator::Local(local_client) => {
@@ -384,26 +386,13 @@ impl FileSystemOperator {
         Ok(result)
     }
 
-    pub fn directory(&self, path: &PathBuf) -> Result<Directory, DirectoryError> {
-        let metadata = self.metadata(path)?;
+    pub fn directory(&self, path: &Path) -> Result<Directory, DirectoryError> {
+        self.check_directory_validity(path)?;
 
-        match metadata {
-            None => Ok(Directory {
-                path: path.clone(),
-                file_system_operator: self.clone(),
-            }),
-            Some(metadata) => match metadata.r#type {
-                MetadataType::Directory => Ok(Directory {
-                    path: path.clone(),
-                    file_system_operator: self.clone(),
-                }),
-                MetadataType::File | MetadataType::Unknown => Err(UnexpectedTypeError {
-                    path: path.clone(),
-                    expected: MetadataType::Directory,
-                    actual: metadata.r#type,
-                })?,
-            },
-        }
+        Ok(Directory {
+            path: path.to_path_buf(),
+            file_system_operator: self.clone(),
+        })
     }
 
     pub fn parent_directory(&self, path: &Path) -> Result<Option<Directory>, DirectoryError> {
@@ -411,25 +400,12 @@ impl FileSystemOperator {
             return Ok(None);
         };
 
-        let metadata = self.metadata(&parent_path.to_path_buf())?;
+        self.check_directory_validity(parent_path)?;
 
-        match metadata {
-            None => Ok(Some(Directory {
-                path: parent_path.to_path_buf(),
-                file_system_operator: self.clone(),
-            })),
-            Some(metadata) => match metadata.r#type {
-                MetadataType::Directory => Ok(Some(Directory {
-                    path: parent_path.to_path_buf(),
-                    file_system_operator: self.clone(),
-                })),
-                MetadataType::File | MetadataType::Unknown => Err(UnexpectedTypeError {
-                    path: parent_path.to_path_buf(),
-                    expected: MetadataType::Directory,
-                    actual: metadata.r#type,
-                })?,
-            },
-        }
+        Ok(Some(Directory {
+            path: parent_path.to_path_buf(),
+            file_system_operator: self.clone(),
+        }))
     }
 
     pub fn file_name(&self, path: &Path) -> Result<Option<String>, DirectoryError> {
