@@ -8,7 +8,6 @@ use crate::{
     logger::SharedLogger,
     memory::{
         SharedMemory,
-        target_groups::TargetGroupsMemory,
         tasks::{OnFailBehavior, Task, TaskAdditionError, TaskRetrievalError, TasksMemory},
     },
 };
@@ -19,7 +18,7 @@ pub struct TaskConfig {
     pub when: Option<mlua::Function>,
     pub on_fail: OnFailBehavior,
     pub tags: HashSet<String>,
-    pub groups: HashSet<String>,
+    pub targets: HashSet<String>,
     pub requires: HashSet<String>,
     pub important: bool,
 }
@@ -58,9 +57,9 @@ impl FromLua for TaskConfig {
                     .unwrap_or_default()
                     .into_iter()
                     .collect();
-                let groups: HashSet<String> = table
-                    .get::<Option<Vec<String>>>("groups")
-                    .or(Err(mlua::Error::runtime("\"groups\" is invalid")))?
+                let targets: HashSet<String> = table
+                    .get::<Option<Vec<String>>>("targets")
+                    .or(Err(mlua::Error::runtime("\"targets\" is invalid")))?
                     .unwrap_or_default()
                     .into_iter()
                     .collect();
@@ -80,7 +79,7 @@ impl FromLua for TaskConfig {
                     when,
                     on_fail,
                     tags,
-                    groups,
+                    targets,
                     requires,
                     important,
                 })
@@ -130,13 +129,8 @@ impl IntoLua for Task {
 pub enum TaskConfigAdditionError {
     Lock(#[from] MutexLockError),
     TaskAddition(#[from] TaskAdditionError),
-    GroupFilterNotDefined(#[from] GroupFilterNotDefinedError),
     Lua(#[from] mlua::Error),
 }
-
-#[derive(Debug, thiserror::Error)]
-#[error("Group filter {1:?} of task {0:?} is not defined")]
-pub struct GroupFilterNotDefinedError(String, pub Vec<String>);
 
 #[derive(Debug, thiserror::Error)]
 #[error("Failed to retrieve tasks configuration")]
@@ -146,19 +140,13 @@ pub enum TasksModuleRetrievalError {
 }
 
 pub struct TasksTable {
-    pub groups_memory: SharedMemory<TargetGroupsMemory>,
     pub tasks_memory: SharedMemory<TasksMemory>,
     pub logger: SharedLogger,
 }
 
 impl TasksTable {
-    pub fn new(
-        groups_memory: SharedMemory<TargetGroupsMemory>,
-        tasks_memory: SharedMemory<TasksMemory>,
-        logger: SharedLogger,
-    ) -> Self {
+    pub fn new(tasks_memory: SharedMemory<TasksMemory>, logger: SharedLogger) -> Self {
         Self {
-            groups_memory,
             tasks_memory,
             logger,
         }
@@ -171,20 +159,6 @@ impl TasksTable {
         config: TaskConfig,
     ) -> Result<(), TaskConfigAdditionError> {
         let mut tasks = self.tasks_memory.lock().map_err(|_| MutexLockError)?;
-        let groups = self.groups_memory.lock().map_err(|_| MutexLockError)?.all();
-
-        {
-            let undefined_groups: Vec<String> = config
-                .groups
-                .iter()
-                .filter(|name| !groups.contains_key(*name))
-                .cloned()
-                .collect();
-
-            if !undefined_groups.is_empty() {
-                Err(GroupFilterNotDefinedError(name.clone(), undefined_groups))?
-            }
-        }
 
         let wrapped_handler = {
             let logger = self.logger.clone();
@@ -211,7 +185,7 @@ impl TasksTable {
             when: config.when,
             on_fail: config.on_fail,
             tags: config.tags,
-            groups: config.groups,
+            targets: config.targets,
             requires: config.requires,
             important: config.important,
             result: None,

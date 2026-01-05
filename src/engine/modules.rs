@@ -32,8 +32,8 @@ impl Modules {
         logger: SharedLogger,
     ) -> Self {
         let format = format::Format;
-        let targets = targets::TargetsTable::new(target_groups.clone(), target_systems.clone());
-        let tasks = tasks::TasksTable::new(target_groups, tasks, logger);
+        let targets = targets::TargetsTable::new(target_groups, target_systems.clone());
+        let tasks = tasks::TasksTable::new(tasks, logger);
         let templates = templates::Templates::new();
         let log = log::Log;
         let env = env::Env;

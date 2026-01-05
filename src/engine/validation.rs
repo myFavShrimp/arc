@@ -81,11 +81,9 @@ impl std::fmt::Display for UndefinedGroupMembersError {
         writeln!(f, "Groups have undefined members:")?;
 
         for (group_name, members) in &self.0 {
-            let members_list: Vec<_> = members.iter().map(|m| format!("{m:?}")).collect();
-
             writeln!(
                 f,
-                "  - group {group_name:?} has undefined members {members_list:?}",
+                "  - group {group_name:?} has undefined members {members:?}",
             )?;
         }
         Ok(())
@@ -118,6 +116,55 @@ pub fn validate_group_members(
         Ok(())
     } else {
         Err(UndefinedGroupMembersError(undefined_members))
+    }
+}
+
+#[derive(Debug)]
+pub struct UndefinedTaskTargetsError(pub Vec<(String, Vec<String>)>);
+
+impl std::error::Error for UndefinedTaskTargetsError {}
+
+impl std::fmt::Display for UndefinedTaskTargetsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Tasks have undefined targets:")?;
+
+        for (task_name, targets) in &self.0 {
+            writeln!(
+                f,
+                "  - task {task_name:?} has undefined targets {targets:?}",
+            )?;
+        }
+        Ok(())
+    }
+}
+
+pub fn validate_task_targets(
+    tasks: &Tasks,
+    groups: &TargetGroups,
+    systems: &TargetSystems,
+) -> Result<(), UndefinedTaskTargetsError> {
+    let undefined_targets: Vec<(String, Vec<String>)> = tasks
+        .iter()
+        .filter_map(|(task_name, task)| {
+            let missing: Vec<String> = task
+                .targets
+                .iter()
+                .filter(|target| !groups.contains_key(*target) && !systems.contains_key(*target))
+                .cloned()
+                .collect();
+
+            if missing.is_empty() {
+                None
+            } else {
+                Some((task_name.clone(), missing))
+            }
+        })
+        .collect();
+
+    if undefined_targets.is_empty() {
+        Ok(())
+    } else {
+        Err(UndefinedTaskTargetsError(undefined_targets))
     }
 }
 
@@ -156,12 +203,7 @@ impl std::fmt::Display for UndefinedRequiresError {
         writeln!(f, "Tasks have undefined requires:")?;
 
         for (task_name, tags) in &self.0 {
-            let tags_list: Vec<_> = tags.iter().map(|t| format!("{t:?}")).collect();
-
-            writeln!(
-                f,
-                "  - task {task_name:?} requires undefined tags {tags_list:?}",
-            )?;
+            writeln!(f, "  - task {task_name:?} requires undefined tags {tags:?}",)?;
         }
         Ok(())
     }

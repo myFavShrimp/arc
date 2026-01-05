@@ -121,7 +121,6 @@ targets.groups["prod"] = {
 }
 ```
 
-Groups must be defined before they can be referenced in tasks.
 
 ### Tasks
 
@@ -203,7 +202,7 @@ Tasks are defined by assigning to the global `tasks` table. Tasks execute in def
 
 - `tags` (optional): Array of tags for filtering tasks. Tasks are automatically tagged with their name and source file path components (e.g., `modules/web/nginx.lua` adds tags: `modules`, `web`, `nginx`).
 
-- `groups` (optional): Array of group names where this task should run. If omitted, runs on all groups.
+- `targets` (optional): Array of group or system names where this task should run. If omitted, runs on all systems.
 
 - `requires` (optional): Array of tags this task requires. Tasks with matching tags are included when this task is selected. Resolved transitively.
 

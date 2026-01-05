@@ -46,7 +46,7 @@ pub fn task_matches_groups(task: &Task, selection: &GroupSelection) -> bool {
     match selection {
         GroupSelection::All => true,
         GroupSelection::Set(selected_set) => {
-            task.groups.is_empty() || !task.groups.is_disjoint(selected_set)
+            task.targets.is_empty() || !task.targets.is_disjoint(selected_set)
         }
     }
 }
@@ -168,17 +168,18 @@ pub fn select_groups_for_system<'a>(
 
 pub fn select_tasks_for_system<'a>(
     tasks: &'a Tasks,
+    system_name: &str,
     system_groups: &[&String],
 ) -> Vec<(&'a String, &'a Task)> {
     tasks
         .iter()
         .filter(|(_, task)| {
-            system_groups.is_empty()
-                || task.groups.is_empty()
+            task.targets.is_empty()
+                || task.targets.contains(system_name)
                 || task
-                    .groups
+                    .targets
                     .iter()
-                    .any(|group| system_groups.contains(&group))
+                    .any(|target| system_groups.contains(&target))
         })
         .collect()
 }

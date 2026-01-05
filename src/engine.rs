@@ -21,8 +21,9 @@ use state::{
 use validation::{
     GroupSystemNameConflictError, MissingSelectedGroupError, MissingSelectedSystemError,
     MissingSelectedTagError, UndefinedGroupMembersError, UndefinedRequiresError,
-    validate_group_members, validate_group_system_names, validate_selected_groups,
-    validate_selected_systems, validate_selected_tags, validate_task_requires,
+    UndefinedTaskTargetsError, validate_group_members, validate_group_system_names,
+    validate_selected_groups, validate_selected_systems, validate_selected_tags,
+    validate_task_requires, validate_task_targets,
 };
 
 use crate::{
@@ -91,6 +92,7 @@ pub enum ValidationError {
     MissingSelectedTag(#[from] MissingSelectedTagError),
     GroupSystemNameConflict(#[from] GroupSystemNameConflictError),
     UndefinedGroupMembers(#[from] UndefinedGroupMembersError),
+    UndefinedTaskTargets(#[from] UndefinedTaskTargetsError),
     UndefinedRequires(#[from] UndefinedRequiresError),
     Lock(#[from] MutexLockError),
 }
@@ -166,6 +168,7 @@ impl Engine {
 
         validate_group_system_names(&all_groups, &all_systems)?;
         validate_group_members(&all_groups, &all_systems)?;
+        validate_task_targets(&all_tasks, &all_groups, &all_systems)?;
         validate_task_requires(&all_tasks)?;
         validate_selected_groups(&all_groups, groups_selection)?;
         validate_selected_systems(&all_systems, systems_selection)?;
@@ -289,7 +292,8 @@ impl Engine {
 
         for (system_name, system_config) in selected_systems {
             let system_groups = select_groups_for_system(&selected_groups, &system_name);
-            let system_tasks = select_tasks_for_system(&tasks_to_execute, &system_groups);
+            let system_tasks =
+                select_tasks_for_system(&tasks_to_execute, &system_name, &system_groups);
 
             {
                 let mut logger = self.logger.lock().unwrap();

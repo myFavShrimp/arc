@@ -27,7 +27,7 @@ pub struct Task {
     pub when: Option<mlua::Function>,
     pub on_fail: OnFailBehavior,
     pub tags: HashSet<String>,
-    pub groups: HashSet<String>,
+    pub targets: HashSet<String>,
     pub requires: HashSet<String>,
     pub important: bool,
     pub result: Option<mlua::Value>,

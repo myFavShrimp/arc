@@ -129,7 +129,7 @@ function LocalSystem:directory(path) end
 ---@field when? fun(): boolean Guard predicate to determine if task should run (check previous task states/results)
 ---@field on_fail? FailureBehavior Behavior when this task fails (default: "continue")
 ---@field tags? string[] Array of tags associated with the task, used for filtering
----@field groups? string[] Array of group names this task should run on
+---@field targets? string[] Array of group or system names this task should run on
 ---@field requires? string[] Array of tags that this task requires
 ---@field important? boolean If true, task always runs regardless of tag filters, --no-reqs, and skip_system
 ---@field result? any The result of the task execution (available after execution)
