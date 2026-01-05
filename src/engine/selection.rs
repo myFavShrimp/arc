@@ -45,7 +45,9 @@ impl SystemSelection {
 pub fn task_matches_groups(task: &Task, selection: &GroupSelection) -> bool {
     match selection {
         GroupSelection::All => true,
-        GroupSelection::Set(selected_set) => !task.groups.is_disjoint(selected_set),
+        GroupSelection::Set(selected_set) => {
+            task.groups.is_empty() || !task.groups.is_disjoint(selected_set)
+        }
     }
 }
 
