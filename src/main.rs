@@ -25,7 +25,7 @@ fn main() -> Result<(), error::ErrorReport> {
             group,
             system,
             dry_run,
-            no_deps,
+            no_reqs,
             all_tags,
             all_systems,
         } => {
@@ -53,7 +53,7 @@ fn main() -> Result<(), error::ErrorReport> {
 
             Engine::new(logger, dry_run)
                 .map_err(error::ErrorReport::boxed_from)?
-                .execute(tags, groups, systems, no_deps)
+                .execute(tags, groups, systems, no_reqs)
                 .map_err(error::ErrorReport::boxed_from)?;
         }
     }

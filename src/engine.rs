@@ -12,7 +12,7 @@ use modules::{Modules, MountToGlobals};
 use objects::system::System;
 use selection::{
     GroupSelection, SystemSelection, TagSelection, select_groups, select_groups_for_system,
-    select_systems, select_tasks, select_tasks_for_system, select_tasks_with_dependencies,
+    select_systems, select_tasks, select_tasks_for_system, select_tasks_with_requires,
 };
 use state::{
     State, TasksErrorStateSetError, TasksExecutionStateResetError, TasksResultStateSetError,
@@ -20,8 +20,8 @@ use state::{
 };
 use validation::{
     MissingSelectedGroupError, MissingSelectedSystemError, MissingSelectedTagError,
-    UndefinedDependenciesError, validate_selected_groups, validate_selected_systems,
-    validate_selected_tags, validate_task_dependencies,
+    UndefinedRequiresError, validate_selected_groups, validate_selected_systems,
+    validate_selected_tags, validate_task_requires,
 };
 
 use crate::{
@@ -88,7 +88,7 @@ pub enum ValidationError {
     MissingSelectedGroup(#[from] MissingSelectedGroupError),
     MissingSelectedSystem(#[from] MissingSelectedSystemError),
     MissingSelectedTag(#[from] MissingSelectedTagError),
-    UndefinedDependencies(#[from] UndefinedDependenciesError),
+    UndefinedRequires(#[from] UndefinedRequiresError),
     Lock(#[from] MutexLockError),
 }
 
@@ -155,7 +155,7 @@ impl Engine {
         tags_selection: &TagSelection,
         groups_selection: &GroupSelection,
         systems_selection: &SystemSelection,
-        no_deps: bool,
+        no_reqs: bool,
     ) -> Result<FilteredSelection, ValidationError> {
         let all_groups = self.state.all_groups()?;
         let all_systems = self.state.all_systems()?;
@@ -164,14 +164,14 @@ impl Engine {
         validate_selected_groups(&all_groups, groups_selection)?;
         validate_selected_systems(&all_systems, systems_selection)?;
         validate_selected_tags(&all_tasks, tags_selection)?;
-        validate_task_dependencies(&all_tasks)?;
+        validate_task_requires(&all_tasks)?;
 
         let groups = select_groups(all_groups, groups_selection);
         let systems = select_systems(all_systems, &groups, systems_selection, groups_selection);
-        let tasks = if no_deps {
+        let tasks = if no_reqs {
             select_tasks(all_tasks, groups_selection, tags_selection)
         } else {
-            select_tasks_with_dependencies(all_tasks, groups_selection, tags_selection)
+            select_tasks_with_requires(all_tasks, groups_selection, tags_selection)
         };
 
         Ok(FilteredSelection {
@@ -267,7 +267,7 @@ impl Engine {
         tags_selection: TagSelection,
         groups_selection: GroupSelection,
         systems_selection: SystemSelection,
-        no_deps: bool,
+        no_reqs: bool,
     ) -> Result<(), EngineExecutionError> {
         self.execute_entrypoint()?;
 
@@ -279,7 +279,7 @@ impl Engine {
             &tags_selection,
             &groups_selection,
             &systems_selection,
-            no_deps,
+            no_reqs,
         )?;
 
         for (system_name, system_config) in selected_systems {

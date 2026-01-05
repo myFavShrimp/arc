@@ -76,32 +76,32 @@ pub fn validate_selected_tags(
 }
 
 #[derive(Debug)]
-pub struct UndefinedDependenciesError(pub Vec<(String, Vec<String>)>);
+pub struct UndefinedRequiresError(pub Vec<(String, Vec<String>)>);
 
-impl std::error::Error for UndefinedDependenciesError {}
+impl std::error::Error for UndefinedRequiresError {}
 
-impl std::fmt::Display for UndefinedDependenciesError {
+impl std::fmt::Display for UndefinedRequiresError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Tasks have undefined dependencies:")?;
+        writeln!(f, "Tasks have undefined requires:")?;
         for (task_name, tags) in &self.0 {
             let tags_list: Vec<_> = tags.iter().map(|t| format!("{t:?}")).collect();
             writeln!(
                 f,
-                "  - task {task_name:?} depends on undefined tags {tags_list:?}",
+                "  - task {task_name:?} requires undefined tags {tags_list:?}",
             )?;
         }
         Ok(())
     }
 }
 
-pub fn validate_task_dependencies(tasks: &Tasks) -> Result<(), UndefinedDependenciesError> {
+pub fn validate_task_requires(tasks: &Tasks) -> Result<(), UndefinedRequiresError> {
     let all_tags: HashSet<&String> = tasks.values().flat_map(|task| task.tags.iter()).collect();
 
     let undefined: Vec<(String, Vec<String>)> = tasks
         .iter()
         .filter_map(|(task_name, task)| {
             let missing: Vec<String> = task
-                .dependencies
+                .requires
                 .iter()
                 .filter(|dep_tag| !all_tags.contains(dep_tag))
                 .cloned()
@@ -118,6 +118,6 @@ pub fn validate_task_dependencies(tasks: &Tasks) -> Result<(), UndefinedDependen
     if undefined.is_empty() {
         Ok(())
     } else {
-        Err(UndefinedDependenciesError(undefined))
+        Err(UndefinedRequiresError(undefined))
     }
 }

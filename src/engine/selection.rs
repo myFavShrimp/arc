@@ -98,7 +98,7 @@ pub fn select_tasks(
     tasks
 }
 
-pub fn select_tasks_with_dependencies(
+pub fn select_tasks_with_requires(
     all_tasks: Tasks,
     group_selection: &GroupSelection,
     tag_selection: &TagSelection,
@@ -134,7 +134,7 @@ pub fn select_tasks_with_dependencies(
             continue;
         };
 
-        for dependency_tag in &task.dependencies {
+        for dependency_tag in &task.requires {
             if !all_tags.contains(dependency_tag) {
                 continue;
             }

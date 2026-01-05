@@ -20,7 +20,7 @@ pub struct TaskConfig {
     pub on_fail: OnFailBehavior,
     pub tags: HashSet<String>,
     pub groups: HashSet<String>,
-    pub dependencies: HashSet<String>,
+    pub requires: HashSet<String>,
     pub important: bool,
 }
 
@@ -64,9 +64,9 @@ impl FromLua for TaskConfig {
                     .unwrap_or_default()
                     .into_iter()
                     .collect();
-                let dependencies: HashSet<String> = table
-                    .get::<Option<Vec<String>>>("dependencies")
-                    .or(Err(mlua::Error::runtime("\"dependencies\" is invalid")))?
+                let requires: HashSet<String> = table
+                    .get::<Option<Vec<String>>>("requires")
+                    .or(Err(mlua::Error::runtime("\"requires\" is invalid")))?
                     .unwrap_or_default()
                     .into_iter()
                     .collect();
@@ -81,7 +81,7 @@ impl FromLua for TaskConfig {
                     on_fail,
                     tags,
                     groups,
-                    dependencies,
+                    requires,
                     important,
                 })
             }
@@ -109,10 +109,7 @@ impl IntoLua for Task {
 
         task_table.set("name", self.name)?;
         task_table.set("tags", self.tags.into_iter().collect::<Vec<_>>())?;
-        task_table.set(
-            "dependencies",
-            self.dependencies.into_iter().collect::<Vec<_>>(),
-        )?;
+        task_table.set("requires", self.requires.into_iter().collect::<Vec<_>>())?;
         task_table.set("important", self.important)?;
         task_table.set("result", self.result)?;
         task_table.set("handler", self.handler)?;
@@ -215,7 +212,7 @@ impl TasksTable {
             on_fail: config.on_fail,
             tags: config.tags,
             groups: config.groups,
-            dependencies: config.dependencies,
+            requires: config.requires,
             important: config.important,
             result: None,
             state: None,

@@ -139,7 +139,7 @@ tasks["install_nginx"] = {
 }
 
 tasks["configure_nginx"] = {
-    dependencies = {"install_nginx"},
+    requires = {"install_nginx"},
     handler = function(system)
         local config = system:file("/etc/nginx/nginx.conf")
         config.content = "..."
@@ -172,7 +172,7 @@ Options:
   -g, --group <GROUP>    Run tasks only on specific groups
   -s, --system <SYSTEM>  Run tasks only on specific systems
   -d, --dry-run          Print tasks that would be executed without running them
-      --no-deps          Skip dependency resolution and only run explicitly selected tasks
+      --no-reqs          Skip resolution of requires and only run explicitly selected tasks
       --all-tags         Run all tasks
       --all-systems      Run on all systems
   -h, --help             Print help
@@ -205,7 +205,7 @@ Tasks are defined by assigning to the global `tasks` table. Tasks execute in def
 
 - `groups` (optional): Array of group names where this task should run. If omitted, runs on all groups.
 
-- `dependencies` (optional): Array of tags this task depends on. Tasks with matching tags are included when this task is selected. Resolved transitively.
+- `requires` (optional): Array of tags this task requires. Tasks with matching tags are included when this task is selected. Resolved transitively.
 
 - `when` (optional): Guard predicate that determines if the task should run
   - *Returns*: `boolean` - If `false`, task is skipped
@@ -215,7 +215,7 @@ Tasks are defined by assigning to the global `tasks` table. Tasks execute in def
   - `"skip_system"`: Skip remaining tasks for this system
   - `"abort"`: Halt execution entirely
 
-- `important` (optional): If `true`, always runs regardless of tag filters, `--no-deps`, and `skip_system`
+- `important` (optional): If `true`, always runs regardless of tag filters, `--no-reqs`, and `skip_system`
 
 #### State (read-only, available after execution)
 
@@ -233,7 +233,7 @@ tasks["check_nginx"] = {
 }
 
 tasks["install_nginx"] = {
-    dependencies = {"check_nginx"},
+    requires = {"check_nginx"},
     when = function()
         return tasks["check_nginx"].result == false
     end,
@@ -247,7 +247,7 @@ tasks["install_nginx"] = {
 }
 ```
 
-Dependencies affect **which** tasks run, not **when**. Tasks always execute in definition order. If a task depends on something defined later, the dependency runs *after* the dependent task.
+Requires affect **which** tasks run, not **when**. Tasks always execute in definition order. If a task requires something defined later, the required task runs *after* the requiring task.
 
 ### System Object
 

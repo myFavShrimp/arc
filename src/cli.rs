@@ -30,9 +30,9 @@ pub enum Command {
         /// Print tasks that would be executed without running them
         #[arg(short, long)]
         dry_run: bool,
-        /// Skip dependency resolution and only run explicitly selected tasks
+        /// Skip resolution of requires and only run explicitly selected tasks
         #[arg(long)]
-        no_deps: bool,
+        no_reqs: bool,
         /// Run all tasks
         #[arg(long)]
         all_tags: bool,
@@ -49,7 +49,7 @@ impl Default for Command {
             group: Vec::new(),
             system: Vec::new(),
             dry_run: false,
-            no_deps: false,
+            no_reqs: false,
             all_tags: false,
             all_systems: false,
         }
