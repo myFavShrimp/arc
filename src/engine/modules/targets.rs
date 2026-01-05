@@ -24,13 +24,8 @@ impl TargetsTable {
         systems_memory: SharedMemory<TargetSystemsMemory>,
     ) -> Self {
         Self {
-            systems: SystemsTable {
-                systems_memory: systems_memory.clone(),
-            },
-            groups: GroupsTable {
-                groups_memory,
-                systems_memory,
-            },
+            systems: SystemsTable { systems_memory },
+            groups: GroupsTable { groups_memory },
         }
     }
 }

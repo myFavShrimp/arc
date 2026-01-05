@@ -79,8 +79,4 @@ impl TargetSystemsMemory {
             .ok_or(TargetSystemNotDefinedError(name.to_string()))?
             .clone())
     }
-
-    pub fn has(&self, name: &str) -> bool {
-        self.memory.contains_key(name)
-    }
 }

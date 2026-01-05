@@ -121,7 +121,7 @@ targets.groups["prod"] = {
 }
 ```
 
-Systems must be defined before they can be referenced in groups. Groups must be defined before they can be referenced in tasks.
+Groups must be defined before they can be referenced in tasks.
 
 ### Tasks
 

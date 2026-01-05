@@ -19,9 +19,10 @@ use state::{
     TasksStateStateSetError,
 };
 use validation::{
-    MissingSelectedGroupError, MissingSelectedSystemError, MissingSelectedTagError,
-    UndefinedRequiresError, validate_selected_groups, validate_selected_systems,
-    validate_selected_tags, validate_task_requires,
+    GroupSystemNameConflictError, MissingSelectedGroupError, MissingSelectedSystemError,
+    MissingSelectedTagError, UndefinedGroupMembersError, UndefinedRequiresError,
+    validate_group_members, validate_group_system_names, validate_selected_groups,
+    validate_selected_systems, validate_selected_tags, validate_task_requires,
 };
 
 use crate::{
@@ -88,6 +89,8 @@ pub enum ValidationError {
     MissingSelectedGroup(#[from] MissingSelectedGroupError),
     MissingSelectedSystem(#[from] MissingSelectedSystemError),
     MissingSelectedTag(#[from] MissingSelectedTagError),
+    GroupSystemNameConflict(#[from] GroupSystemNameConflictError),
+    UndefinedGroupMembers(#[from] UndefinedGroupMembersError),
     UndefinedRequires(#[from] UndefinedRequiresError),
     Lock(#[from] MutexLockError),
 }
@@ -161,10 +164,12 @@ impl Engine {
         let all_systems = self.state.all_systems()?;
         let all_tasks = self.state.all_tasks()?;
 
+        validate_group_system_names(&all_groups, &all_systems)?;
+        validate_group_members(&all_groups, &all_systems)?;
+        validate_task_requires(&all_tasks)?;
         validate_selected_groups(&all_groups, groups_selection)?;
         validate_selected_systems(&all_systems, systems_selection)?;
         validate_selected_tags(&all_tasks, tags_selection)?;
-        validate_task_requires(&all_tasks)?;
 
         let groups = select_groups(all_groups, groups_selection);
         let systems = select_systems(all_systems, &groups, systems_selection, groups_selection);

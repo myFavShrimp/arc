@@ -9,7 +9,6 @@ use crate::{
         target_groups::{
             TargetGroup, TargetGroupAdditionError, TargetGroupRetrievalError, TargetGroupsMemory,
         },
-        target_systems::TargetSystemsMemory,
     },
 };
 
@@ -74,12 +73,7 @@ impl IntoLua for TargetGroup {
 pub enum GroupAdditionError {
     Lock(#[from] MutexLockError),
     TargetGroupAddition(#[from] TargetGroupAdditionError),
-    GroupMembersNotDefined(#[from] GroupMembersNotDefinedError),
 }
-
-#[derive(Debug, thiserror::Error)]
-#[error("Group member {1:?} of group {0:?} is not defined")]
-pub struct GroupMembersNotDefinedError(String, pub Vec<String>);
 
 #[derive(Debug, thiserror::Error)]
 #[error("Failed to retrieve group configuration")]
@@ -90,22 +84,11 @@ pub enum GroupRetrievalError {
 
 pub struct GroupsTable {
     pub groups_memory: SharedMemory<TargetGroupsMemory>,
-    pub systems_memory: SharedMemory<TargetSystemsMemory>,
 }
 
 impl GroupsTable {
     fn add(&self, name: String, config: GroupConfig) -> Result<(), GroupAdditionError> {
         let mut groups_memory = self.groups_memory.lock().map_err(|_| MutexLockError)?;
-        let systems_memory = self.systems_memory.lock().map_err(|_| MutexLockError)?;
-
-        {
-            let mut group_members = config.members.clone();
-            group_members.retain(|member| !systems_memory.has(member));
-
-            if !group_members.is_empty() {
-                Err(GroupMembersNotDefinedError(name.clone(), group_members))?
-            }
-        }
 
         groups_memory.add(TargetGroup {
             name,
