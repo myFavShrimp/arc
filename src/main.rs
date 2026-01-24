@@ -36,13 +36,15 @@ fn main() -> Result<(), error::ErrorReport> {
             };
 
             let groups = if group.is_empty() {
-                GroupSelection::All
+                GroupSelection::None
             } else {
                 GroupSelection::Set(group.into_iter().collect())
             };
 
-            let systems = if all_systems || system.is_empty() {
+            let systems = if all_systems {
                 SystemSelection::All
+            } else if system.is_empty() {
+                SystemSelection::None
             } else {
                 SystemSelection::Set(system.into_iter().collect())
             };

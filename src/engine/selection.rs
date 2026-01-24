@@ -8,14 +8,14 @@ use crate::memory::{
 
 #[derive(Debug)]
 pub enum GroupSelection {
-    All,
+    None,
     Set(HashSet<String>),
 }
 
 impl GroupSelection {
     pub fn contains(&self, group_name: &str) -> bool {
         match self {
-            GroupSelection::All => true,
+            GroupSelection::None => false,
             GroupSelection::Set(selected_set) => selected_set.contains(group_name),
         }
     }
@@ -29,6 +29,7 @@ pub enum TagSelection {
 
 #[derive(Debug)]
 pub enum SystemSelection {
+    None,
     All,
     Set(HashSet<String>),
 }
@@ -36,6 +37,7 @@ pub enum SystemSelection {
 impl SystemSelection {
     pub fn contains(&self, system_name: &str) -> bool {
         match self {
+            SystemSelection::None => false,
             SystemSelection::All => true,
             SystemSelection::Set(selected_set) => selected_set.contains(system_name),
         }
@@ -44,7 +46,7 @@ impl SystemSelection {
 
 pub fn task_matches_groups(task: &Task, selection: &GroupSelection) -> bool {
     match selection {
-        GroupSelection::All => true,
+        GroupSelection::None => true,
         GroupSelection::Set(selected_set) => {
             task.targets.is_empty() || !task.targets.is_disjoint(selected_set)
         }
@@ -79,7 +81,7 @@ pub fn select_systems(
                 .any(|(_, group)| group.members.contains(name));
         let matches_systems = system_selection.contains(name);
 
-        matches_groups && matches_systems
+        matches_groups || matches_systems
     });
 
     systems
