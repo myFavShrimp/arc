@@ -279,7 +279,7 @@ Example:
 ```lua
 tasks["check_service"] = {
     handler = function(system)
-        log.info("Checking service on " .. system.name .. " at " .. system.address)
+        log.info("Checking nginx on " .. system.name)
         local result = system:run_command("systemctl status nginx")
         return result.exit_code == 0
     end
@@ -383,15 +383,14 @@ tasks["list_configs"] = {
         local dir = system:directory("/etc/nginx/sites-available")
         for _, entry in ipairs(dir:entries()) do
             -- Each entry is either a File or Directory object
-            print(entry.path)
-            print("Permissions: " .. entry.permissions)
-
             local metadata = entry:metadata()
 
-            if metadata and metadata.type == "file" and metadata.size then
-                print("File size: " .. metadata.size .. " bytes")
-            elseif metadata.type == "directory" then
-                print("Directory")
+            if metadata then
+                print(entry.path .. " (" .. metadata.type .. ")")
+
+                if metadata.type == "file" and metadata.size then
+                    print("  Size: " .. metadata.size .. " bytes")
+                end
             end
         end
     end
@@ -637,22 +636,19 @@ tasks["provision_database"] = {
     handler = function(system)
         log.info("Provisioning database on " .. system.name)
 
-        local result = system:run_command("systemctl status postgresql")
+        local check = system:run_command("which psql")
+        log.debug("which psql exit code: " .. check.exit_code)
 
-        log.debug("systemctl exit code: " .. result.exit_code)
-
-        if result.exit_code ~= 0 then
-            log.warn("PostgreSQL not running, attempting to install")
+        if check.exit_code ~= 0 then
+            log.warn("PostgreSQL not found, attempting to install")
 
             local install_result = system:run_command("apt-get install -y postgresql")
             if install_result.exit_code ~= 0 then
-                log.error("Failed to install PostgreSQL: " .. install_result.stderr)
-
-                error(install_result.stderr)
+                error("Failed to install PostgreSQL: " .. install_result.stderr)
             end
         end
 
-        log.debug("PostgreSQL installed and running")
+        log.info("PostgreSQL is available")
     end
 }
 ```
