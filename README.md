@@ -179,7 +179,7 @@ Options:
 
 ## Lua API Reference
 
-arc uses a restricted Lua environment. The following standard library modules are available:
+arc uses a restricted [LuaJIT](https://luajit.org/) environment. The following standard library modules are available:
 
 - [Modules](https://www.lua.org/manual/5.1/manual.html#5.3) (`require`)
 - [String Manipulation](https://www.lua.org/manual/5.1/manual.html#5.4) (`string.format`, `string.match`, `string.gsub`, etc.)
@@ -303,7 +303,7 @@ The File object represents a file on a target system and provides access to file
   - *Returns*: `boolean` - `true` if file exists, `false` otherwise
 
 - `metadata()`: Get file metadata
-  - *Returns*: A table with file metadata (see Metadata Structure section), or `nil` if file doesn't exist
+  - *Returns*: A table with file metadata (see [Metadata Structure](#metadata-structure)), or `nil` if file doesn't exist
 
 - `remove()`: Remove the file
 
@@ -357,7 +357,7 @@ The Directory object represents a directory on a target system and provides acce
 - `exists()`: Check if directory exists
   - *Returns*: `boolean` - `true` if directory exists, `false` otherwise
 - `metadata()`: Get directory metadata
-  - *Returns*: A table with directory metadata (see Metadata Structure section), or `nil` if directory doesn't exist
+  - *Returns*: A table with directory metadata (see [Metadata Structure](#metadata-structure)), or `nil` if directory doesn't exist
 - `parent()`: Get the parent directory
   - *Returns*: A Directory object representing the parent directory, or `nil` if at root path
 - `entries()`: Get directory entries
