@@ -65,7 +65,7 @@ Run the task:
 arc run -s web-server -t hello
 ```
 
-See [myfavshrimp/cfg](https://github.com/myfavshrimp/cfg) for an example managing local development machine configurations.
+See the [examples](examples/) directory for more complete usage examples.
 
 ## Core Concepts
 
