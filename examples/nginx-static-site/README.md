@@ -1,11 +1,6 @@
 # nginx-static-site
 
-Deploys an HTML + CSS frontend to nginx. The Docker container is used for demonstration purposes but could be any remote server with SSH access.
-
-## Prerequisites
-
-- Docker
-- arc
+Deploys a website to nginx.
 
 ## Usage
 

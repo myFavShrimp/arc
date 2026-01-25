@@ -1,0 +1,16 @@
+services:
+  loadbalancer:
+    build: .
+    ports:
+      - "2220:22"
+      - "8080:80"
+
+  backend-1:
+    build: .
+    ports:
+      - "2221:22"
+
+  backend-2:
+    build: .
+    ports:
+      - "2222:22"
