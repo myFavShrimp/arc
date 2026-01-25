@@ -69,16 +69,9 @@ pub fn select_systems(
     mut systems: TargetSystems,
     groups: &TargetGroups,
     system_selection: &SystemSelection,
-    group_selection: &GroupSelection,
 ) -> TargetSystems {
-    let mut filtered_groups = groups.clone();
-    filtered_groups.retain(|name, _| group_selection.contains(name));
-
     systems.retain(|name, _| {
-        let matches_groups = filtered_groups.is_empty()
-            || filtered_groups
-                .iter()
-                .any(|(_, group)| group.members.contains(name));
+        let matches_groups = groups.iter().any(|(_, group)| group.members.contains(name));
         let matches_systems = system_selection.contains(name);
 
         matches_groups || matches_systems

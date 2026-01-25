@@ -175,7 +175,7 @@ impl Engine {
         validate_selected_tags(&all_tasks, tags_selection)?;
 
         let groups = select_groups(all_groups, groups_selection);
-        let systems = select_systems(all_systems, &groups, systems_selection, groups_selection);
+        let systems = select_systems(all_systems, &groups, systems_selection);
         let tasks = if no_reqs {
             select_tasks(all_tasks, groups_selection, tags_selection)
         } else {
