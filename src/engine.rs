@@ -46,7 +46,7 @@ pub mod state;
 pub mod validation;
 
 struct FilteredSelection {
-    groups: TargetGroups,
+    available_groups: TargetGroups,
     systems: TargetSystems,
     tasks: Tasks,
 }
@@ -174,8 +174,8 @@ impl Engine {
         validate_selected_systems(&all_systems, systems_selection)?;
         validate_selected_tags(&all_tasks, tags_selection)?;
 
-        let groups = select_groups(all_groups, groups_selection);
-        let systems = select_systems(all_systems, &groups, systems_selection);
+        let selected_groups = select_groups(all_groups.clone(), groups_selection);
+        let systems = select_systems(all_systems, &selected_groups, systems_selection);
         let tasks = if no_reqs {
             select_tasks(all_tasks, groups_selection, tags_selection)
         } else {
@@ -183,7 +183,7 @@ impl Engine {
         };
 
         Ok(FilteredSelection {
-            groups,
+            available_groups: all_groups,
             systems,
             tasks,
         })
@@ -280,7 +280,7 @@ impl Engine {
         self.execute_entrypoint()?;
 
         let FilteredSelection {
-            groups: selected_groups,
+            available_groups,
             systems: selected_systems,
             tasks: tasks_to_execute,
         } = self.validate_and_filter_by_selection(
@@ -291,7 +291,7 @@ impl Engine {
         )?;
 
         for (system_name, system_config) in selected_systems {
-            let system_groups = select_groups_for_system(&selected_groups, &system_name);
+            let system_groups = select_groups_for_system(&available_groups, &system_name);
             let system_tasks =
                 select_tasks_for_system(&tasks_to_execute, &system_name, &system_groups);
 
