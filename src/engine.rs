@@ -143,7 +143,11 @@ impl Engine {
         })
     }
 
-    fn execute_entrypoint(&self) -> Result<(), EntrypointExecutionError> {
+    pub fn state(&self) -> &State {
+        &self.state
+    }
+
+    pub fn execute_entrypoint(&self) -> Result<(), EntrypointExecutionError> {
         let entry_point_script_path = PathBuf::from(ENTRY_POINT_SCRIPT);
         let entry_point_script = std::fs::read_to_string(&entry_point_script_path)?;
 

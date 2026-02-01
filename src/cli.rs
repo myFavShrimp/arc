@@ -40,6 +40,22 @@ pub enum Command {
         #[arg(long)]
         all_systems: bool,
     },
+    /// List registered items
+    List {
+        /// Item type to list
+        #[arg(value_enum)]
+        item_type: ListItemType,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum ListItemType {
+    Tasks,
+    Groups,
+    Systems,
 }
 
 impl Default for Command {
