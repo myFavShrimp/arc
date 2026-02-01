@@ -47,8 +47,8 @@ pub mod validation;
 
 struct FilteredSelection {
     available_groups: TargetGroups,
-    systems: TargetSystems,
-    tasks: Tasks,
+    filtered_systems: TargetSystems,
+    filtered_tasks: Tasks,
 }
 
 pub struct Engine {
@@ -184,8 +184,8 @@ impl Engine {
 
         Ok(FilteredSelection {
             available_groups: all_groups,
-            systems,
-            tasks,
+            filtered_systems: systems,
+            filtered_tasks: tasks,
         })
     }
 
@@ -281,8 +281,8 @@ impl Engine {
 
         let FilteredSelection {
             available_groups,
-            systems: selected_systems,
-            tasks: tasks_to_execute,
+            filtered_systems: selected_systems,
+            filtered_tasks: tasks_to_execute,
         } = self.validate_and_filter_by_selection(
             &tags_selection,
             &groups_selection,
