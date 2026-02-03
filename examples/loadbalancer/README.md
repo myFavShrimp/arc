@@ -1,4 +1,4 @@
-# multi-tier
+# loadbalancer
 
 Sets up a load-balanced web application with HAProxy and two nginx backend servers.
 

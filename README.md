@@ -73,7 +73,7 @@ Run the task:
 arc run -s web-server -t hello
 ```
 
-See the [examples](examples/) directory for more complete usage examples.
+See the [examples](examples/) directory for more complete usage examples. You can also explore the available commands using `arc --help`, `arc run --help` etc.
 
 ## Core Concepts
 
@@ -113,7 +113,7 @@ targets.systems["localhost"] = {
 }
 ```
 
-Local systems use the same API as remote systems (same methods for `run_command()`, `file()`, `directory()`, etc.), but operations execute locally instead of over SSH. The `address`, `port`, and `user` properties return `nil` for local systems.
+Local systems use the same API as remote systems but operations execute locally instead of over SSH. The `address`, `port`, and `user` properties return `nil` for local systems.
 
 #### Groups
 
@@ -156,34 +156,6 @@ tasks["configure_nginx"] = {
 ```
 
 See [Tasks API](#tasks-1) for all available fields.
-
-## CLI Reference
-
-### `arc init`
-
-Initialize a new arc project with type definitions for LSP support, code completion and type checking.
-
-```bash
-arc init /path/to/project
-```
-
-### `arc run`
-
-Executes tasks defined in the `arc.lua` file.
-
-```
-Usage: arc run [OPTIONS] <--tag <TAG>|--all-tags> <--group <GROUP>|--system <SYSTEM>|--all-systems>
-
-Options:
-  -t, --tag <TAG>        Select tasks by tag
-  -g, --group <GROUP>    Run tasks only on specific groups
-  -s, --system <SYSTEM>  Run tasks only on specific systems
-  -d, --dry-run          Print tasks that would be executed without running them
-      --no-reqs          Skip resolution of requires and only run explicitly selected tasks
-      --all-tags         Run all tasks
-      --all-systems      Run on all systems
-  -h, --help             Print help
-```
 
 ## Lua API Reference
 
