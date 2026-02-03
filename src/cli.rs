@@ -27,9 +27,9 @@ pub enum Command {
         /// Run tasks only on specific systems
         #[arg(short, long)]
         system: Vec<String>,
-        /// Print tasks that would be executed without running them
+        /// List selected tasks without executing
         #[arg(short, long)]
-        dry_run: bool,
+        list: bool,
         /// Skip resolution of requires and only run explicitly selected tasks
         #[arg(long)]
         no_reqs: bool,
@@ -64,7 +64,7 @@ impl Default for Command {
             tag: Vec::new(),
             group: Vec::new(),
             system: Vec::new(),
-            dry_run: false,
+            list: false,
             no_reqs: false,
             all_tags: false,
             all_systems: false,

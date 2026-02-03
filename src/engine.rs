@@ -3,6 +3,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use indexmap::IndexMap;
+
 use delegator::{
     executor::{ExecutionTargetSetError, Executor},
     operator::{FileSystemOperator, OperationTargetSetError},
@@ -31,9 +33,9 @@ use crate::{
     error::MutexLockError,
     logger::{LogLevel, Logger},
     memory::{
-        target_groups::{TargetGroups, TargetGroupsMemory},
-        target_systems::{TargetSystemKind, TargetSystems, TargetSystemsMemory},
-        tasks::{OnFailBehavior, Task, TaskState, Tasks, TasksMemory},
+        target_groups::TargetGroupsMemory,
+        target_systems::{TargetSystem, TargetSystemKind, TargetSystemsMemory},
+        tasks::{OnFailBehavior, Task, TaskState, TasksMemory},
     },
     progress::{SystemLogger, SystemLoggerCreationError, TaskLoggerCreationError},
 };
@@ -46,16 +48,9 @@ pub mod selection;
 pub mod state;
 pub mod validation;
 
-struct FilteredSelection {
-    available_groups: TargetGroups,
-    filtered_systems: TargetSystems,
-    filtered_tasks: Tasks,
-}
-
 pub struct Engine {
     lua: Lua,
     state: State,
-    is_dry_run: bool,
     logger: Logger,
     log_module_logger: SharedLogger,
 }
@@ -119,7 +114,7 @@ pub enum TaskExecutionError {
 }
 
 impl Engine {
-    pub fn new(logger: Logger, is_dry_run: bool) -> Result<Self, EngineBuilderCreationError> {
+    pub fn new(logger: Logger) -> Result<Self, EngineBuilderCreationError> {
         let mut lua = Lua::new_with(
             StdLib::TABLE | StdLib::STRING | StdLib::PACKAGE | StdLib::BIT | StdLib::MATH,
             LuaOptions::new().catch_rust_panics(true),
@@ -143,7 +138,6 @@ impl Engine {
         Ok(Self {
             lua,
             state: State::new(target_systems_memory, target_groups_memory, tasks_memory),
-            is_dry_run,
             logger,
             log_module_logger,
         })
@@ -165,13 +159,13 @@ impl Engine {
         Ok(())
     }
 
-    fn validate_and_filter_by_selection(
+    pub fn validate_and_filter_by_selection(
         &self,
         tags_selection: &TagSelection,
         groups_selection: &GroupSelection,
         systems_selection: &SystemSelection,
         no_reqs: bool,
-    ) -> Result<FilteredSelection, ValidationError> {
+    ) -> Result<IndexMap<TargetSystem, Vec<Task>>, ValidationError> {
         let all_groups = self.state.all_groups()?;
         let all_systems = self.state.all_systems()?;
         let all_tasks = self.state.all_tasks()?;
@@ -185,44 +179,39 @@ impl Engine {
         validate_selected_tags(&all_tasks, tags_selection)?;
 
         let selected_groups = select_groups(all_groups.clone(), groups_selection);
-        let systems = select_systems(all_systems, &selected_groups, systems_selection);
-        let tasks = if no_reqs {
+        let filtered_systems = select_systems(all_systems, &selected_groups, systems_selection);
+        let filtered_tasks = if no_reqs {
             select_tasks(all_tasks, groups_selection, tags_selection)
         } else {
             select_tasks_with_requires(all_tasks, groups_selection, tags_selection)
         };
 
-        Ok(FilteredSelection {
-            available_groups: all_groups,
-            filtered_systems: systems,
-            filtered_tasks: tasks,
-        })
-    }
+        let mut result = IndexMap::new();
 
-    fn print_dry_run_tasks(&self, tasks: &[(&String, &Task)]) {
-        for (_task_name, task) in tasks {
-            self.logger.info(&format!(
-                "{} {}",
-                task.name,
-                task.tags
-                    .iter()
-                    .map(|tag| format!("#{tag}"))
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            ));
+        for (system_name, system_config) in filtered_systems {
+            let system_groups = select_groups_for_system(&all_groups, &system_name);
+            let system_tasks: Vec<Task> =
+                select_tasks_for_system(&filtered_tasks, &system_name, &system_groups)
+                    .into_iter()
+                    .cloned()
+                    .collect();
+
+            result.insert(system_config, system_tasks);
         }
+
+        Ok(result)
     }
 
     // TODO: do not propagate immediately, summarize instead
     fn run_tasks_on_system(
         &self,
         system: System,
-        tasks: Vec<(&String, &Task)>,
+        tasks: Vec<Task>,
         system_logger: &SystemLogger,
     ) -> Result<(), TaskExecutionError> {
         let mut skip_system = false;
 
-        for (_task_name, task_config) in tasks {
+        for task_config in tasks {
             let task_logger = system_logger.task(&task_config.name)?;
 
             if skip_system && !task_config.important {
@@ -303,48 +292,34 @@ impl Engine {
     ) -> Result<(), EngineExecutionError> {
         self.execute_entrypoint()?;
 
-        let FilteredSelection {
-            available_groups,
-            filtered_systems: selected_systems,
-            filtered_tasks: tasks_to_execute,
-        } = self.validate_and_filter_by_selection(
+        let system_tasks = self.validate_and_filter_by_selection(
             &tags_selection,
             &groups_selection,
             &systems_selection,
             no_reqs,
         )?;
 
-        for (system_name, system_config) in selected_systems {
-            let system_groups = select_groups_for_system(&available_groups, &system_name);
-            let system_tasks =
-                select_tasks_for_system(&tasks_to_execute, &system_name, &system_groups);
+        for (system, tasks) in system_tasks {
+            let system_logger = self.logger.system(&system.name)?;
 
-            if system_tasks.is_empty() {
+            if tasks.is_empty() {
+                // TODO: use system logger
                 self.logger.info("No tasks to execute.");
-                continue;
-            }
-
-            if self.is_dry_run {
-                self.print_dry_run_tasks(&system_tasks);
                 continue;
             }
 
             self.state.reset_execution_state()?;
 
-            let system_logger = self.logger.system(&system_name)?;
-
             let system = System {
-                name: system_config.name.clone(),
-                kind: match &system_config.kind {
+                name: system.name.clone(),
+                kind: match &system.kind {
                     TargetSystemKind::Remote(remote_target_system) => {
                         SystemKind::Remote(objects::system::RemoteSystem {
                             address: remote_target_system.address,
                             port: remote_target_system.port,
                             user: remote_target_system.user.clone(),
-                            executor: Executor::new_for_system(&system_config)?,
-                            file_system_operator: FileSystemOperator::new_for_system(
-                                &system_config,
-                            )?,
+                            executor: Executor::new_for_system(&system)?,
+                            file_system_operator: FileSystemOperator::new_for_system(&system)?,
                         })
                     }
                     TargetSystemKind::Local => {
@@ -354,7 +329,7 @@ impl Engine {
             };
 
             // TODO: no immediate propagation, end system for summary instead
-            self.run_tasks_on_system(system, system_tasks, &system_logger)?;
+            self.run_tasks_on_system(system, tasks, &system_logger)?;
 
             system_logger.finish();
         }

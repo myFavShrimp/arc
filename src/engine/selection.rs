@@ -165,10 +165,10 @@ pub fn select_tasks_for_system<'a>(
     tasks: &'a Tasks,
     system_name: &str,
     system_groups: &[&String],
-) -> Vec<(&'a String, &'a Task)> {
+) -> Vec<&'a Task> {
     tasks
-        .iter()
-        .filter(|(_, task)| {
+        .values()
+        .filter(|task| {
             task.targets.is_empty()
                 || task.targets.contains(system_name)
                 || task

@@ -3,19 +3,19 @@ use std::{
     net::{IpAddr, SocketAddr},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct TargetSystem {
     pub name: String,
     pub kind: TargetSystemKind,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum TargetSystemKind {
     Remote(RemoteTargetSystem),
     Local,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct RemoteTargetSystem {
     pub address: IpAddr,
     pub port: u16,

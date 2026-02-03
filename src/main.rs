@@ -29,7 +29,7 @@ fn main() -> Result<(), error::ErrorReport> {
             tag,
             group,
             system,
-            dry_run,
+            list,
             no_reqs,
             all_tags,
             all_systems,
@@ -58,18 +58,36 @@ fn main() -> Result<(), error::ErrorReport> {
                 logger.warn(&format!("Failed to load .env: {}", error));
             };
 
-            let engine = Engine::new(logger, dry_run).map_err(error::ErrorReport::boxed_from)?;
+            let engine = Engine::new(logger).map_err(error::ErrorReport::boxed_from)?;
 
-            engine
-                .execute(tags, groups, systems, no_reqs)
-                .map_err(error::ErrorReport::boxed_from)?;
+            if list {
+                engine
+                    .execute_entrypoint()
+                    .map_err(error::ErrorReport::boxed_from)?;
+
+                let system_tasks = engine
+                    .validate_and_filter_by_selection(&tags, &groups, &systems, no_reqs)
+                    .map_err(error::ErrorReport::boxed_from)?;
+
+                for (system, tasks) in &system_tasks {
+                    if !tasks.is_empty() {
+                        println!("\nSYSTEM : {}\n", system.name);
+
+                        list::list_system_tasks(tasks);
+                    }
+                }
+            } else {
+                engine
+                    .execute(tags, groups, systems, no_reqs)
+                    .map_err(error::ErrorReport::boxed_from)?;
+            }
         }
         cli::Command::List { item_type, json } => {
             if let Err(error) = dotenvy::dotenv_override() {
                 logger.warn(&format!("Failed to load .env: {}", error));
             };
 
-            let engine = Engine::new(logger, false).map_err(error::ErrorReport::boxed_from)?;
+            let engine = Engine::new(logger).map_err(error::ErrorReport::boxed_from)?;
 
             engine
                 .execute_entrypoint()

@@ -1,5 +1,8 @@
 use serde::Serialize;
-use tabled::{Table, Tabled, settings::Style};
+use tabled::{
+    Table, Tabled,
+    settings::{Padding, Style, object::Columns},
+};
 
 use crate::{
     cli::ListItemType,
@@ -8,7 +11,7 @@ use crate::{
     memory::{
         target_groups::TargetGroups,
         target_systems::{TargetSystemKind, TargetSystems},
-        tasks::Tasks,
+        tasks::{Task as MemoryTask, Tasks},
     },
 };
 
@@ -152,9 +155,28 @@ fn print_json<T: Serialize>(value: &T) -> Result<(), ListError> {
 
 fn print_table<T: Tabled>(items: Vec<T>) {
     let mut table = Table::new(items);
-    table.with(Style::blank());
+    table
+        .with(Style::blank())
+        .modify(Columns::first(), Padding::new(0, 1, 0, 0))
+        .modify(Columns::last(), Padding::new(1, 0, 0, 0));
 
     println!("{}", table);
+}
+
+pub(crate) fn list_system_tasks(tasks: &[MemoryTask]) {
+    let display_tasks: Vec<Task> = tasks
+        .iter()
+        .map(|task| Task {
+            name: task.name.clone(),
+            tags: task.tags.iter().cloned().collect(),
+            targets: task.targets.iter().cloned().collect(),
+            requires: task.requires.iter().cloned().collect(),
+            important: task.important,
+            on_fail: task.on_fail.to_string(),
+        })
+        .collect();
+
+    print_table(display_tasks);
 }
 
 pub fn list(engine: &Engine, item_type: ListItemType, json: bool) -> Result<(), ListError> {
