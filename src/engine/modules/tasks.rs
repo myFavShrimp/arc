@@ -5,7 +5,6 @@ use mlua::{FromLua, IntoLua, Lua, MetaMethod, UserData};
 use crate::{
     engine::readonly::set_readonly,
     error::{ErrorReport, MutexLockError},
-    logger::SharedLogger,
     memory::{
         SharedMemory,
         tasks::{OnFailBehavior, Task, TaskAdditionError, TaskRetrievalError, TasksMemory},
@@ -141,47 +140,24 @@ pub enum TasksModuleRetrievalError {
 
 pub struct TasksTable {
     pub tasks_memory: SharedMemory<TasksMemory>,
-    pub logger: SharedLogger,
 }
 
 impl TasksTable {
-    pub fn new(tasks_memory: SharedMemory<TasksMemory>, logger: SharedLogger) -> Self {
-        Self {
-            tasks_memory,
-            logger,
-        }
+    pub fn new(tasks_memory: SharedMemory<TasksMemory>) -> Self {
+        Self { tasks_memory }
     }
 
     pub fn add(
         &self,
-        lua: &Lua,
+        _lua: &Lua,
         name: String,
         config: TaskConfig,
     ) -> Result<(), TaskConfigAdditionError> {
         let mut tasks = self.tasks_memory.lock().map_err(|_| MutexLockError)?;
 
-        let wrapped_handler = {
-            let logger = self.logger.clone();
-            let task_name = name.clone();
-            let handler = config.handler.clone();
-
-            lua.create_function(move |_, value: mlua::Value| {
-                let mut guard = logger.lock().unwrap();
-                guard.enter_task(&task_name);
-                drop(guard);
-
-                let result = handler.clone().call::<mlua::Value>(value);
-
-                let mut guard = logger.lock().unwrap();
-                guard.pop_task();
-
-                result
-            })?
-        };
-
         tasks.add(Task {
             name,
-            handler: wrapped_handler,
+            handler: config.handler,
             when: config.when,
             on_fail: config.on_fail,
             tags: config.tags,

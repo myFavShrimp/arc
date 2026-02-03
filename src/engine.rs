@@ -8,7 +8,7 @@ use delegator::{
     operator::{FileSystemOperator, OperationTargetSetError},
 };
 use mlua::{Lua, LuaOptions, StdLib};
-use modules::{Modules, MountToGlobals};
+use modules::{LogModuleLogger, Modules, MountToGlobals, SharedLogger};
 use objects::system::System;
 use selection::{
     GroupSelection, SystemSelection, TagSelection, select_groups, select_groups_for_system,
@@ -29,12 +29,13 @@ use validation::{
 use crate::{
     engine::objects::system::SystemKind,
     error::MutexLockError,
-    logger::{Logger, SharedLogger},
+    logger::{LogLevel, Logger},
     memory::{
         target_groups::{TargetGroups, TargetGroupsMemory},
         target_systems::{TargetSystemKind, TargetSystems, TargetSystemsMemory},
         tasks::{OnFailBehavior, Task, TaskState, Tasks, TasksMemory},
     },
+    progress::{SystemLogger, SystemLoggerCreationError, TaskLoggerCreationError},
 };
 
 pub mod delegator;
@@ -55,7 +56,8 @@ pub struct Engine {
     lua: Lua,
     state: State,
     is_dry_run: bool,
-    logger: SharedLogger,
+    logger: Logger,
+    log_module_logger: SharedLogger,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -75,6 +77,7 @@ pub enum EngineExecutionError {
     ExecutionTargetSet(#[from] ExecutionTargetSetError),
     OperationTargetSet(#[from] OperationTargetSetError),
     TasksExecutionStateReset(#[from] TasksExecutionStateResetError),
+    SystemLoggerCreation(#[from] SystemLoggerCreationError),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -112,11 +115,11 @@ pub enum TaskExecutionError {
     TasksStateSet(#[from] TasksStateStateSetError),
     TasksErrorSet(#[from] TasksErrorStateSetError),
     TaskAborted(#[from] TaskAbortedError),
+    TaskLoggerCreation(#[from] TaskLoggerCreationError),
 }
 
 impl Engine {
     pub fn new(logger: Logger, is_dry_run: bool) -> Result<Self, EngineBuilderCreationError> {
-        let logger = Arc::new(Mutex::new(logger));
         let mut lua = Lua::new_with(
             StdLib::TABLE | StdLib::STRING | StdLib::PACKAGE | StdLib::BIT | StdLib::MATH,
             LuaOptions::new().catch_rust_panics(true),
@@ -127,11 +130,13 @@ impl Engine {
         #[allow(clippy::arc_with_non_send_sync)]
         let tasks_memory = Arc::new(Mutex::new(TasksMemory::default()));
 
+        let log_module_logger = SharedLogger::new(logger.clone());
+
         Modules::new(
             target_systems_memory.clone(),
             target_groups_memory.clone(),
             tasks_memory.clone(),
-            logger.clone(),
+            log_module_logger.clone(),
         )
         .mount_to_globals(&mut lua)?;
 
@@ -140,6 +145,7 @@ impl Engine {
             state: State::new(target_systems_memory, target_groups_memory, tasks_memory),
             is_dry_run,
             logger,
+            log_module_logger,
         })
     }
 
@@ -194,10 +200,8 @@ impl Engine {
     }
 
     fn print_dry_run_tasks(&self, tasks: &[(&String, &Task)]) {
-        let logger = self.logger.lock().unwrap();
-
         for (_task_name, task) in tasks {
-            logger.info(&format!(
+            self.logger.info(&format!(
                 "{} {}",
                 task.name,
                 task.tags
@@ -213,13 +217,18 @@ impl Engine {
         &self,
         system: System,
         tasks: Vec<(&String, &Task)>,
-    ) -> Result<(), TaskExecutionError> {
+        system_logger: &SystemLogger,
+    ) -> Result<bool, TaskExecutionError> {
         let mut skip_system = false;
+        let mut had_failure = false;
 
         for (_task_name, task_config) in tasks {
+            let task_logger = system_logger.task(&task_config.name)?;
+
             if skip_system && !task_config.important {
                 self.state
                     .set_task_state(&task_config.name, TaskState::Skipped)?;
+                task_logger.skip();
                 continue;
             }
 
@@ -228,31 +237,44 @@ impl Engine {
                 if !should_run {
                     self.state
                         .set_task_state(&task_config.name, TaskState::Skipped)?;
+                    task_logger.skip();
                     continue;
                 }
             }
+
+            task_logger.start();
+
+            let previous_logger = self
+                .log_module_logger
+                .change_logger(LogModuleLogger::Task(task_logger.clone()));
 
             match task_config.handler.call::<mlua::Value>(system.clone()) {
                 Ok(result) => {
                     self.state.set_task_result(&task_config.name, result)?;
                     self.state
                         .set_task_state(&task_config.name, TaskState::Success)?;
-                }
-                Err(e) => {
-                    let error_message = e.to_string();
+                    _ = self.log_module_logger.change_logger(previous_logger);
 
-                    {
-                        let logger = self.logger.lock().unwrap();
-                        logger.error(&format!(
-                            "Task '{}' failed: {}",
-                            task_config.name, error_message
-                        ));
-                    }
+                    task_logger.finish(TaskState::Success);
+                }
+                Err(error) => {
+                    let error_message = error.to_string();
+
+                    task_logger.log(
+                        LogLevel::Error,
+                        &format!("Task '{}' failed: {}", task_config.name, error_message),
+                    );
 
                     self.state
                         .set_task_state(&task_config.name, TaskState::Failed)?;
                     self.state
                         .set_task_error(&task_config.name, error_message.clone())?;
+
+                    _ = self.log_module_logger.change_logger(previous_logger);
+
+                    task_logger.finish(TaskState::Failed);
+
+                    had_failure = true;
 
                     match task_config.on_fail {
                         OnFailBehavior::Continue => {}
@@ -271,7 +293,7 @@ impl Engine {
             }
         }
 
-        Ok(())
+        Ok(!had_failure)
     }
 
     pub fn execute(
@@ -299,31 +321,19 @@ impl Engine {
             let system_tasks =
                 select_tasks_for_system(&tasks_to_execute, &system_name, &system_groups);
 
-            {
-                let mut logger = self.logger.lock().unwrap();
-                logger.current_system(&system_name);
-                drop(logger);
-            }
-
             if system_tasks.is_empty() {
-                let logger = self.logger.lock().unwrap();
-                logger.info("No tasks to execute.");
-                drop(logger);
-
+                self.logger.info("No tasks to execute.");
                 continue;
             }
 
             if self.is_dry_run {
                 self.print_dry_run_tasks(&system_tasks);
-
-                let mut logger = self.logger.lock().unwrap();
-                logger.reset_system();
-                drop(logger);
-
                 continue;
             }
 
             self.state.reset_execution_state()?;
+
+            let system_logger = self.logger.system(&system_name)?;
 
             let system = System {
                 name: system_config.name.clone(),
@@ -345,10 +355,10 @@ impl Engine {
                 },
             };
 
-            self.run_tasks_on_system(system, system_tasks)?;
+            // TODO: no immediate propagation, summarize instead
+            let success = self.run_tasks_on_system(system, system_tasks, &system_logger)?;
 
-            let mut logger = self.logger.lock().unwrap();
-            logger.reset_system();
+            system_logger.finish(success);
         }
 
         Ok(())

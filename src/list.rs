@@ -19,7 +19,7 @@ pub enum ListError {
     Serialization(#[from] serde_json::Error),
 }
 
-fn format_list(items: &Vec<String>) -> String {
+fn format_list(items: &[String]) -> String {
     if items.is_empty() {
         String::new()
     } else {

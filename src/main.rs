@@ -1,9 +1,11 @@
 use clap::Parser;
 use cli::Cli;
 use engine::Engine;
-use logger::Logger;
 
-use crate::engine::selection::{GroupSelection, SystemSelection, TagSelection};
+use crate::{
+    engine::selection::{GroupSelection, SystemSelection, TagSelection},
+    logger::Logger,
+};
 
 mod cli;
 mod engine;
@@ -12,9 +14,11 @@ mod init;
 mod list;
 mod logger;
 mod memory;
+mod progress;
 
 fn main() -> Result<(), error::ErrorReport> {
     let cli_args = Cli::parse();
+
     let logger = Logger::new();
 
     match cli_args.command {
@@ -54,8 +58,9 @@ fn main() -> Result<(), error::ErrorReport> {
                 logger.warn(&format!("Failed to load .env: {}", error));
             };
 
-            Engine::new(logger, dry_run)
-                .map_err(error::ErrorReport::boxed_from)?
+            let engine = Engine::new(logger, dry_run).map_err(error::ErrorReport::boxed_from)?;
+
+            engine
                 .execute(tags, groups, systems, no_reqs)
                 .map_err(error::ErrorReport::boxed_from)?;
         }

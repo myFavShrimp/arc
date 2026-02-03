@@ -1,9 +1,6 @@
-use crate::{
-    logger::SharedLogger,
-    memory::{
-        SharedMemory, target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory,
-        tasks::TasksMemory,
-    },
+use crate::memory::{
+    SharedMemory, target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory,
+    tasks::TasksMemory,
 };
 
 mod env;
@@ -13,6 +10,8 @@ mod log;
 mod targets;
 mod tasks;
 mod templates;
+
+pub use log::{LogModuleLogger, SharedLogger};
 
 pub struct Modules {
     templates: templates::Templates,
@@ -29,15 +28,15 @@ impl Modules {
         target_systems: SharedMemory<TargetSystemsMemory>,
         target_groups: SharedMemory<TargetGroupsMemory>,
         tasks: SharedMemory<TasksMemory>,
-        logger: SharedLogger,
+        shared_logger: SharedLogger,
     ) -> Self {
         let format = format::Format;
         let targets = targets::TargetsTable::new(target_groups, target_systems.clone());
-        let tasks = tasks::TasksTable::new(tasks, logger);
+        let tasks = tasks::TasksTable::new(tasks);
         let templates = templates::Templates::new();
-        let log = log::Log;
         let env = env::Env;
         let host = host::Host::new();
+        let log = log::Log::new(shared_logger);
 
         Self {
             format,
@@ -59,7 +58,6 @@ impl MountToGlobals for Modules {
         globals.set("targets", self.targets)?;
         globals.set("tasks", self.tasks)?;
         globals.set("template", self.templates)?;
-        globals.set("log", self.log.clone())?;
         globals.set("env", self.env)?;
         globals.set("host", self.host)?;
 
