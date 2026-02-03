@@ -213,6 +213,7 @@ impl Engine {
         }
     }
 
+    // TODO: do not propagate immediately, summarize instead
     fn run_tasks_on_system(
         &self,
         system: System,
@@ -352,7 +353,7 @@ impl Engine {
                 },
             };
 
-            // TODO: no immediate propagation, summarize instead
+            // TODO: no immediate propagation, end system for summary instead
             self.run_tasks_on_system(system, system_tasks, &system_logger)?;
 
             system_logger.finish();
