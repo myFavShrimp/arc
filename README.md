@@ -29,6 +29,14 @@ sudo dnf install openssl-devel
 sudo apt install build-essential libssl-dev
 ```
 
+**MacOS**
+
+- Install [Homebrew](https://brew.sh/)
+
+```bash
+brew install openssl
+```
+
 ## Quick Start
 
 ### Creating a New Project
