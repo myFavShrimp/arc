@@ -218,9 +218,8 @@ impl Engine {
         system: System,
         tasks: Vec<(&String, &Task)>,
         system_logger: &SystemLogger,
-    ) -> Result<bool, TaskExecutionError> {
+    ) -> Result<(), TaskExecutionError> {
         let mut skip_system = false;
-        let mut had_failure = false;
 
         for (_task_name, task_config) in tasks {
             let task_logger = system_logger.task(&task_config.name)?;
@@ -274,8 +273,6 @@ impl Engine {
 
                     task_logger.finish(TaskState::Failed);
 
-                    had_failure = true;
-
                     match task_config.on_fail {
                         OnFailBehavior::Continue => {}
                         OnFailBehavior::SkipSystem => {
@@ -293,7 +290,7 @@ impl Engine {
             }
         }
 
-        Ok(!had_failure)
+        Ok(())
     }
 
     pub fn execute(
@@ -356,9 +353,9 @@ impl Engine {
             };
 
             // TODO: no immediate propagation, summarize instead
-            let success = self.run_tasks_on_system(system, system_tasks, &system_logger)?;
+            self.run_tasks_on_system(system, system_tasks, &system_logger)?;
 
-            system_logger.finish(success);
+            system_logger.finish();
         }
 
         Ok(())

@@ -1,7 +1,41 @@
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+
 use colored::Colorize;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 use crate::{logger::LogLevel, memory::tasks::TaskState};
+
+#[derive(Debug, Clone, Default)]
+pub struct TaskSummary {
+    success: Arc<AtomicUsize>,
+    failed: Arc<AtomicUsize>,
+    skipped: Arc<AtomicUsize>,
+}
+
+impl TaskSummary {
+    pub fn increment(&self, state: TaskState) {
+        match state {
+            TaskState::Success => self.success.fetch_add(1, Ordering::Relaxed),
+            TaskState::Failed => self.failed.fetch_add(1, Ordering::Relaxed),
+            TaskState::Skipped => self.skipped.fetch_add(1, Ordering::Relaxed),
+        };
+    }
+
+    pub fn success(&self) -> usize {
+        self.success.load(Ordering::Relaxed)
+    }
+
+    pub fn failed(&self) -> usize {
+        self.failed.load(Ordering::Relaxed)
+    }
+
+    pub fn skipped(&self) -> usize {
+        self.skipped.load(Ordering::Relaxed)
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 #[error("Failed to create system logger")]
@@ -20,6 +54,7 @@ pub struct SystemLogger {
     multi_progress: MultiProgress,
     system_bar: ProgressBar,
     system_name: String,
+    summary: TaskSummary,
 }
 
 impl SystemLogger {
@@ -40,6 +75,7 @@ impl SystemLogger {
             multi_progress,
             system_bar: bar,
             system_name: system_name.to_string(),
+            summary: TaskSummary::default(),
         };
 
         system_logger.println(&format!("\nSYSTEM: {}\n", system_name));
@@ -68,17 +104,29 @@ impl SystemLogger {
         Ok(TaskLogger {
             task_bar: bar,
             task_name: task_name.to_string(),
+            summary: self.summary.clone(),
         })
     }
 
-    pub fn finish(self, success: bool) {
-        let status = if success {
-            "ok".green()
+    pub fn finish(self) {
+        let ok_part = format!("{} OK", self.summary.success()).green();
+
+        let failed_part = if self.summary.failed() > 0 {
+            format!("{} FAILED", self.summary.failed()).red()
         } else {
-            "failed".red()
+            format!("{} FAILED", self.summary.failed()).normal()
         };
 
-        self.println(&format!("SYSTEM : {} | {}\n", self.system_name, status));
+        let skipped_part = if self.summary.skipped() > 0 {
+            format!("{} SKIPPED", self.summary.skipped()).yellow()
+        } else {
+            format!("{} SKIPPED", self.summary.skipped()).normal()
+        };
+
+        self.println(&format!(
+            "SYSTEM : {} | {} | {} | {}\n",
+            self.system_name, ok_part, failed_part, skipped_part
+        ));
 
         self.system_bar.finish_and_clear();
     }
@@ -88,6 +136,7 @@ impl SystemLogger {
 pub struct TaskLogger {
     task_bar: ProgressBar,
     task_name: String,
+    summary: TaskSummary,
 }
 
 impl TaskLogger {
@@ -102,6 +151,7 @@ impl TaskLogger {
     }
 
     pub fn skip(self) {
+        self.summary.increment(TaskState::Skipped);
         self.println(&format!("[{}] {}\n", "SKIP".yellow(), self.task_name));
         self.task_bar.finish_and_clear();
     }
@@ -124,6 +174,8 @@ impl TaskLogger {
     }
 
     pub fn finish(self, state: TaskState) {
+        self.summary.increment(state);
+
         let status = match state {
             TaskState::Success => format!(" {} ", "OK".green()),
             TaskState::Failed => format!("{}", "FAIL".red()),
