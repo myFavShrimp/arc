@@ -28,7 +28,7 @@ pub enum Command {
         #[arg(short, long)]
         system: Vec<String>,
         /// List selected tasks without executing
-        #[arg(short, long)]
+        #[arg(long)]
         list: bool,
         /// Skip resolution of requires and only run explicitly selected tasks
         #[arg(long)]
@@ -56,18 +56,4 @@ pub enum ListItemType {
     Tasks,
     Groups,
     Systems,
-}
-
-impl Default for Command {
-    fn default() -> Self {
-        Self::Run {
-            tag: Vec::new(),
-            group: Vec::new(),
-            system: Vec::new(),
-            list: false,
-            no_reqs: false,
-            all_tags: false,
-            all_systems: false,
-        }
-    }
 }

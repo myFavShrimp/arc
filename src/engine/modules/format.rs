@@ -1,7 +1,7 @@
 use mlua::{LuaSerdeExt, UserData};
 use serde_json;
 
-use crate::error::ErrorReport;
+use crate::{engine::modules::MountToGlobals, error::ErrorReport};
 
 pub struct Format;
 
@@ -48,5 +48,14 @@ impl UserData for Format {
             Self::from_json(lua, json_str)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
+    }
+}
+
+impl MountToGlobals for Format {
+    fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
+        let globals = lua.globals();
+        globals.set("format", self)?;
+
+        Ok(())
     }
 }

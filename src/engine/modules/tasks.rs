@@ -3,7 +3,7 @@ use std::{collections::HashSet, path::PathBuf, str::FromStr};
 use mlua::{FromLua, IntoLua, Lua, MetaMethod, UserData};
 
 use crate::{
-    engine::readonly::set_readonly,
+    engine::{modules::MountToGlobals, readonly::set_readonly},
     error::{ErrorReport, MutexLockError},
     memory::{
         SharedMemory,
@@ -233,5 +233,14 @@ impl UserData for TasksTable {
             this.get(name)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
+    }
+}
+
+impl MountToGlobals for TasksTable {
+    fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
+        let globals = lua.globals();
+        globals.set("tasks", self)?;
+
+        Ok(())
     }
 }

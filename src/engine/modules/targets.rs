@@ -3,7 +3,7 @@ use mlua::IntoLua;
 use systems::SystemsTable;
 
 use crate::{
-    engine::readonly::set_readonly,
+    engine::{modules::MountToGlobals, readonly::set_readonly},
     error::ErrorReport,
     memory::{
         SharedMemory, target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory,
@@ -41,5 +41,14 @@ impl IntoLua for TargetsTable {
             .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
 
         Ok(mlua::Value::Table(targets_table))
+    }
+}
+
+impl MountToGlobals for TargetsTable {
+    fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
+        let globals = lua.globals();
+        globals.set("targets", self)?;
+
+        Ok(())
     }
 }

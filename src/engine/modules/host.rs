@@ -3,7 +3,10 @@ use std::path::PathBuf;
 use mlua::UserData;
 
 use crate::{
-    engine::delegator::{executor::Executor, operator::FileSystemOperator},
+    engine::{
+        delegator::{executor::Executor, operator::FileSystemOperator},
+        modules::MountToGlobals,
+    },
     error::ErrorReport,
 };
 
@@ -41,5 +44,14 @@ impl UserData for Host {
                 .directory(&path)
                 .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
         });
+    }
+}
+
+impl MountToGlobals for Host {
+    fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
+        let globals = lua.globals();
+        globals.set("host", self)?;
+
+        Ok(())
     }
 }

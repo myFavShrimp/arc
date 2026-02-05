@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex};
 
+use mlua::UserData;
+
 use crate::logger::{LogLevel, Logger};
 use crate::progress::TaskLogger;
 
@@ -35,6 +37,7 @@ impl SharedLogger {
     }
 }
 
+#[derive(Clone)]
 pub struct Log {
     logger: SharedLogger,
 }
@@ -42,6 +45,10 @@ pub struct Log {
 impl Log {
     pub fn new(logger: SharedLogger) -> Self {
         Self { logger }
+    }
+
+    fn log(&self, level: LogLevel, msg: &str) {
+        self.logger.log(level, msg);
     }
 }
 
@@ -54,60 +61,49 @@ fn lua_value_to_string(value: mlua::Value) -> String {
     }
 }
 
+impl UserData for Log {
+    fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
+        methods.add_function("debug", |lua, value: mlua::Value| {
+            let log = lua.app_data_ref::<Self>().unwrap();
+            log.log(LogLevel::Debug, &lua_value_to_string(value));
+
+            Ok(())
+        });
+
+        methods.add_function("info", |lua, value: mlua::Value| {
+            let log = lua.app_data_ref::<Self>().unwrap();
+            log.log(LogLevel::Info, &lua_value_to_string(value));
+
+            Ok(())
+        });
+
+        methods.add_function("warn", |lua, value: mlua::Value| {
+            let log = lua.app_data_ref::<Self>().unwrap();
+            log.log(LogLevel::Warn, &lua_value_to_string(value));
+
+            Ok(())
+        });
+
+        methods.add_function("error", |lua, value: mlua::Value| {
+            let log = lua.app_data_ref::<Self>().unwrap();
+            log.log(LogLevel::Error, &lua_value_to_string(value));
+
+            Ok(())
+        });
+    }
+}
+
 impl MountToGlobals for Log {
     fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
-        lua.set_app_data(self.logger);
+        lua.set_app_data(self.clone());
 
         let globals = lua.globals();
-
-        let log_table = lua.create_table()?;
-
-        log_table.set(
-            "debug",
-            lua.create_function(|lua, value: mlua::Value| {
-                if let Some(logger) = lua.app_data_ref::<SharedLogger>() {
-                    logger.log(LogLevel::Debug, &lua_value_to_string(value));
-                }
-                Ok(())
-            })?,
-        )?;
-
-        log_table.set(
-            "info",
-            lua.create_function(|lua, value: mlua::Value| {
-                if let Some(logger) = lua.app_data_ref::<SharedLogger>() {
-                    logger.log(LogLevel::Info, &lua_value_to_string(value));
-                }
-                Ok(())
-            })?,
-        )?;
-
-        log_table.set(
-            "warn",
-            lua.create_function(|lua, value: mlua::Value| {
-                if let Some(logger) = lua.app_data_ref::<SharedLogger>() {
-                    logger.log(LogLevel::Warn, &lua_value_to_string(value));
-                }
-                Ok(())
-            })?,
-        )?;
-
-        log_table.set(
-            "error",
-            lua.create_function(|lua, value: mlua::Value| {
-                if let Some(logger) = lua.app_data_ref::<SharedLogger>() {
-                    logger.log(LogLevel::Error, &lua_value_to_string(value));
-                }
-                Ok(())
-            })?,
-        )?;
-
-        globals.set("log", log_table)?;
+        globals.set("log", self)?;
 
         globals.set(
             "print",
             lua.create_function(|lua, value: mlua::Value| {
-                if let Some(logger) = lua.app_data_ref::<SharedLogger>() {
+                if let Some(logger) = lua.app_data_ref::<Self>() {
                     logger.log(LogLevel::Info, &lua_value_to_string(value));
                 }
                 Ok(())

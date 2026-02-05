@@ -4,11 +4,16 @@ use mlua::UserData;
 use tera::Tera;
 use thiserror::Error;
 
-use crate::error::{ErrorReport, MutexLockError};
+use crate::{
+    engine::modules::MountToGlobals,
+    error::{ErrorReport, MutexLockError},
+};
+
+type SharedTemplatingEngine = Arc<Mutex<Tera>>;
 
 #[derive(Debug, Clone)]
-pub struct Templates {
-    tera: Arc<Mutex<Tera>>,
+pub struct Template {
+    tera: SharedTemplatingEngine,
 }
 
 #[derive(Debug, Error)]
@@ -35,7 +40,7 @@ pub struct InvalidArgumentNameError(String);
 #[error("Value of type {0:?} is not a valid argument")]
 pub struct InvalidArgumentTypeError(String);
 
-impl Templates {
+impl Template {
     pub fn new() -> Self {
         Self {
             tera: Arc::new(Mutex::new(Tera::default())),
@@ -47,8 +52,6 @@ impl Templates {
         template_content: &str,
         lua_context: mlua::Table,
     ) -> Result<String, TemplateRenderError> {
-        // debug!("Rendering template");
-
         let context =
             tera::Context::from_value(Self::build_template_arguments(lua_context)?.into())?;
 
@@ -101,14 +104,28 @@ impl Templates {
     }
 }
 
-impl UserData for Templates {
+impl UserData for Template {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
-        methods.add_method(
+        methods.add_function(
             "render",
-            |_, this, (template_content, context): (String, mlua::Table)| {
-                this.render_string_with_lua_context(&template_content, context)
+            |lua, (template_content, context): (String, mlua::Table)| {
+                let template = lua.app_data_ref::<Self>().unwrap();
+
+                template
+                    .render_string_with_lua_context(&template_content, context)
                     .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
             },
         );
+    }
+}
+
+impl MountToGlobals for Template {
+    fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
+        lua.set_app_data(self.clone());
+
+        let globals = lua.globals();
+        globals.set("template", self)?;
+
+        Ok(())
     }
 }

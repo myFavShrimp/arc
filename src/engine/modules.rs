@@ -9,12 +9,12 @@ mod host;
 mod log;
 mod targets;
 mod tasks;
-mod templates;
+mod template;
 
 pub use log::{LogModuleLogger, SharedLogger};
 
 pub struct Modules {
-    templates: templates::Templates,
+    template: template::Template,
     format: format::Format,
     targets: targets::TargetsTable,
     tasks: tasks::TasksTable,
@@ -33,7 +33,7 @@ impl Modules {
         let format = format::Format;
         let targets = targets::TargetsTable::new(target_groups, target_systems.clone());
         let tasks = tasks::TasksTable::new(tasks);
-        let templates = templates::Templates::new();
+        let template = template::Template::new();
         let env = env::Env;
         let host = host::Host::new();
         let log = log::Log::new(shared_logger);
@@ -42,7 +42,7 @@ impl Modules {
             format,
             targets,
             tasks,
-            templates,
+            template,
             log,
             env,
             host,
@@ -52,16 +52,14 @@ impl Modules {
 
 impl MountToGlobals for Modules {
     fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
-        let globals = lua.globals();
-
-        globals.set("format", self.format)?;
-        globals.set("targets", self.targets)?;
-        globals.set("tasks", self.tasks)?;
-        globals.set("template", self.templates)?;
-        globals.set("env", self.env)?;
-        globals.set("host", self.host)?;
-
+        self.format.mount_to_globals(lua)?;
+        self.targets.mount_to_globals(lua)?;
+        self.tasks.mount_to_globals(lua)?;
+        self.env.mount_to_globals(lua)?;
+        self.template.mount_to_globals(lua)?;
         self.log.mount_to_globals(lua)?;
+
+        self.host.mount_to_globals(lua)?;
 
         Ok(())
     }

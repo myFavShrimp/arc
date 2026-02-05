@@ -576,7 +576,7 @@ tasks["configure_web_server"] = {
         }
 
         -- Render and deploy configuration
-        local config = template:render(template_content, context)
+        local config = template.render(template_content, context)
         system:file("/etc/nginx/nginx.conf").content = config
 
         -- Validate and reload
