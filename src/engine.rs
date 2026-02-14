@@ -1,4 +1,5 @@
 use std::{
+    panic::{AssertUnwindSafe, catch_unwind},
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -29,7 +30,7 @@ use validation::{
 };
 
 use crate::{
-    engine::objects::system::SystemKind,
+    engine::{delegator::error::FfiPanicError, objects::system::SystemKind},
     error::MutexLockError,
     logger::{LogLevel, Logger},
     memory::{
@@ -111,13 +112,14 @@ pub enum TaskExecutionError {
     TasksErrorSet(#[from] TasksErrorStateSetError),
     TaskAborted(#[from] TaskAbortedError),
     TaskLoggerCreation(#[from] TaskLoggerCreationError),
+    Ffi(#[from] FfiPanicError),
 }
 
 impl Engine {
     pub fn new(logger: Logger) -> Result<Self, EngineBuilderCreationError> {
         let mut lua = Lua::new_with(
             StdLib::TABLE | StdLib::STRING | StdLib::PACKAGE | StdLib::BIT | StdLib::MATH,
-            LuaOptions::new().catch_rust_panics(true),
+            LuaOptions::new().catch_rust_panics(false),
         )?;
 
         let target_systems_memory = Arc::new(Mutex::new(TargetSystemsMemory::default()));
@@ -237,7 +239,23 @@ impl Engine {
                 .log_module_logger
                 .change_logger(LogModuleLogger::Task(task_logger.clone()));
 
-            match task_config.handler.call::<mlua::Value>(system.clone()) {
+            let panic_result = catch_unwind(AssertUnwindSafe(|| {
+                task_config.handler.call::<mlua::Value>(system.clone())
+            }));
+
+            let handler_result = match panic_result {
+                Ok(handler_result) => handler_result,
+                Err(panic_payload) => {
+                    return Err(panic_payload
+                        .downcast::<FfiPanicError>()
+                        .map(|error| TaskExecutionError::Ffi(*error))
+                        .unwrap_or(TaskExecutionError::Lua(mlua::Error::RuntimeError(
+                            "Unknown panic in task handler".to_string(),
+                        ))));
+                }
+            };
+
+            match handler_result {
                 Ok(result) => {
                     self.state.set_task_result(&task_config.name, result)?;
                     self.state

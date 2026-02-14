@@ -2,7 +2,10 @@ use std::path::PathBuf;
 
 use mlua::UserData;
 
-use crate::{engine::delegator::operator::FileSystemOperator, error::ErrorReport};
+use crate::{
+    engine::delegator::{error::FfiError, operator::FileSystemOperator},
+    error::ErrorReport,
+};
 
 #[derive(Clone)]
 pub struct Directory {
@@ -16,30 +19,44 @@ impl UserData for Directory {
         fields.add_field_method_set("path", |_, this, new_path: PathBuf| {
             this.file_system_operator
                 .rename(&this.path, &new_path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
 
         fields.add_field_method_get("permissions", |_, this| {
             this.file_system_operator
                 .metadata(&this.path)
                 .map(|maybe_metadata| maybe_metadata.map(|metadata| metadata.permissions))
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
         fields.add_field_method_set("permissions", |_, this, mode: u32| {
             this.file_system_operator
                 .set_permissions(&this.path, mode)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
 
         fields.add_field_method_get("file_name", |_, this| {
-            this.file_system_operator
-                .file_name(&this.path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+            Ok(this.file_system_operator.file_name(&this.path))
         });
         fields.add_field_method_set("file_name", |_, this, new_name: String| {
             this.file_system_operator
                 .set_file_name(&this.path, &new_name)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
     }
 
@@ -47,23 +64,39 @@ impl UserData for Directory {
         methods.add_method("create", |_, this, (): ()| {
             this.file_system_operator
                 .create_directory(&this.path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
         methods.add_method("remove", |_, this, (): ()| {
             this.file_system_operator
                 .remove_directory(&this.path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
         methods.add_method("metadata", |_, this, (): ()| {
             this.file_system_operator
                 .metadata(&this.path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
         methods.add_method("entries", |lua, this, (): ()| {
             let directory_entries = this
                 .file_system_operator
                 .list_directory(&this.path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })?;
 
             let mut result = Vec::with_capacity(directory_entries.len());
 
@@ -80,13 +113,21 @@ impl UserData for Directory {
         methods.add_method("parent", |_, this, (): ()| {
             this.file_system_operator
                 .parent_directory(&this.path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
         methods.add_method("exists", |_, this, (): ()| {
             this.file_system_operator
                 .metadata(&this.path)
                 .map(|maybe_metadata| maybe_metadata.is_some())
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
     }
 }

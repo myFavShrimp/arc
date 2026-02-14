@@ -1,10 +1,14 @@
-use std::path::PathBuf;
+use std::{panic::resume_unwind, path::PathBuf};
 
 use mlua::UserData;
 
 use crate::{
     engine::{
-        delegator::{executor::Executor, operator::FileSystemOperator},
+        delegator::{
+            error::{FfiError, FfiPanicError},
+            executor::Executor,
+            operator::FileSystemOperator,
+        },
         modules::MountToGlobals,
     },
     error::ErrorReport,
@@ -28,21 +32,28 @@ impl Host {
 impl UserData for Host {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method("run_command", |_, this, cmd: String| {
-            this.executor
+            let result = this
+                .executor
                 .run_command(cmd)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .unwrap_or_else(|e| resume_unwind(Box::new(FfiPanicError(Box::new(e)))));
+
+            Ok(result)
         });
 
         methods.add_method("file", |_, this, path: PathBuf| {
-            this.file_system_operator
-                .file(&path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+            this.file_system_operator.file(&path).map_err(|e| {
+                mlua::Error::RuntimeError(
+                    ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                )
+            })
         });
 
         methods.add_method("directory", |_, this, path: PathBuf| {
-            this.file_system_operator
-                .directory(&path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+            this.file_system_operator.directory(&path).map_err(|e| {
+                mlua::Error::RuntimeError(
+                    ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                )
+            })
         });
     }
 }

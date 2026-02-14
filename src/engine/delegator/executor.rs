@@ -2,14 +2,12 @@ use mlua::IntoLua;
 use serde::Serialize;
 
 use super::{
-    host::{HostClient, HostError},
+    host::{CommandError, HostClient},
+    local::with_local_dir,
     ssh::{ConnectionError, SshClient, SshError},
 };
 use crate::{
-    engine::{
-        delegator::local::{LocalError, with_local_dir},
-        readonly::set_readonly,
-    },
+    engine::readonly::set_readonly,
     error::{ErrorReport, MutexLockError},
     memory::target_systems::{TargetSystem, TargetSystemKind},
 };
@@ -77,8 +75,7 @@ pub struct UninitializedSshClientError;
 #[error("Failed to execute tasks")]
 pub enum TaskError {
     Ssh(#[from] SshError),
-    Host(#[from] HostError),
-    Local(#[from] LocalError),
+    Host(#[from] CommandError),
     Lock(#[from] MutexLockError),
     UninitializedSshClientError(#[from] UninitializedSshClientError),
 }

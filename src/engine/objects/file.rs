@@ -2,7 +2,10 @@ use std::path::PathBuf;
 
 use mlua::UserData;
 
-use crate::{engine::delegator::operator::FileSystemOperator, error::ErrorReport};
+use crate::{
+    engine::delegator::{error::FfiError, operator::FileSystemOperator},
+    error::ErrorReport,
+};
 
 #[derive(Clone)]
 pub struct File {
@@ -16,30 +19,44 @@ impl UserData for File {
         fields.add_field_method_set("path", |_, this, new_path: PathBuf| {
             this.file_system_operator
                 .rename(&this.path, &new_path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
 
         fields.add_field_method_get("file_name", |_, this| {
-            this.file_system_operator
-                .file_name(&this.path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+            Ok(this.file_system_operator.file_name(&this.path))
         });
         fields.add_field_method_set("file_name", |_, this, new_name: String| {
             this.file_system_operator
                 .set_file_name(&this.path, &new_name)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
 
         fields.add_field_method_get("content", |_, this| {
             this.file_system_operator
                 .read_file(&this.path)
                 .map(mlua::BString::new)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
         fields.add_field_method_set("content", |_, this, content: mlua::BString| {
             this.file_system_operator
                 .write_file(&this.path, &content)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })?;
 
             Ok(())
         });
@@ -48,12 +65,20 @@ impl UserData for File {
             this.file_system_operator
                 .metadata(&this.path)
                 .map(|maybe_metadata| maybe_metadata.map(|metadata| metadata.permissions))
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
         fields.add_field_method_set("permissions", |_, this, mode: u32| {
             this.file_system_operator
                 .set_permissions(&this.path, mode)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
     }
 
@@ -61,23 +86,39 @@ impl UserData for File {
         methods.add_method("metadata", |_, this, (): ()| {
             this.file_system_operator
                 .metadata(&this.path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
         methods.add_method("remove", |_, this, (): ()| {
             this.file_system_operator
                 .remove_file(&this.path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
         methods.add_method("directory", |_, this, (): ()| {
             this.file_system_operator
                 .parent_directory(&this.path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
         methods.add_method("exists", |_, this, (): ()| {
             this.file_system_operator
                 .metadata(&this.path)
                 .map(|maybe_metadata| maybe_metadata.is_some())
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
     }
 }

@@ -1,11 +1,10 @@
-use std::{net::IpAddr, path::PathBuf};
+use std::{net::IpAddr, panic::resume_unwind, path::PathBuf};
 
 use mlua::UserData;
 
-use crate::{
-    engine::delegator::{executor::Executor, operator::FileSystemOperator},
-    error::ErrorReport,
-};
+use crate::engine::delegator::error::FfiPanicError;
+use crate::engine::delegator::{error::FfiError, executor::Executor, operator::FileSystemOperator};
+use crate::error::ErrorReport;
 
 #[derive(Clone)]
 pub struct System {
@@ -81,24 +80,32 @@ impl UserData for System {
 
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method("run_command", |_, this, cmd: String| {
-            this.kind
+            let result = this
+                .kind
                 .executor()
                 .run_command(cmd)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .unwrap_or_else(|e| resume_unwind(Box::new(FfiPanicError(Box::new(e)))));
+
+            Ok(result)
         });
 
         methods.add_method("file", |_, this, path: PathBuf| {
-            this.kind
-                .file_system_operator()
-                .file(&path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+            this.kind.file_system_operator().file(&path).map_err(|e| {
+                mlua::Error::RuntimeError(
+                    ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                )
+            })
         });
 
         methods.add_method("directory", |_, this, path: PathBuf| {
             this.kind
                 .file_system_operator()
                 .directory(&path)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                .map_err(|e| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    )
+                })
         });
     }
 }

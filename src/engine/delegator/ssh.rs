@@ -8,7 +8,12 @@ use super::{
     executor::CommandResult,
     operator::{FileWriteResult, MetadataResult, MetadataType},
 };
+use crate::engine::delegator::ssh::error::{classify_io_error, classify_ssh_error};
 use crate::memory::target_systems::RemoteTargetSystem;
+
+mod error;
+use error::ExecutionError;
+pub use error::{InfrastructureError, UserError};
 
 #[derive(Clone)]
 pub struct SshClient {
@@ -29,145 +34,6 @@ pub enum SshError {
     Io(#[from] std::io::Error),
     Ssh(#[from] ssh2::Error),
 }
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to read remote file {path:?}")]
-pub struct FileReadError {
-    path: PathBuf,
-    #[source]
-    kind: FileReadErrorKind,
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error(transparent)]
-pub enum FileReadErrorKind {
-    Io(#[from] std::io::Error),
-    Ssh(#[from] ssh2::Error),
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to write remote file {path:?}")]
-pub struct FileWriteError {
-    path: PathBuf,
-    #[source]
-    kind: FileWriteErrorKind,
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error(transparent)]
-pub enum FileWriteErrorKind {
-    Io(#[from] std::io::Error),
-    Ssh(#[from] ssh2::Error),
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to rename remote file {from:?} to {to:?}")]
-pub struct RenameError {
-    from: PathBuf,
-    to: PathBuf,
-    #[source]
-    kind: RenameErrorKind,
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error(transparent)]
-pub enum RenameErrorKind {
-    Io(#[from] std::io::Error),
-    Ssh(#[from] ssh2::Error),
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to delete remote file {path:?}")]
-pub struct RemoveFileError {
-    path: PathBuf,
-    #[source]
-    source: ssh2::Error,
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to remove remote directory {path:?}")]
-pub struct RemoveDirectoryError {
-    path: PathBuf,
-    #[source]
-    source: ssh2::Error,
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to create remote directory {path:?}")]
-pub struct CreateDirectoryError {
-    path: PathBuf,
-    #[source]
-    kind: CreateDirectoryErrorKind,
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum CreateDirectoryErrorKind {
-    #[error("path {0:?} is not a directory")]
-    NotADirectory(PathBuf),
-    #[error(transparent)]
-    Ssh(#[from] ssh2::Error),
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to set permissions on remote path {path:?}")]
-pub struct SetPermissionsError {
-    path: PathBuf,
-    #[source]
-    source: ssh2::Error,
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to list directory entries for remote file {path:?}")]
-pub struct DirectoryEntriesError {
-    path: PathBuf,
-    #[source]
-    source: ssh2::Error,
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Failed to get metadata for remote file {path:?}")]
-pub struct MetadataError {
-    path: PathBuf,
-    #[source]
-    source: ssh2::Error,
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Invalid path {path:?}")]
-pub struct DirectoryValidityError {
-    path: PathBuf,
-    #[source]
-    pub kind: DirectoryValidityErrorKind,
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum DirectoryValidityErrorKind {
-    #[error("Ancestor {0:?} is not a directory")]
-    AncestorNotADirectory(PathBuf),
-    #[error(transparent)]
-    Ssh(#[from] ssh2::Error),
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Invalid path {path:?}")]
-pub struct FileValidityError {
-    path: PathBuf,
-    #[source]
-    kind: FileValidityErrorKind,
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum FileValidityErrorKind {
-    #[error("Path is a directory")]
-    IsADirectory,
-    #[error(transparent)]
-    DirectoryValidity(#[from] DirectoryValidityErrorKind),
-    #[error(transparent)]
-    Ssh(#[from] ssh2::Error),
-}
-
-const SFTP_ERROR_CODE_NO_SUCH_FILE: i32 = 2;
-const SSH_SESSION_ERROR_CODE_FILE_ERROR: i32 = -16;
 
 impl SshClient {
     pub fn connect(system: &RemoteTargetSystem) -> Result<Self, ConnectionError> {
@@ -210,18 +76,14 @@ impl SshClient {
         })
     }
 
-    pub fn read_file(&self, path: &PathBuf) -> Result<Vec<u8>, FileReadError> {
-        let mut file = self.sftp.open(path).map_err(|error| FileReadError {
-            path: path.clone(),
-            kind: FileReadErrorKind::Ssh(error),
-        })?;
+    pub fn read_file(&self, path: &PathBuf) -> Result<Vec<u8>, ExecutionError> {
+        let mut file = self
+            .sftp
+            .open(path)
+            .map_err(|error| classify_ssh_error(error, path))?;
 
         let mut content = Vec::new();
-        file.read_to_end(&mut content)
-            .map_err(|error| FileReadError {
-                path: path.clone(),
-                kind: FileReadErrorKind::Io(error),
-            })?;
+        file.read_to_end(&mut content).map_err(classify_io_error)?;
 
         Ok(content)
     }
@@ -230,16 +92,13 @@ impl SshClient {
         &self,
         path: &Path,
         content: &[u8],
-    ) -> Result<FileWriteResult, FileWriteError> {
-        let mut file = self.sftp.create(path).map_err(|error| FileWriteError {
-            path: path.to_path_buf(),
-            kind: FileWriteErrorKind::Ssh(error),
-        })?;
+    ) -> Result<FileWriteResult, ExecutionError> {
+        let mut file = self
+            .sftp
+            .create(path)
+            .map_err(|error| classify_ssh_error(error, path))?;
 
-        file.write_all(content).map_err(|error| FileWriteError {
-            path: path.to_path_buf(),
-            kind: FileWriteErrorKind::Io(error),
-        })?;
+        file.write_all(content).map_err(classify_io_error)?;
 
         Ok(FileWriteResult {
             path: path.to_path_buf(),
@@ -247,39 +106,25 @@ impl SshClient {
         })
     }
 
-    pub fn rename_file(&self, from: &Path, to: &Path) -> Result<(), RenameError> {
+    pub fn rename_file(&self, from: &Path, to: &Path) -> Result<(), ExecutionError> {
         self.sftp
             .rename(from, to, None)
-            .map_err(|error| RenameError {
-                from: from.to_path_buf(),
-                to: to.to_path_buf(),
-                kind: RenameErrorKind::Ssh(error),
-            })?;
-
-        Ok(())
+            .map_err(|error| classify_ssh_error(error, from))
     }
 
-    pub fn remove_file(&self, path: &Path) -> Result<(), RemoveFileError> {
-        self.sftp.unlink(path).map_err(|error| RemoveFileError {
-            path: path.to_path_buf(),
-            source: error,
-        })?;
-
-        Ok(())
+    pub fn remove_file(&self, path: &Path) -> Result<(), ExecutionError> {
+        self.sftp
+            .unlink(path)
+            .map_err(|error| classify_ssh_error(error, path))
     }
 
-    pub fn remove_directory(&self, path: &Path) -> Result<(), RemoveDirectoryError> {
+    pub fn remove_directory(&self, path: &Path) -> Result<(), ExecutionError> {
         self.sftp
             .rmdir(path)
-            .map_err(|error| RemoveDirectoryError {
-                path: path.to_path_buf(),
-                source: error,
-            })?;
-
-        Ok(())
+            .map_err(|error| classify_ssh_error(error, path))
     }
 
-    pub fn create_directory(&self, path: &Path) -> Result<(), CreateDirectoryError> {
+    pub fn create_directory(&self, path: &Path) -> Result<(), ExecutionError> {
         let ancestors = path
             .ancestors()
             .collect::<Vec<_>>()
@@ -291,25 +136,18 @@ impl SshClient {
             match self.sftp.stat(ancestor_path) {
                 Ok(stat) if stat.is_dir() => continue,
                 Ok(_) => {
-                    return Err(CreateDirectoryError {
-                        path: path.to_path_buf(),
-                        kind: CreateDirectoryErrorKind::NotADirectory(ancestor_path.to_path_buf()),
-                    });
+                    return Err(ExecutionError::User(UserError::NotADirectory(
+                        ancestor_path.to_path_buf(),
+                    )));
                 }
                 Err(e) => match e.code() {
-                    ssh2::ErrorCode::SFTP(SFTP_ERROR_CODE_NO_SUCH_FILE) => {
-                        self.sftp.mkdir(ancestor_path, 0o755).map_err(|error| {
-                            CreateDirectoryError {
-                                path: path.to_path_buf(),
-                                kind: error.into(),
-                            }
-                        })?;
+                    ssh2::ErrorCode::SFTP(error::SFTP_NO_SUCH_FILE) => {
+                        self.sftp
+                            .mkdir(ancestor_path, 0o755)
+                            .map_err(|error| classify_ssh_error(error, ancestor_path))?;
                     }
                     _ => {
-                        return Err(CreateDirectoryError {
-                            path: path.to_path_buf(),
-                            kind: e.into(),
-                        });
+                        return Err(classify_ssh_error(e, ancestor_path));
                     }
                 },
             }
@@ -318,7 +156,7 @@ impl SshClient {
         Ok(())
     }
 
-    pub fn set_permissions(&self, path: &Path, mode: u32) -> Result<(), SetPermissionsError> {
+    pub fn set_permissions(&self, path: &Path, mode: u32) -> Result<(), ExecutionError> {
         let stat = ssh2::FileStat {
             size: None,
             uid: None,
@@ -330,25 +168,14 @@ impl SshClient {
 
         self.sftp
             .setstat(path, stat)
-            .map_err(|error| SetPermissionsError {
-                path: path.to_path_buf(),
-                source: error,
-            })?;
-
-        Ok(())
+            .map_err(|error| classify_ssh_error(error, path))
     }
 
-    pub fn list_directory(
-        &self,
-        path: &Path,
-    ) -> Result<Vec<MetadataResult>, DirectoryEntriesError> {
+    pub fn list_directory(&self, path: &Path) -> Result<Vec<MetadataResult>, ExecutionError> {
         let mut dir = self
             .sftp
             .opendir(path)
-            .map_err(|error| DirectoryEntriesError {
-                path: path.to_path_buf(),
-                source: error,
-            })?;
+            .map_err(|error| classify_ssh_error(error, path))?;
 
         let mut entries = Vec::new();
 
@@ -382,14 +209,11 @@ impl SshClient {
                     });
                 }
                 Err(error) => match error.code() {
-                    ssh2::ErrorCode::Session(SSH_SESSION_ERROR_CODE_FILE_ERROR) => {
+                    ssh2::ErrorCode::Session(error::SSH_SESSION_ERROR_CODE_FILE_ERROR) => {
                         break;
                     }
                     ssh2::ErrorCode::SFTP(_) | ssh2::ErrorCode::Session(_) => {
-                        Err(DirectoryEntriesError {
-                            path: path.to_path_buf(),
-                            source: error,
-                        })?
+                        return Err(classify_ssh_error(error, path));
                     }
                 },
             }
@@ -398,15 +222,14 @@ impl SshClient {
         Ok(entries)
     }
 
-    pub fn metadata(&self, path: &Path) -> Result<Option<MetadataResult>, MetadataError> {
+    pub fn metadata(&self, path: &Path) -> Result<Option<MetadataResult>, ExecutionError> {
         let stat = match self.sftp.stat(path) {
             Ok(stat) => stat,
             Err(error) => match error.code() {
-                ssh2::ErrorCode::SFTP(SFTP_ERROR_CODE_NO_SUCH_FILE) => return Ok(None),
-                ssh2::ErrorCode::SFTP(_) | ssh2::ErrorCode::Session(_) => Err(MetadataError {
-                    path: path.to_path_buf(),
-                    source: error,
-                })?,
+                ssh2::ErrorCode::SFTP(error::SFTP_NO_SUCH_FILE) => return Ok(None),
+                ssh2::ErrorCode::SFTP(_) | ssh2::ErrorCode::Session(_) => {
+                    return Err(classify_ssh_error(error, path));
+                }
             },
         };
 
@@ -430,7 +253,7 @@ impl SshClient {
         }))
     }
 
-    pub fn check_directory_validity(&self, path: &Path) -> Result<(), DirectoryValidityError> {
+    pub fn check_directory_validity(&self, path: &Path) -> Result<(), ExecutionError> {
         let ancestors = path
             .ancestors()
             .collect::<Vec<_>>()
@@ -446,20 +269,14 @@ impl SshClient {
             match self.sftp.stat(ancestor) {
                 Ok(stat) if stat.is_dir() => continue,
                 Ok(_) => {
-                    return Err(DirectoryValidityError {
-                        path: path.to_path_buf(),
-                        kind: DirectoryValidityErrorKind::AncestorNotADirectory(
-                            ancestor.to_path_buf(),
-                        ),
-                    });
+                    return Err(ExecutionError::User(UserError::NotADirectory(
+                        ancestor.to_path_buf(),
+                    )));
                 }
                 Err(error) => match error.code() {
-                    ssh2::ErrorCode::SFTP(SFTP_ERROR_CODE_NO_SUCH_FILE) => break,
+                    ssh2::ErrorCode::SFTP(error::SFTP_NO_SUCH_FILE) => break,
                     _ => {
-                        return Err(DirectoryValidityError {
-                            path: path.to_path_buf(),
-                            kind: error.into(),
-                        });
+                        return Err(classify_ssh_error(error, ancestor));
                     }
                 },
             }
@@ -468,34 +285,18 @@ impl SshClient {
         Ok(())
     }
 
-    pub fn check_file_validity(&self, path: &Path) -> Result<(), FileValidityError> {
+    pub fn check_file_validity(&self, path: &Path) -> Result<(), ExecutionError> {
         if let Some(parent_path) = path.parent() {
-            self.check_directory_validity(parent_path)
-                .map_err(|error| FileValidityError {
-                    path: path.to_path_buf(),
-                    kind: error.kind.into(),
-                })?;
+            self.check_directory_validity(parent_path)?;
         }
 
         match self.sftp.stat(path) {
-            Ok(stat) if stat.is_dir() => {
-                return Err(FileValidityError {
-                    path: path.to_path_buf(),
-                    kind: FileValidityErrorKind::IsADirectory,
-                });
-            }
-            Ok(_) => {}
+            Ok(stat) if stat.is_dir() => Err(ExecutionError::User(UserError::IsADirectory)),
+            Ok(_) => Ok(()),
             Err(error) => match error.code() {
-                ssh2::ErrorCode::SFTP(SFTP_ERROR_CODE_NO_SUCH_FILE) => {}
-                _ => {
-                    return Err(FileValidityError {
-                        path: path.to_path_buf(),
-                        kind: error.into(),
-                    });
-                }
+                ssh2::ErrorCode::SFTP(error::SFTP_NO_SUCH_FILE) => Ok(()),
+                _ => Err(classify_ssh_error(error, path)),
             },
         }
-
-        Ok(())
     }
 }
