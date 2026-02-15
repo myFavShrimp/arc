@@ -2,6 +2,11 @@
 
 Deploys a website to nginx.
 
+## Requirements
+
+- arc
+- Docker
+
 ## Usage
 
 Start the container:

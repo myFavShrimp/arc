@@ -2,6 +2,11 @@
 
 Sets up a load-balanced web application with HAProxy and two nginx backend servers.
 
+## Requirements
+
+- arc
+- Docker
+
 ## Usage
 
 Start the containers:

@@ -1,0 +1,10 @@
+services:
+  server:
+    build: .
+    privileged: true
+    ports:
+      - "2222:22"
+      - "8080:8080"
+      - "3100:3100"
+      - "3300:3300"
+      - "4418:4418"

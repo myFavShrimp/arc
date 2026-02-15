@@ -1,0 +1,21 @@
+services:
+    tempo:
+        image: "{{ image }}:{{ version }}"
+        restart: always
+        user: "{{ user_id }}:{{ group_id }}"
+        command: ["-config.file=/etc/tempo/tempo.yaml"]
+        ports:
+          - "{{ otlp_http_port }}:4318"
+          - "{{ api_port }}:3200"
+        volumes:
+          - "{{ data_directory }}:/var/tempo:z"
+          - "{{ config_file }}:/etc/tempo/tempo.yaml:ro,z"
+        networks:
+          - tempo_default
+          - grafana_default
+
+networks:
+    tempo_default:
+        name: tempo_default
+    grafana_default:
+        external: true

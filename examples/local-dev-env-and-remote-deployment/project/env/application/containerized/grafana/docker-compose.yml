@@ -1,0 +1,12 @@
+services:
+    grafana:
+        image: "{{ image }}:{{ version }}"
+        restart: always
+        user: "{{ user_id }}:{{ group_id }}"
+        ports:
+          - "{{ port }}:3000"
+        volumes:
+          - "{{ data_directory }}:/var/lib/grafana:z"
+          - "{{ provisioning_directory }}:/etc/grafana/provisioning:ro,z"
+        environment:
+          - GF_SECURITY_ADMIN_PASSWORD={{ admin_password }}
