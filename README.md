@@ -192,9 +192,9 @@ Tasks are defined by assigning to the global `tasks` table. Tasks execute in def
   - *Returns*: `boolean` - If `false`, task is skipped
 
 - `on_fail` (optional): Behavior when this task fails
-  - `"continue"` (default): Proceed to next task
+  - `"continue"`: Proceed to next task
   - `"skip_system"`: Skip remaining tasks for this system
-  - `"abort"`: Halt execution entirely
+  - `"abort"` (default): Halt execution entirely
 
 - `important` (optional): If `true`, always runs regardless of tag filters, `--no-reqs`, and `skip_system`
 

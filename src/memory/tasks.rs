@@ -6,9 +6,9 @@ use strum::EnumString;
 #[derive(Debug, Clone, Copy, PartialEq, Default, EnumString, strum::Display)]
 #[strum(serialize_all = "snake_case")]
 pub enum OnFailBehavior {
-    #[default]
     Continue,
     SkipSystem,
+    #[default]
     Abort,
 }
 
