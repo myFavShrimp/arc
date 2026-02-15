@@ -67,6 +67,7 @@ static ENTRY_POINT_SCRIPT: &str = "arc.lua";
 #[derive(thiserror::Error, Debug)]
 #[error("Runtime error")]
 pub enum EngineExecutionError {
+    Aborted(TaskExecutionError),
     EntrypointExecution(#[from] EntrypointExecutionError),
     Validation(#[from] ValidationError),
     TaskExecution(#[from] TaskExecutionError),
@@ -96,21 +97,14 @@ pub enum ValidationError {
     Lock(#[from] MutexLockError),
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("Task {task:?} aborted execution: {error}")]
-pub struct TaskAbortedError {
-    pub task: String,
-    pub error: String,
-}
-
 #[derive(thiserror::Error, Debug)]
 #[error("Failed to run tasks on system")]
 pub enum TaskExecutionError {
+    Aborted(mlua::Error),
     Lua(#[from] mlua::Error),
     TasksResultSet(#[from] TasksResultStateSetError),
     TasksStateSet(#[from] TasksStateStateSetError),
     TasksErrorSet(#[from] TasksErrorStateSetError),
-    TaskAborted(#[from] TaskAbortedError),
     TaskLoggerCreation(#[from] TaskLoggerCreationError),
     Ffi(#[from] FfiPanicError),
 }
@@ -265,31 +259,27 @@ impl Engine {
                     task_logger.finish(TaskState::Success);
                 }
                 Err(error) => {
-                    let error_message = error.to_string();
-
                     task_logger.log(
                         LogLevel::Error,
-                        &format!("Task '{}' failed: {}", task_config.name, error_message),
+                        &format!("Task '{}' failed: {}", task_config.name, error),
                     );
 
                     self.state
                         .set_task_state(&task_config.name, TaskState::Failed)?;
                     self.state
-                        .set_task_error(&task_config.name, error_message.clone())?;
-
-                    task_logger.finish(TaskState::Failed);
+                        .set_task_error(&task_config.name, error.to_string())?;
 
                     match task_config.on_fail {
-                        OnFailBehavior::Continue => {}
+                        OnFailBehavior::Continue => {
+                            task_logger.finish(TaskState::Failed);
+                        }
                         OnFailBehavior::SkipSystem => {
+                            task_logger.finish(TaskState::Failed);
                             skip_system = true;
                         }
                         OnFailBehavior::Abort => {
-                            return Err(TaskAbortedError {
-                                task: task_config.name.clone(),
-                                error: error_message,
-                            }
-                            .into());
+                            task_logger.abort();
+                            return Err(TaskExecutionError::Aborted(error));
                         }
                     }
                 }
@@ -348,10 +338,15 @@ impl Engine {
                 },
             };
 
-            // TODO: no immediate propagation, end system for summary instead
-            self.run_tasks_on_system(system, tasks, &system_logger)?;
+            let result = self.run_tasks_on_system(system, tasks, &system_logger);
 
             system_logger.finish();
+
+            if let Err(error @ TaskExecutionError::Aborted(_)) = result {
+                return Err(EngineExecutionError::Aborted(error));
+            }
+
+            result?;
         }
 
         Ok(())

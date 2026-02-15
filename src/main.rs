@@ -77,9 +77,11 @@ fn main() -> Result<(), error::ErrorReport> {
                     }
                 }
             } else {
-                engine
-                    .execute(tags, groups, systems, no_reqs)
-                    .map_err(error::ErrorReport::boxed_from)?;
+                match engine.execute(tags, groups, systems, no_reqs) {
+                    Ok(()) => {}
+                    Err(engine::EngineExecutionError::Aborted(_)) => std::process::exit(1),
+                    Err(error) => return Err(error::ErrorReport::boxed_from(error)),
+                }
             }
         }
         cli::Command::List { item_type, json } => {

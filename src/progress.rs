@@ -394,6 +394,12 @@ impl TaskLogger {
         })
     }
 
+    pub fn abort(self) {
+        self.summary.increment(TaskState::Failed);
+        self.println(&format!("[{}] {}\n", "ABRT".red(), self.task_name));
+        self.task_bar.finish_and_clear();
+    }
+
     pub fn finish(self, state: TaskState) {
         self.summary.increment(state);
 
