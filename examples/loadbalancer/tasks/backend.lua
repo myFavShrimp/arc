@@ -28,7 +28,7 @@ tasks["deploy_backend_content"] = {
     requires = { "install_nginx" },
     handler = function(system)
         local source = host:file("templates/index.html")
-        local content = template:render(source.content, { system_name = system.name })
+        local content = template.render(source.content, { system_name = system.name })
 
         local target = system:file("/var/www/html/index.html")
         target.content = content
