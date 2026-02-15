@@ -1,6 +1,6 @@
 [package]
 name = "arc-automation"
-version = "0.12.0"
+version = "0.12.1"
 edition = "2024"
 description = "A scriptable automation tool."
 authors = ["myFavShrimp <myfavshrimp@tuta.io>"]
