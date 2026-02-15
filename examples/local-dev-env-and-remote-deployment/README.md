@@ -10,6 +10,8 @@ The remote deployment consists of three containers:
 
 The local dev env is set up in `.dev/` and only spins up grafana and tempo. The webserver is started locally using `cargo run`.
 
+The arc code lives in `project/env/`.
+
 ## Services
 
 | Service    | Local dev                      | Remote                |
