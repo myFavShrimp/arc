@@ -103,6 +103,8 @@ targets.systems["api-server"] = {
 }
 ```
 
+Authentication is handled through the SSH agent. The host's public key must be present in the remote server's `authorized_keys`.
+
 ##### Local Systems
 
 Local systems execute tasks on the machine where arc is running.
@@ -444,9 +446,9 @@ tasks["deploy_app"] = {
 }
 ```
 
-### Host Module
+### Host Object
 
-The `host` module provides functions for interacting with the local system where arc is running. It has the same interface as the `system` object but operates on the local machine and it's working directory is the one arc was executed in.
+The global `host` object provides functions for interacting with the local system where arc is running. It has the same interface as the `system` object but operates on the local machine and its working directory is the directory where `arc.lua` is located.
 
 #### Methods
 
@@ -548,7 +550,7 @@ tasks["update_api_config"] = {
 
 ### Template Module
 
-The `template` module provides template rendering capabilities using the Tera template engine.
+The `template` module provides template rendering capabilities using the [Tera](https://keats.github.io/tera/docs/#templates) template engine.
 
 #### Methods
 
