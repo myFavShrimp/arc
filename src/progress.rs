@@ -116,6 +116,15 @@ impl TransferProgress {
 }
 
 static MAX_OUTPUT_LINES: usize = 4;
+static MAX_OUTPUT_LINE_WIDTH: usize = 42;
+
+fn truncate_line(line: &str, max_width: usize) -> String {
+    if line.len() <= max_width {
+        line.to_string()
+    } else {
+        format!("{}...", &line[..max_width - 3])
+    }
+}
 
 pub struct CommandProgress {
     bar: ProgressBar,
@@ -143,7 +152,7 @@ impl CommandProgress {
         let start = lines.len().saturating_sub(MAX_OUTPUT_LINES);
         let tail: String = lines[start..]
             .iter()
-            .map(|line| format!("       {}", line.bright_black()))
+            .map(|line| format!("       {}", truncate_line(line, MAX_OUTPUT_LINE_WIDTH).bright_black()))
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -152,7 +161,7 @@ impl CommandProgress {
                 .set_message(format!("{}", self.command.bright_black()));
         } else {
             self.bar
-                .set_message(format!("{}\n{}", self.command.bright_black(), tail,));
+                .set_message(format!("{}\n{}", self.command.bright_black(), tail));
         }
     }
 
