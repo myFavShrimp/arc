@@ -12,6 +12,7 @@ use crate::{
         modules::MountToGlobals,
     },
     error::ErrorReport,
+    progress::ProgressContext,
 };
 
 #[derive(Clone)]
@@ -21,10 +22,10 @@ pub struct Host {
 }
 
 impl Host {
-    pub fn new() -> Self {
+    pub fn new(progress: ProgressContext) -> Self {
         Self {
-            executor: Executor::new_host(),
-            file_system_operator: FileSystemOperator::new_host(),
+            executor: Executor::new_host(progress.clone()),
+            file_system_operator: FileSystemOperator::new_host(progress),
         }
     }
 }
@@ -35,23 +36,23 @@ impl UserData for Host {
             let result = this
                 .executor
                 .run_command(cmd)
-                .unwrap_or_else(|e| resume_unwind(Box::new(FfiPanicError(Box::new(e)))));
+                .unwrap_or_else(|error| resume_unwind(Box::new(FfiPanicError(Box::new(error)))));
 
             Ok(result)
         });
 
         methods.add_method("file", |_, this, path: PathBuf| {
-            this.file_system_operator.file(&path).map_err(|e| {
+            this.file_system_operator.file(&path).map_err(|error| {
                 mlua::Error::RuntimeError(
-                    ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    ErrorReport::boxed_from(error.enforce_ffi_boundary()).build_report(),
                 )
             })
         });
 
         methods.add_method("directory", |_, this, path: PathBuf| {
-            this.file_system_operator.directory(&path).map_err(|e| {
+            this.file_system_operator.directory(&path).map_err(|error| {
                 mlua::Error::RuntimeError(
-                    ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                    ErrorReport::boxed_from(error.enforce_ffi_boundary()).build_report(),
                 )
             })
         });

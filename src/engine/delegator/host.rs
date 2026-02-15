@@ -1,8 +1,11 @@
+use std::io::Read;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::mpsc;
 
 use crate::engine::delegator::host::error::classify_io_error;
+use crate::progress::CommandProgress;
 
 pub mod error;
 
@@ -18,19 +21,100 @@ use super::{
 pub struct HostClient;
 
 #[derive(thiserror::Error, Debug)]
+#[error("Output reader thread panicked")]
+pub struct OutputReaderPanicError;
+
+#[derive(thiserror::Error, Debug)]
+#[error("Output reader failed")]
+pub struct OutputReaderError(pub std::io::Error);
+
+#[derive(thiserror::Error, Debug)]
 #[error("Failed to perform local operation")]
 pub enum CommandError {
     Io(#[from] std::io::Error),
+    OutputReaderPanic(#[from] OutputReaderPanicError),
+    OutputReader(#[from] OutputReaderError),
 }
 
 impl HostClient {
-    pub fn execute_command(&self, command: &str) -> Result<CommandResult, CommandError> {
-        let output = Command::new("sh").arg("-c").arg(command).output()?;
+    pub fn execute_command(
+        &self,
+        command: &str,
+        progress: &CommandProgress,
+    ) -> Result<CommandResult, CommandError> {
+        let mut child = Command::new("sh")
+            .arg("-c")
+            .arg(command)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        let mut stdout_pipe = child.stdout.take().expect("command stdout has been taken");
+        let mut stderr_pipe = child.stderr.take().expect("command stderr has been taken");
+
+        let (tx, rx) = mpsc::channel::<String>();
+        let tx_stderr = tx.clone();
+
+        let stdout_thread = std::thread::spawn(move || -> std::io::Result<String> {
+            let mut data = String::new();
+            let mut buf = [0u8; 4096];
+
+            loop {
+                let n = stdout_pipe.read(&mut buf)?;
+
+                if n == 0 {
+                    break;
+                }
+
+                let chunk = String::from_utf8_lossy(&buf[..n]).to_string();
+                data.push_str(&chunk);
+
+                _ = tx.send(chunk);
+            }
+
+            Ok(data)
+        });
+
+        let stderr_thread = std::thread::spawn(move || -> std::io::Result<String> {
+            let mut data = String::new();
+            let mut buf = [0u8; 4096];
+
+            loop {
+                let n = stderr_pipe.read(&mut buf)?;
+
+                if n == 0 {
+                    break;
+                }
+
+                let chunk = String::from_utf8_lossy(&buf[..n]).to_string();
+                data.push_str(&chunk);
+
+                _ = tx_stderr.send(chunk);
+            }
+            Ok(data)
+        });
+
+        let mut combined = String::new();
+        for chunk in rx {
+            combined.push_str(&chunk);
+            progress.update_output(&combined);
+        }
+
+        let stdout_data = stdout_thread
+            .join()
+            .map_err(|_| OutputReaderPanicError)?
+            .map_err(OutputReaderError)?;
+        let stderr_data = stderr_thread
+            .join()
+            .map_err(|_| OutputReaderPanicError)?
+            .map_err(OutputReaderError)?;
+
+        let status = child.wait()?;
 
         Ok(CommandResult {
-            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-            exit_code: output.status.code().unwrap_or(-1),
+            stdout: stdout_data,
+            stderr: stderr_data,
+            exit_code: status.code().unwrap_or(-1),
         })
     }
 
@@ -104,12 +188,12 @@ impl HostClient {
         let mut result = Vec::new();
 
         for entry in entries {
-            let entry = entry.map_err(|e| classify_io_error(e, path))?;
+            let entry = entry.map_err(|error| classify_io_error(error, path))?;
 
             let entry_path = entry.path();
             let metadata = entry
                 .metadata()
-                .map_err(|e| classify_io_error(e, &entry_path))?;
+                .map_err(|error| classify_io_error(error, &entry_path))?;
 
             let file_type = metadata.file_type();
             let r#type = if file_type.is_file() {

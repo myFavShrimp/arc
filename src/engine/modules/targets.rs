@@ -37,8 +37,9 @@ impl IntoLua for TargetsTable {
         targets_table.set("systems", self.systems)?;
         targets_table.set("groups", self.groups)?;
 
-        let targets_table = set_readonly(lua, targets_table)
-            .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
+        let targets_table = set_readonly(lua, targets_table).map_err(|error| {
+            mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+        })?;
 
         Ok(mlua::Value::Table(targets_table))
     }

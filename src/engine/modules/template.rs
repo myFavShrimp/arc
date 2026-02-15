@@ -109,11 +109,15 @@ impl UserData for Template {
         methods.add_function(
             "render",
             |lua, (template_content, context): (String, mlua::Table)| {
-                let template = lua.app_data_ref::<Self>().unwrap();
+                let template = lua
+                    .app_data_ref::<Self>()
+                    .expect("templating engine unavailable in app data");
 
                 template
                     .render_string_with_lua_context(&template_content, context)
-                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                    .map_err(|error| {
+                        mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+                    })
             },
         );
     }

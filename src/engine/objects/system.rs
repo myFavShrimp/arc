@@ -84,26 +84,29 @@ impl UserData for System {
                 .kind
                 .executor()
                 .run_command(cmd)
-                .unwrap_or_else(|e| resume_unwind(Box::new(FfiPanicError(Box::new(e)))));
+                .unwrap_or_else(|error| resume_unwind(Box::new(FfiPanicError(Box::new(error)))));
 
             Ok(result)
         });
 
         methods.add_method("file", |_, this, path: PathBuf| {
-            this.kind.file_system_operator().file(&path).map_err(|e| {
-                mlua::Error::RuntimeError(
-                    ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
-                )
-            })
+            this.kind
+                .file_system_operator()
+                .file(&path)
+                .map_err(|error| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(error.enforce_ffi_boundary()).build_report(),
+                    )
+                })
         });
 
         methods.add_method("directory", |_, this, path: PathBuf| {
             this.kind
                 .file_system_operator()
                 .directory(&path)
-                .map_err(|e| {
+                .map_err(|error| {
                     mlua::Error::RuntimeError(
-                        ErrorReport::boxed_from(e.enforce_ffi_boundary()).report(),
+                        ErrorReport::boxed_from(error.enforce_ffi_boundary()).build_report(),
                     )
                 })
         });

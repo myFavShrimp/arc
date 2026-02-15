@@ -1,6 +1,7 @@
 use std::panic::resume_unwind;
 
 use crate::engine::delegator::{host, ssh};
+use crate::progress::TransferProgressCreationError;
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -23,6 +24,8 @@ pub enum OperationError {
     Remote(ExecutionError<ssh::UserError, ssh::InfrastructureError>),
     #[error(transparent)]
     Local(ExecutionError<host::UserError, host::InfrastructureError>),
+    #[error(transparent)]
+    Progress(TransferProgressCreationError),
 }
 
 impl FfiError for OperationError {
@@ -30,6 +33,7 @@ impl FfiError for OperationError {
         match self {
             Self::Remote(e) => e.is_user_error(),
             Self::Local(e) => e.is_user_error(),
+            Self::Progress(_) => false,
         }
     }
 }

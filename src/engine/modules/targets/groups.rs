@@ -57,12 +57,14 @@ impl IntoLua for TargetGroup {
         for member in self.members {
             members_table.push(member)?;
         }
-        let members_table = set_readonly(lua, members_table)
-            .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
+        let members_table = set_readonly(lua, members_table).map_err(|error| {
+            mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+        })?;
 
         config_table.set("members", members_table)?;
-        let config_table = set_readonly(lua, config_table)
-            .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
+        let config_table = set_readonly(lua, config_table).map_err(|error| {
+            mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+        })?;
 
         Ok(mlua::Value::Table(config_table))
     }
@@ -110,14 +112,16 @@ impl UserData for GroupsTable {
         methods.add_meta_method(
             MetaMethod::NewIndex,
             |_, this, (name, config): (String, GroupConfig)| {
-                this.add(name, config)
-                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                this.add(name, config).map_err(|error| {
+                    mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+                })
             },
         );
 
         methods.add_meta_method(MetaMethod::Index, |_, this, (name,): (String,)| {
-            this.get(name)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+            this.get(name).map_err(|error| {
+                mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+            })
         });
     }
 }

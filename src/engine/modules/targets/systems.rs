@@ -141,8 +141,9 @@ impl IntoLua for TargetSystem {
         config_table.set("port", port)?;
         config_table.set("user", user)?;
 
-        let config_table = set_readonly(lua, config_table)
-            .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
+        let config_table = set_readonly(lua, config_table).map_err(|error| {
+            mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+        })?;
 
         Ok(mlua::Value::Table(config_table))
     }
@@ -202,14 +203,16 @@ impl UserData for SystemsTable {
         methods.add_meta_method(
             MetaMethod::NewIndex,
             |_, this, (name, config): (String, SystemConfig)| {
-                this.add(name, config)
-                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                this.add(name, config).map_err(|error| {
+                    mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+                })
             },
         );
 
         methods.add_meta_method(MetaMethod::Index, |_, this, (name,): (String,)| {
-            this.get(name)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+            this.get(name).map_err(|error| {
+                mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+            })
         });
     }
 }

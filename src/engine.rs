@@ -11,7 +11,7 @@ use delegator::{
     operator::{FileSystemOperator, OperationTargetSetError},
 };
 use mlua::{Lua, LuaOptions, StdLib};
-use modules::{LogModuleLogger, Modules, MountToGlobals, SharedLogger};
+use modules::{Modules, MountToGlobals};
 use objects::system::System;
 use selection::{
     GroupSelection, SystemSelection, TagSelection, select_groups, select_groups_for_system,
@@ -38,7 +38,7 @@ use crate::{
         target_systems::{TargetSystem, TargetSystemKind, TargetSystemsMemory},
         tasks::{OnFailBehavior, Task, TaskState, TasksMemory},
     },
-    progress::{SystemLogger, SystemLoggerCreationError, TaskLoggerCreationError},
+    progress::{ProgressContext, SystemLogger, SystemLoggerCreationError, TaskLoggerCreationError},
 };
 
 pub mod delegator;
@@ -53,7 +53,7 @@ pub struct Engine {
     lua: Lua,
     state: State,
     logger: Logger,
-    log_module_logger: SharedLogger,
+    progress: ProgressContext,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -127,13 +127,13 @@ impl Engine {
         #[allow(clippy::arc_with_non_send_sync)]
         let tasks_memory = Arc::new(Mutex::new(TasksMemory::default()));
 
-        let log_module_logger = SharedLogger::new(logger.clone());
+        let progress = ProgressContext::new(logger.clone());
 
         Modules::new(
             target_systems_memory.clone(),
             target_groups_memory.clone(),
             tasks_memory.clone(),
-            log_module_logger.clone(),
+            progress.clone(),
         )
         .mount_to_globals(&mut lua)?;
 
@@ -141,7 +141,7 @@ impl Engine {
             lua,
             state: State::new(target_systems_memory, target_groups_memory, tasks_memory),
             logger,
-            log_module_logger,
+            progress,
         })
     }
 
@@ -235,9 +235,7 @@ impl Engine {
 
             task_logger.start();
 
-            let previous_logger = self
-                .log_module_logger
-                .change_logger(LogModuleLogger::Task(task_logger.clone()));
+            self.progress.activate(task_logger.clone());
 
             let panic_result = catch_unwind(AssertUnwindSafe(|| {
                 task_config.handler.call::<mlua::Value>(system.clone())
@@ -246,6 +244,7 @@ impl Engine {
             let handler_result = match panic_result {
                 Ok(handler_result) => handler_result,
                 Err(panic_payload) => {
+                    self.progress.deactivate();
                     return Err(panic_payload
                         .downcast::<FfiPanicError>()
                         .map(|error| TaskExecutionError::Ffi(*error))
@@ -255,12 +254,13 @@ impl Engine {
                 }
             };
 
+            self.progress.deactivate();
+
             match handler_result {
                 Ok(result) => {
                     self.state.set_task_result(&task_config.name, result)?;
                     self.state
                         .set_task_state(&task_config.name, TaskState::Success)?;
-                    _ = self.log_module_logger.change_logger(previous_logger);
 
                     task_logger.finish(TaskState::Success);
                 }
@@ -276,8 +276,6 @@ impl Engine {
                         .set_task_state(&task_config.name, TaskState::Failed)?;
                     self.state
                         .set_task_error(&task_config.name, error_message.clone())?;
-
-                    _ = self.log_module_logger.change_logger(previous_logger);
 
                     task_logger.finish(TaskState::Failed);
 
@@ -336,13 +334,17 @@ impl Engine {
                             address: remote_target_system.address,
                             port: remote_target_system.port,
                             user: remote_target_system.user.clone(),
-                            executor: Executor::new_for_system(&system)?,
-                            file_system_operator: FileSystemOperator::new_for_system(&system)?,
+                            executor: Executor::new_for_system(&system, self.progress.clone())?,
+                            file_system_operator: FileSystemOperator::new_for_system(
+                                &system,
+                                self.progress.clone(),
+                            )?,
                         })
                     }
-                    TargetSystemKind::Local => {
-                        SystemKind::Local(Executor::new_local(), FileSystemOperator::new_local())
-                    }
+                    TargetSystemKind::Local => SystemKind::Local(
+                        Executor::new_local(self.progress.clone()),
+                        FileSystemOperator::new_local(self.progress.clone()),
+                    ),
                 },
             };
 

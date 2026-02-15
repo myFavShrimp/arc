@@ -1,6 +1,9 @@
-use crate::memory::{
-    SharedMemory, target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory,
-    tasks::TasksMemory,
+use crate::{
+    memory::{
+        SharedMemory, target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory,
+        tasks::TasksMemory,
+    },
+    progress::ProgressContext,
 };
 
 mod env;
@@ -10,8 +13,6 @@ mod log;
 mod targets;
 mod tasks;
 mod template;
-
-pub use log::{LogModuleLogger, SharedLogger};
 
 pub struct Modules {
     template: template::Template,
@@ -28,15 +29,15 @@ impl Modules {
         target_systems: SharedMemory<TargetSystemsMemory>,
         target_groups: SharedMemory<TargetGroupsMemory>,
         tasks: SharedMemory<TasksMemory>,
-        shared_logger: SharedLogger,
+        progress: ProgressContext,
     ) -> Self {
         let format = format::Format;
         let targets = targets::TargetsTable::new(target_groups, target_systems.clone());
         let tasks = tasks::TasksTable::new(tasks);
         let template = template::Template::new();
         let env = env::Env;
-        let host = host::Host::new();
-        let log = log::Log::new(shared_logger);
+        let host = host::Host::new(progress.clone());
+        let log = log::Log::new(progress);
 
         Self {
             format,

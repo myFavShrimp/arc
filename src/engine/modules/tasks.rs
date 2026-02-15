@@ -116,8 +116,9 @@ impl IntoLua for Task {
         task_table.set("state", self.state.map(|state| state.to_string()))?;
         task_table.set("error", self.error)?;
 
-        let task_table = set_readonly(lua, task_table)
-            .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))?;
+        let task_table = set_readonly(lua, task_table).map_err(|error| {
+            mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+        })?;
 
         Ok(mlua::Value::Table(task_table))
     }
@@ -224,14 +225,16 @@ impl UserData for TasksTable {
                     config.tags.extend(additional_tags);
                 }
 
-                this.add(lua, name, config)
-                    .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+                this.add(lua, name, config).map_err(|error| {
+                    mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+                })
             },
         );
 
         methods.add_meta_method(MetaMethod::Index, |_, this, (name,): (String,)| {
-            this.get(name)
-                .map_err(|e| mlua::Error::RuntimeError(ErrorReport::boxed_from(e).report()))
+            this.get(name).map_err(|error| {
+                mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+            })
         });
     }
 }

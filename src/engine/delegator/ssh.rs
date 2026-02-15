@@ -10,6 +10,7 @@ use super::{
 };
 use crate::engine::delegator::ssh::error::{classify_io_error, classify_ssh_error};
 use crate::memory::target_systems::RemoteTargetSystem;
+use crate::progress::{CommandProgress, TransferProgress};
 
 mod error;
 use error::ExecutionError;
@@ -56,15 +57,83 @@ impl SshClient {
         Ok(Self { session, sftp })
     }
 
-    pub fn execute_command(&self, command: &str) -> Result<CommandResult, SshError> {
+    pub fn execute_command(
+        &self,
+        command: &str,
+        progress: &CommandProgress,
+    ) -> Result<CommandResult, SshError> {
         let mut channel = self.session.channel_session()?;
         channel.exec(command)?;
 
-        let mut stdout = String::new();
-        channel.read_to_string(&mut stdout)?;
+        self.session.set_blocking(false);
 
+        let mut stdout = String::new();
         let mut stderr = String::new();
-        channel.stderr().read_to_string(&mut stderr)?;
+        let mut combined = String::new();
+
+        let mut stdout_buffer = [0u8; 4096];
+        let mut stderr_buffer = [0u8; 4096];
+
+        let mut stdout_reached_eof = false;
+        let mut stderr_reached_eof = false;
+
+        loop {
+            let mut received_data = false;
+
+            if !stdout_reached_eof {
+                match channel.read(&mut stdout_buffer) {
+                    Ok(0) => stdout_reached_eof = true,
+                    Ok(bytes_read) => {
+                        let text = String::from_utf8_lossy(&stdout_buffer[..bytes_read]);
+
+                        stdout.push_str(&text);
+                        combined.push_str(&text);
+
+                        received_data = true;
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+                    Err(error) => {
+                        self.session.set_blocking(true);
+
+                        return Err(error.into());
+                    }
+                }
+            }
+
+            if !stderr_reached_eof {
+                match channel.stderr().read(&mut stderr_buffer) {
+                    Ok(0) => stderr_reached_eof = true,
+                    Ok(bytes_read) => {
+                        let text = String::from_utf8_lossy(&stderr_buffer[..bytes_read]);
+
+                        stderr.push_str(&text);
+                        combined.push_str(&text);
+
+                        received_data = true;
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+                    Err(error) => {
+                        self.session.set_blocking(true);
+
+                        return Err(error.into());
+                    }
+                }
+            }
+
+            if received_data {
+                progress.update_output(&combined);
+            }
+
+            if stdout_reached_eof && stderr_reached_eof {
+                break;
+            }
+
+            if !received_data {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        }
+
+        self.session.set_blocking(true);
 
         channel.close()?;
         let exit_code = channel.exit_status()?;
@@ -76,14 +145,33 @@ impl SshClient {
         })
     }
 
-    pub fn read_file(&self, path: &PathBuf) -> Result<Vec<u8>, ExecutionError> {
+    pub fn file_size(&self, path: &Path) -> Option<u64> {
+        self.sftp.stat(path).ok().and_then(|stat| stat.size)
+    }
+
+    pub fn read_file(
+        &self,
+        path: &PathBuf,
+        progress: &TransferProgress,
+    ) -> Result<Vec<u8>, ExecutionError> {
         let mut file = self
             .sftp
             .open(path)
             .map_err(|error| classify_ssh_error(error, path))?;
 
         let mut content = Vec::new();
-        file.read_to_end(&mut content).map_err(classify_io_error)?;
+        let mut buf = [0u8; 8192];
+
+        loop {
+            let n = file.read(&mut buf).map_err(classify_io_error)?;
+            if n == 0 {
+                break;
+            }
+            content.extend_from_slice(&buf[..n]);
+            progress.update(content.len() as u64);
+        }
+
+        progress.finish();
 
         Ok(content)
     }
@@ -92,13 +180,21 @@ impl SshClient {
         &self,
         path: &Path,
         content: &[u8],
+        progress: &TransferProgress,
     ) -> Result<FileWriteResult, ExecutionError> {
         let mut file = self
             .sftp
             .create(path)
             .map_err(|error| classify_ssh_error(error, path))?;
 
-        file.write_all(content).map_err(classify_io_error)?;
+        let mut written = 0;
+        for chunk in content.chunks(8192) {
+            file.write_all(chunk).map_err(classify_io_error)?;
+            written += chunk.len();
+            progress.update(written as u64);
+        }
+
+        progress.finish();
 
         Ok(FileWriteResult {
             path: path.to_path_buf(),
@@ -140,14 +236,14 @@ impl SshClient {
                         ancestor_path.to_path_buf(),
                     )));
                 }
-                Err(e) => match e.code() {
+                Err(error) => match error.code() {
                     ssh2::ErrorCode::SFTP(error::SFTP_NO_SUCH_FILE) => {
                         self.sftp
                             .mkdir(ancestor_path, 0o755)
                             .map_err(|error| classify_ssh_error(error, ancestor_path))?;
                     }
                     _ => {
-                        return Err(classify_ssh_error(e, ancestor_path));
+                        return Err(classify_ssh_error(error, ancestor_path));
                     }
                 },
             }
