@@ -2,6 +2,8 @@
 
 arc (Automatic Remote Controller) is an automation tool that uses Lua for scripting. It executes tasks on the local or remote systems via SSH with a flexible API for managing configurations, files, and commands across multiple servers.
 
+[![asciicast](https://asciinema.org/a/3IjO4OAL27npbCVm.svg)](https://asciinema.org/a/3IjO4OAL27npbCVm)
+
 ## Installation
 
 1. Install [Rust](https://rust-lang.org/)
