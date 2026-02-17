@@ -595,6 +595,27 @@ tasks["configure_web_server"] = {
 }
 ```
 
+### Arc Module
+
+The global `arc` object provides information about the arc project and environment.
+
+#### Properties
+
+- `project_root_path`: The absolute path to the project root directory (where `arc.lua` is located)
+- `home_path`: The absolute path to the user's home directory
+
+Example:
+
+```lua
+tasks["deploy_config"] = {
+    handler = function(system)
+        -- Read a file relative to the project root
+        local config = host:file(arc.project_root_path .. "/configs/app.json").content
+        system:file("/etc/myapp/config.json").content = config
+    end
+}
+```
+
 ### Logging Module
 
 The `log` module provides logging functions at various severity levels.

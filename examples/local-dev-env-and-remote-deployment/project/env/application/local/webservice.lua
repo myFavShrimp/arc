@@ -1,10 +1,9 @@
-local helpers = require("helpers")
 local tempo_config = require("application/containerized/tempo")
 
 tasks["setup_local_env"] = {
     targets = {"dev"},
     handler = function(system)
-        local project_root = helpers.string.strip(host:run_command("pwd").stdout) .. "/.."
+        local project_root = arc.root_path .. "/.."
 
         local env_template = host:file("application/local/env").content
 

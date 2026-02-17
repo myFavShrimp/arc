@@ -54,6 +54,7 @@ pub struct Engine {
     state: State,
     logger: Logger,
     progress: ProgressContext,
+    home_path: PathBuf,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -110,7 +111,11 @@ pub enum TaskExecutionError {
 }
 
 impl Engine {
-    pub fn new(logger: Logger) -> Result<Self, EngineBuilderCreationError> {
+    pub fn new(
+        logger: Logger,
+        root_path: PathBuf,
+        home_path: PathBuf,
+    ) -> Result<Self, EngineBuilderCreationError> {
         let mut lua = Lua::new_with(
             StdLib::TABLE | StdLib::STRING | StdLib::PACKAGE | StdLib::BIT | StdLib::MATH,
             LuaOptions::new().catch_rust_panics(false),
@@ -128,6 +133,8 @@ impl Engine {
             target_groups_memory.clone(),
             tasks_memory.clone(),
             progress.clone(),
+            root_path,
+            home_path.clone(),
         )
         .mount_to_globals(&mut lua)?;
 
@@ -136,6 +143,7 @@ impl Engine {
             state: State::new(target_systems_memory, target_groups_memory, tasks_memory),
             logger,
             progress,
+            home_path,
         })
     }
 
@@ -324,16 +332,24 @@ impl Engine {
                             address: remote_target_system.address,
                             port: remote_target_system.port,
                             user: remote_target_system.user.clone(),
-                            executor: Executor::new_for_system(&system, self.progress.clone())?,
+                            executor: Executor::new_for_system(
+                                &system,
+                                self.progress.clone(),
+                                self.home_path.clone(),
+                            )?,
                             file_system_operator: FileSystemOperator::new_for_system(
                                 &system,
                                 self.progress.clone(),
+                                self.home_path.clone(),
                             )?,
                         })
                     }
                     TargetSystemKind::Local => SystemKind::Local(
-                        Executor::new_local(self.progress.clone()),
-                        FileSystemOperator::new_local(self.progress.clone()),
+                        Executor::new_local(self.progress.clone(), self.home_path.clone()),
+                        FileSystemOperator::new_local(
+                            self.progress.clone(),
+                            self.home_path.clone(),
+                        ),
                     ),
                 },
             };

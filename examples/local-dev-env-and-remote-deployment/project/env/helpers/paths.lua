@@ -1,9 +1,7 @@
-local string_helper = require("helpers/string")
-
 local paths = {}
 
 local function project_root()
-    return string_helper.strip(host:run_command("pwd").stdout) .. "/.."
+    return arc.root_path .. "/.."
 end
 
 function paths.service_dir(system, service_name)

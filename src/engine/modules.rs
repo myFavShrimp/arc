@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::{
     memory::{
         SharedMemory, target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory,
@@ -6,6 +8,7 @@ use crate::{
     progress::ProgressContext,
 };
 
+mod arc;
 mod env;
 mod format;
 mod host;
@@ -22,6 +25,7 @@ pub struct Modules {
     log: log::Log,
     env: env::Env,
     host: host::Host,
+    arc: arc::Arc,
 }
 
 impl Modules {
@@ -30,6 +34,8 @@ impl Modules {
         target_groups: SharedMemory<TargetGroupsMemory>,
         tasks: SharedMemory<TasksMemory>,
         progress: ProgressContext,
+        root_path: PathBuf,
+        home_path: PathBuf,
     ) -> Self {
         let format = format::Format;
         let targets = targets::TargetsTable::new(target_groups, target_systems.clone());
@@ -38,6 +44,7 @@ impl Modules {
         let env = env::Env;
         let host = host::Host::new(progress.clone());
         let log = log::Log::new(progress);
+        let arc = arc::Arc::new(root_path, home_path);
 
         Self {
             format,
@@ -47,6 +54,7 @@ impl Modules {
             log,
             env,
             host,
+            arc,
         }
     }
 }
@@ -61,6 +69,7 @@ impl MountToGlobals for Modules {
         self.log.mount_to_globals(lua)?;
 
         self.host.mount_to_globals(lua)?;
+        self.arc.mount_to_globals(lua)?;
 
         Ok(())
     }

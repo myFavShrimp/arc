@@ -16,10 +16,22 @@ mod logger;
 mod memory;
 mod progress;
 
+#[derive(Debug, thiserror::Error)]
+#[error("Failed to resolve working directory")]
+struct WorkingDirectoryError(#[from] std::io::Error);
+
+#[derive(Debug, thiserror::Error)]
+#[error("Failed to resolve user home directory")]
+struct HomeDirectoryError;
+
 fn main() -> Result<(), error::ErrorReport> {
     let cli_args = Cli::parse();
 
     let logger = Logger::new();
+    let root_path = std::env::current_dir()
+        .map_err(|e| error::ErrorReport::boxed_from(WorkingDirectoryError(e)))?;
+    let home_path =
+        std::env::home_dir().ok_or_else(|| error::ErrorReport::boxed_from(HomeDirectoryError))?;
 
     match cli_args.command {
         cli::Command::Init { project_root } => {
@@ -58,7 +70,8 @@ fn main() -> Result<(), error::ErrorReport> {
                 logger.warn(&format!("Failed to load .env: {}", error));
             };
 
-            let engine = Engine::new(logger).map_err(error::ErrorReport::boxed_from)?;
+            let engine = Engine::new(logger, root_path, home_path)
+                .map_err(error::ErrorReport::boxed_from)?;
 
             if list {
                 engine
@@ -89,7 +102,8 @@ fn main() -> Result<(), error::ErrorReport> {
                 logger.warn(&format!("Failed to load .env: {}", error));
             };
 
-            let engine = Engine::new(logger).map_err(error::ErrorReport::boxed_from)?;
+            let engine = Engine::new(logger, root_path, home_path)
+                .map_err(error::ErrorReport::boxed_from)?;
 
             engine
                 .execute_entrypoint()

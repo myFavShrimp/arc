@@ -264,3 +264,14 @@ function Log.error(message) end
 ---Logging utilities
 ---@type LogModule
 log = {}
+
+
+---Global arc configuration object
+---@class ArcObject
+---@field project_root_path string The absolute path of the directory containing arc.lua
+---@field home_path string The absolute path of the user's home directory
+local Arc = {}
+
+---Global arc instance
+---@type ArcObject
+arc = {}

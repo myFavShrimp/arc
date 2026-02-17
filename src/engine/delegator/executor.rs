@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use mlua::IntoLua;
 use serde::Serialize;
 
@@ -23,26 +25,27 @@ pub struct Executor {
 enum ExecutorKind {
     Ssh(SshClient),
     Host(HostClient),
-    Local(HostClient),
+    Local(HostClient, PathBuf),
 }
 
 impl Executor {
     pub fn new_for_system(
         config: &TargetSystem,
         progress: ProgressContext,
+        home_path: PathBuf,
     ) -> Result<Self, ExecutionTargetSetError> {
         Ok(match &config.kind {
             TargetSystemKind::Remote(remote_target_system) => Self {
                 kind: ExecutorKind::Ssh(SshClient::connect(remote_target_system)?),
                 progress,
             },
-            TargetSystemKind::Local => Self::new_local(progress),
+            TargetSystemKind::Local => Self::new_local(progress, home_path),
         })
     }
 
-    pub fn new_local(progress: ProgressContext) -> Self {
+    pub fn new_local(progress: ProgressContext, home_path: PathBuf) -> Self {
         Self {
-            kind: ExecutorKind::Local(HostClient),
+            kind: ExecutorKind::Local(HostClient, home_path),
             progress,
         }
     }
@@ -104,8 +107,8 @@ impl Executor {
         let result = match &self.kind {
             ExecutorKind::Ssh(ssh_client) => ssh_client.execute_command(&cmd, &progress)?,
             ExecutorKind::Host(local_client) => local_client.execute_command(&cmd, &progress)?,
-            ExecutorKind::Local(local_client) => {
-                with_local_dir(|| local_client.execute_command(&cmd, &progress))?
+            ExecutorKind::Local(local_client, home_path) => {
+                with_local_dir(home_path, || local_client.execute_command(&cmd, &progress))?
             }
         };
 

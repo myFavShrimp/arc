@@ -152,7 +152,12 @@ impl CommandProgress {
         let start = lines.len().saturating_sub(MAX_OUTPUT_LINES);
         let tail: String = lines[start..]
             .iter()
-            .map(|line| format!("       {}", truncate_line(line, MAX_OUTPUT_LINE_WIDTH).bright_black()))
+            .map(|line| {
+                format!(
+                    "       {}",
+                    truncate_line(line, MAX_OUTPUT_LINE_WIDTH).bright_black()
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
 
