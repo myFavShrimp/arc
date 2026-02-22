@@ -23,7 +23,6 @@
 ---Assigning it to another file's content transfers the data.
 ---@class FileContent
 ---@operator concat(string|FileContent): string
----@operator concat(string): string
 local FileContent = {}
 
 ---@class File
@@ -32,6 +31,10 @@ local FileContent = {}
 ---@field content FileContent File content handle (set with string or FileContent)
 ---@field permissions integer|nil File permissions (can be read and set as numeric mode; nil if file doesn't exist)
 local File = {}
+
+---@param key "content"
+---@param value string|FileContent
+function File:__newindex(key, value) end
 
 ---Get file metadata. Returns nil if the file does not exist.
 ---@return FileMetadata|nil metadata File metadata information, or nil if file doesn't exist
@@ -210,26 +213,91 @@ function Host:directory(path) end
 host = {}
 
 
----JSON formatting utilities
+---JSON format
+---@class JsonFormat
+local JsonFormat = {}
+
+---Encode a Lua value as JSON
+---@param value any Value to encode
+---@return string json JSON string
+function JsonFormat.encode(value) end
+
+---Encode a Lua value as pretty-printed JSON
+---@param value any Value to encode
+---@return string json Pretty-printed JSON string
+function JsonFormat.encode_pretty(value) end
+
+---Decode a JSON string to a Lua value
+---@param input string JSON string to decode
+---@return any value Decoded Lua value
+function JsonFormat.decode(input) end
+
+
+---TOML format
+---@class TomlFormat
+local TomlFormat = {}
+
+---Encode a Lua value as TOML
+---@param value any Value to encode
+---@return string toml TOML string
+function TomlFormat.encode(value) end
+
+---Decode a TOML string to a Lua value
+---@param input string TOML string to decode
+---@return any value Decoded Lua value
+function TomlFormat.decode(input) end
+
+
+---YAML format
+---@class YamlFormat
+local YamlFormat = {}
+
+---Encode a Lua value as YAML
+---@param value any Value to encode
+---@return string yaml YAML string
+function YamlFormat.encode(value) end
+
+---Decode a YAML string to a Lua value
+---@param input string YAML string to decode
+---@return any value Decoded Lua value
+function YamlFormat.decode(input) end
+
+
+---URL query string format
+---@class UrlFormat
+local UrlFormat = {}
+
+---Encode a Lua value as a URL query string
+---@param value any Value to encode
+---@return string query_string URL query string
+function UrlFormat.encode(value) end
+
+---Decode a URL query string to a Lua value
+---@param input string URL query string to decode
+---@return any value Decoded Lua value
+function UrlFormat.decode(input) end
+
+
+---Dotenv format
+---@class EnvFormat
+local EnvFormat = {}
+
+---Decode dotenv KEY=VALUE lines to a table
+---@param input string Dotenv formatted string
+---@return table value Table of key-value pairs
+function EnvFormat.decode(input) end
+
+
+---Format module with sub-format objects
 ---@class FormatModule
+---@field json JsonFormat JSON format
+---@field toml TomlFormat TOML format
+---@field yaml YamlFormat YAML format
+---@field url UrlFormat URL query string format
+---@field env EnvFormat Dotenv format
 local Format = {}
 
----Convert a Lua value to JSON
----@param value any Value to convert
----@return string json JSON string representation
-function Format.to_json(value) end
-
----Convert a Lua value to pretty-printed JSON
----@param value any Value to convert
----@return string json Pretty-printed JSON string
-function Format.to_json_pretty(value) end
-
----Parse a JSON string to a Lua value
----@param json_string string JSON string to parse
----@return any value Parsed Lua value
-function Format.from_json(json_string) end
-
----JSON formatting utilities
+---Format module
 ---@type FormatModule
 format = {}
 

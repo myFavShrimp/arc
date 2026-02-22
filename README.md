@@ -493,52 +493,57 @@ tasks["backup_to_local"] = {
 
 ### Format Module
 
-The `format` module provides utilities for working with JSON data.
+The `format` module provides serialization and deserialization utilities for various data formats. Each format is accessible as a sub-object with `encode` and `decode` methods.
 
-#### Functions
+#### `format.json`
 
-- `to_json(value)`: Convert a Lua value to JSON
-  - *Parameters*: `value` (any) - Value to convert
-  - *Returns*: JSON string
+- `encode(value)`: Encode a Lua value as JSON
+- `encode_pretty(value)`: Encode a Lua value as pretty-printed JSON
+- `decode(input)`: Decode a JSON string to a Lua value
 
-- `to_json_pretty(value)`: Convert a Lua value to pretty-printed JSON
-  - *Parameters*: `value` (any) - Value to convert
-  - *Returns*: JSON string
+#### `format.toml`
 
-- `from_json(json_string)`: Parse a JSON string to a Lua value
-  - *Parameters*: `json_string` (string) - JSON string to parse
-  - *Returns*: Parsed Lua value
+- `encode(value)`: Encode a Lua value as TOML
+- `decode(input)`: Decode a TOML string to a Lua value
+
+#### `format.yaml`
+
+- `encode(value)`: Encode a Lua value as YAML
+- `decode(input)`: Decode a YAML string to a Lua value
+
+#### `format.url`
+
+- `encode(value)`: Encode a Lua value as a URL query string (`x-www-form-urlencoded`)
+- `decode(input)`: Decode a URL query string to a Lua value
+
+#### `format.env`
+
+- `encode(value)`: Encode a table as dotenv `KEY=VALUE` lines
+- `decode(input)`: Decode dotenv `KEY=VALUE` lines to a table
 
 Example:
 
 ```lua
 tasks["manage_json_config"] = {
     handler = function(system)
-        -- Read a JSON configuration file
         local config_file = system:file("/etc/myapp/config.json")
-        local config = format.from_json(config_file.content)
+        local config = format.json.decode(tostring(config_file.content))
 
-        -- Modify configuration
         config.debug = true
         config.log_level = "info"
 
-        -- Write back to the file
-        config_file.content = format.to_json_pretty(config)
+        config_file.content = format.json.encode_pretty(config)
     end
 }
 
-tasks["update_api_config"] = {
+tasks["manage_toml_config"] = {
     handler = function(system)
-        -- Get current config from an API
-        local result = system:run_command("curl -s http://localhost:8080/api/config")
-        local api_config = format.from_json(result.stdout)
+        local config_file = system:file("/etc/myapp/config.toml")
+        local config = format.toml.decode(tostring(config_file.content))
 
-        -- Update configuration
-        api_config.settings.cache_ttl = 3600
+        config.log_level = "info"
 
-        -- Send updated config back to API
-        local json_config = format.to_json(api_config)
-        system:run_command('curl -X POST -H "Content-Type: application/json" -d \'' .. json_config .. '\' http://localhost:8080/api/config')
+        config_file.content = format.toml.encode(config)
     end
 }
 ```

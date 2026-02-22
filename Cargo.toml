@@ -37,3 +37,6 @@ indexmap = "2.12.1"
 strum = { version = "0.27.2", features = ["derive"] }
 tabled = "0.20.0"
 indicatif = "0.17"
+toml = "1.0.3"
+serde_yaml = "0.9.34"
+serde_qs = "1.0.0"
