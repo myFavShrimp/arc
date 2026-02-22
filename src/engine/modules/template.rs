@@ -5,7 +5,10 @@ use tera::Tera;
 use thiserror::Error;
 
 use crate::{
-    engine::modules::MountToGlobals,
+    engine::{
+        delegator::error::FfiError, modules::MountToGlobals,
+        objects::file_content::FileContentOrString,
+    },
     error::{ErrorReport, MutexLockError},
 };
 
@@ -108,23 +111,19 @@ impl UserData for Template {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_function(
             "render",
-            |lua, (template_content, context): (mlua::Value, mlua::Table)| {
+            |lua, (template_content, context): (FileContentOrString, mlua::Table)| {
                 let template = lua
                     .app_data_ref::<Self>()
                     .expect("templating engine unavailable in app data");
 
-                let lua_to_string: mlua::Function = lua.globals().get("tostring")?;
-
-                let template_string: mlua::String = lua_to_string.call(template_content)?;
-                let template_str = template_string.to_str().map_err(|error| {
-                    mlua::Error::RuntimeError(format!(
-                        "template content is not valid UTF-8: {}",
-                        error
-                    ))
+                let template_string = template_content.into_string().map_err(|error| {
+                    mlua::Error::RuntimeError(
+                        ErrorReport::boxed_from(error.enforce_ffi_boundary()).build_report(),
+                    )
                 })?;
 
                 template
-                    .render_string_with_lua_context(&template_str, context)
+                    .render_string_with_lua_context(&template_string, context)
                     .map_err(|error| {
                         mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
                     })
