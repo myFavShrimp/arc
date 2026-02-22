@@ -20,7 +20,7 @@ tasks["ensure_webservice_directories"] = {
 tasks["build_webservice_image"] = {
     targets = {"remote"},
     handler = function()
-        local project_root = arc.root_path .. "/.."
+        local project_root = arc.project_root_path .. "/.."
 
         local build_result = host:run_command(
             "docker build -t " .. config.image_name .. ":" .. config.image_tag
@@ -38,7 +38,7 @@ tasks["export_webservice_image"] = {
     targets = {"remote"},
     requires = {"build_webservice_image"},
     handler = function()
-        local project_root = arc.root_path .. "/.."
+        local project_root = arc.project_root_path .. "/.."
 
         host:run_command(
             "docker save " .. config.image_name .. ":" .. config.image_tag
@@ -52,7 +52,7 @@ tasks["upload_webservice_image"] = {
     targets = {"remote"},
     requires = {"export_webservice_image", "cleanup_webservice_tar"},
     handler = function(system)
-        local project_root = arc.root_path .. "/.."
+        local project_root = arc.project_root_path .. "/.."
 
         local remote_tar_path = "/tmp/" .. config.tar_name
         local local_tar_path = project_root .. "/" .. config.tar_name
@@ -78,7 +78,7 @@ tasks["load_webservice_image"] = {
 tasks["cleanup_webservice_tar"] = {
     targets = {"remote"},
     handler = function(system)
-        local project_root = arc.root_path .. "/.."
+        local project_root = arc.project_root_path .. "/.."
 
         local remote_result = system:run_command("rm -f /tmp/" .. config.tar_name)
         if remote_result.exit_code ~= 0 then

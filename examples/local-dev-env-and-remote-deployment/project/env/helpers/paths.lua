@@ -1,7 +1,7 @@
 local paths = {}
 
 local function project_root()
-    return arc.root_path .. "/.."
+    return arc.project_root_path .. "/.."
 end
 
 function paths.service_dir(system, service_name)
