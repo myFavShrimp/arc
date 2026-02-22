@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use mlua::{MetaMethod, UserData};
+use mlua::{FromLua, MetaMethod, UserData};
 
 use crate::{
     engine::delegator::{
@@ -92,5 +92,58 @@ impl UserData for FileContent {
                 Ok(mlua::BString::new(result))
             },
         );
+    }
+}
+
+pub enum FileContentOrString {
+    FileContent(FileContent),
+    String(String),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum IntoStringError {
+    #[error(transparent)]
+    FileRead(#[from] FileReadError),
+    #[error("File content is not valid UTF-8")]
+    InvalidUtf8(#[from] std::string::FromUtf8Error),
+}
+
+impl FfiError for IntoStringError {
+    fn is_user_error(&self) -> bool {
+        match self {
+            Self::FileRead(error) => error.is_user_error(),
+            Self::InvalidUtf8(_) => true,
+        }
+    }
+}
+
+impl FileContentOrString {
+    pub fn into_string(self) -> Result<String, IntoStringError> {
+        match self {
+            Self::String(string) => Ok(string),
+            Self::FileContent(file_content) => {
+                let bytes = file_content.materialize()?;
+
+                Ok(String::from_utf8(bytes)?)
+            }
+        }
+    }
+}
+
+impl FromLua for FileContentOrString {
+    fn from_lua(value: mlua::Value, _lua: &mlua::Lua) -> mlua::Result<Self> {
+        match value {
+            mlua::Value::String(string) => Ok(Self::String(string.to_str()?.to_owned())),
+            mlua::Value::UserData(user_data) => {
+                let content = user_data.borrow::<FileContent>()?.clone();
+
+                Ok(Self::FileContent(content))
+            }
+            other => Err(mlua::Error::FromLuaConversionError {
+                from: other.type_name(),
+                to: "string".to_string(),
+                message: Some("expected string or file content".to_string()),
+            }),
+        }
     }
 }

@@ -21,7 +21,7 @@
 ---Lazy file content handle.
 ---Converts to string via tostring() or the .. operator.
 ---Assigning it to another file's content transfers the data.
----@class FileContent
+---@class FileContent : string
 ---@operator concat(string|FileContent): string
 local FileContent = {}
 
