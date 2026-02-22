@@ -278,7 +278,7 @@ The File object represents a file on a target system and provides access to file
 
 - `path`: Path to the file (can be read and set; setting the path moves the file)
 - `file_name`: The name of the file without the directory path (can be read and set)
-- `content`: File content handle (can be read and set). Reading returns a `FileContent` object that acts as a lazy reference. Assigning a `FileContent` from one file to another transfers the data. The handle converts to a string automatically when used with `tostring()`, `..`, `print()`, or `template.render()`.
+- `content`: File content handle (can be read and set). Reading returns a `FileContent` object that acts as a lazy reference. Assigning a `FileContent` from one file to it transfers the data. The handle converts to a string automatically when used with `tostring()`, `..`, `print()`, `template.render()`, etc.
 - `permissions`: File permissions (can be read and set as numeric mode; returns `nil` if file doesn't exist)
 
 #### Methods
@@ -493,41 +493,16 @@ tasks["backup_to_local"] = {
 
 ### Format Module
 
-The `format` module provides serialization and deserialization utilities for various data formats. Each format is accessible as a sub-object with `encode` and `decode` methods.
-
-#### `format.json`
-
-- `encode(value)`: Encode a Lua value as JSON
-- `encode_pretty(value)`: Encode a Lua value as pretty-printed JSON
-- `decode(input)`: Decode a JSON string to a Lua value
-
-#### `format.toml`
-
-- `encode(value)`: Encode a Lua value as TOML
-- `decode(input)`: Decode a TOML string to a Lua value
-
-#### `format.yaml`
-
-- `encode(value)`: Encode a Lua value as YAML
-- `decode(input)`: Decode a YAML string to a Lua value
-
-#### `format.url`
-
-- `encode(value)`: Encode a Lua value as a URL query string (`x-www-form-urlencoded`)
-- `decode(input)`: Decode a URL query string to a Lua value
-
-#### `format.env`
-
-- `encode(value)`: Encode a table as dotenv `KEY=VALUE` lines
-- `decode(input)`: Decode dotenv `KEY=VALUE` lines to a table
+The `format` module provides serialization and deserialization for various data formats. Each format is accessible as a sub-module.
 
 Example:
 
 ```lua
-tasks["manage_json_config"] = {
+tasks["edit_config"] = {
     handler = function(system)
+        -- Decode a JSON config, modify it, and write it back
         local config_file = system:file("/etc/myapp/config.json")
-        local config = format.json.decode(tostring(config_file.content))
+        local config = format.json.decode(config_file.content)
 
         config.debug = true
         config.log_level = "info"
@@ -535,18 +510,57 @@ tasks["manage_json_config"] = {
         config_file.content = format.json.encode_pretty(config)
     end
 }
-
-tasks["manage_toml_config"] = {
-    handler = function(system)
-        local config_file = system:file("/etc/myapp/config.toml")
-        local config = format.toml.decode(tostring(config_file.content))
-
-        config.log_level = "info"
-
-        config_file.content = format.toml.encode(config)
-    end
-}
 ```
+
+#### `format.json`
+
+- `encode(value)`: Serializes a Lua value as a JSON string
+  - *Parameters*: `value` (any) - The Lua value to serialize
+  - *Returns*: JSON string
+
+- `encode_pretty(value)`: Serializes a Lua value as a pretty-printed JSON string
+  - *Parameters*: `value` (any) - The Lua value to serialize
+  - *Returns*: Pretty-printed JSON string
+
+- `decode(input)`: Deserializes a JSON string to a Lua value
+  - *Parameters*: `input` (string | file content) - JSON string to deserialize
+  - *Returns*: Decoded Lua value
+
+#### `format.toml`
+
+- `encode(value)`: Serializes a Lua value as a TOML string
+  - *Parameters*: `value` (any) - The Lua value to serialize
+  - *Returns*: TOML string
+
+- `decode(input)`: Deserializes a TOML string to a Lua value
+  - *Parameters*: `input` (string | file content) - TOML string to deserialize
+  - *Returns*: Decoded Lua value
+
+#### `format.yaml`
+
+- `encode(value)`: Serializes a Lua value as a YAML string
+  - *Parameters*: `value` (any) - The Lua value to serialize
+  - *Returns*: YAML string
+
+- `decode(input)`: Deserializes a YAML string to a Lua value
+  - *Parameters*: `input` (string | file content) - YAML string to deserialize
+  - *Returns*: Decoded Lua value
+
+#### `format.url`
+
+- `encode(value)`: Serializes a Lua value as a URL query string
+  - *Parameters*: `value` (any) - The Lua value to serialize
+  - *Returns*: URL-encoded query string (`x-www-form-urlencoded`)
+
+- `decode(input)`: Deserializes a URL query string to a Lua value
+  - *Parameters*: `input` (string | file content) - URL query string to deserialize
+  - *Returns*: Decoded Lua value
+
+#### `format.env`
+
+- `decode(input)`: Deserializes dotenv-formatted `KEY=VALUE` lines to a table
+  - *Parameters*: `input` (string | file content) - Dotenv string to deserialize
+  - *Returns*: Table of key-value string pairs
 
 ### Template Module
 
@@ -556,7 +570,7 @@ The `template` module provides template rendering capabilities using the [Tera](
 
 - `render(template_content, context)`: Render a template with given context
   - *Parameters*:
-    - `template_content` (string) - Template content
+    - `template_content` (string | file content) - Template content
     - `context` (table) - Variables to use for template rendering
   - *Returns*: Rendered template as string
 
