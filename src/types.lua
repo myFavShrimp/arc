@@ -18,10 +18,18 @@
 ---@field modified integer|nil Last modification time as Unix timestamp (nil if unavailable)
 
 
+---Lazy file content handle.
+---Converts to string via tostring() or the .. operator.
+---Assigning it to another file's content transfers the data.
+---@class FileContent
+---@operator concat(string|FileContent): string
+---@operator concat(string): string
+local FileContent = {}
+
 ---@class File
 ---@field path string Path to the file (can be read and set, setting renames the file)
 ---@field file_name string The name of the file without the directory path (can be read and set; setting renames the file)
----@field content string Binary content of the file (can be read and set)
+---@field content FileContent File content handle (set with string or FileContent)
 ---@field permissions integer|nil File permissions (can be read and set as numeric mode; nil if file doesn't exist)
 local File = {}
 
@@ -231,7 +239,7 @@ format = {}
 local Template = {}
 
 ---Render a template with given context
----@param template_content string Template content
+---@param template_content string|FileContent Template content
 ---@param context table Variables to use for template rendering
 ---@return string rendered Rendered template as string
 function Template.render(template_content, context) end

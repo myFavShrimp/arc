@@ -278,7 +278,7 @@ The File object represents a file on a target system and provides access to file
 
 - `path`: Path to the file (can be read and set; setting the path moves the file)
 - `file_name`: The name of the file without the directory path (can be read and set)
-- `content`: Content of the file as binary string (can be read and set)
+- `content`: File content handle (can be read and set). Reading returns a `FileContent` object that acts as a lazy reference. Assigning a `FileContent` from one file to another transfers the data. The handle converts to a string automatically when used with `tostring()`, `..`, `print()`, or `template.render()`.
 - `permissions`: File permissions (can be read and set as numeric mode; returns `nil` if file doesn't exist)
 
 #### Methods
@@ -471,12 +471,8 @@ Example:
 ```lua
 tasks["deploy_from_local"] = {
     handler = function(system)
-        -- Read a local template
-        local config_template = host:file("templates/nginx.conf").content
-
-        -- Write to remote system
-        local remote_config = system:file("/etc/nginx/nginx.conf")
-        remote_config.content = config_template
+        -- Streams the file directly from local to remote without loading it into memory
+        system:file("/etc/nginx/nginx.conf").content = host:file("templates/nginx.conf").content
 
         -- Restart service
         system:run_command("systemctl restart nginx")
@@ -485,15 +481,12 @@ tasks["deploy_from_local"] = {
 
 tasks["backup_to_local"] = {
     handler = function(system)
-        -- Read from remote
-        local remote_config = system:file("/etc/app/config.json").content
-
-        -- Save locally
+        -- Streams from remote to local
         local backup_dir = host:directory("backups/" .. system.name)
         backup_dir:create()
 
-        local backup_file = host:file("backups/" .. system.name .. "/config.json")
-        backup_file.content = remote_config
+        host:file("backups/" .. system.name .. "/config.json").content =
+            system:file("/etc/app/config.json").content
     end
 }
 ```
