@@ -31,8 +31,8 @@ pub enum OperationError {
 impl FfiError for OperationError {
     fn is_user_error(&self) -> bool {
         match self {
-            Self::Remote(e) => e.is_user_error(),
-            Self::Local(e) => e.is_user_error(),
+            Self::Remote(error) => error.is_user_error(),
+            Self::Local(error) => error.is_user_error(),
             Self::Progress(_) => false,
         }
     }

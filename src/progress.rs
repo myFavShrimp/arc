@@ -37,35 +37,20 @@ impl ProgressContext {
         *self.active_task.borrow_mut() = None;
     }
 
-    pub fn command(&self, cmd: &str) -> Result<CommandProgress, CommandProgressCreationError> {
+    pub fn command(&self, command: &str) -> Result<CommandProgress, CommandProgressCreationError> {
         match &*self.active_task.borrow() {
-            Some(task_logger) => task_logger.command_progress(cmd),
+            Some(task_logger) => task_logger.command_progress(command),
             None => Ok(CommandProgress::noop()),
         }
     }
 
-    pub fn upload(
+    pub fn transfer(
         &self,
-        path: &str,
+        direction: TransferDirection,
         total: u64,
     ) -> Result<TransferProgress, TransferProgressCreationError> {
         match &*self.active_task.borrow() {
-            Some(task_logger) => {
-                task_logger.transfer_progress(TransferDirection::Upload, path, total)
-            }
-            None => Ok(TransferProgress::noop()),
-        }
-    }
-
-    pub fn download(
-        &self,
-        path: &str,
-        total: u64,
-    ) -> Result<TransferProgress, TransferProgressCreationError> {
-        match &*self.active_task.borrow() {
-            Some(task_logger) => {
-                task_logger.transfer_progress(TransferDirection::Download, path, total)
-            }
+            Some(task_logger) => task_logger.transfer_progress(direction, total),
             None => Ok(TransferProgress::noop()),
         }
     }
@@ -112,6 +97,37 @@ impl TransferProgress {
             self.bar.println(&self.header);
             self.bar.finish_and_clear();
         }
+    }
+}
+
+pub struct ProgressWriter<'a, W> {
+    inner: W,
+    progress: &'a TransferProgress,
+    bytes_written: u64,
+}
+
+impl<'a, W> ProgressWriter<'a, W> {
+    pub fn new(inner: W, progress: &'a TransferProgress) -> Self {
+        Self {
+            inner,
+            progress,
+            bytes_written: 0,
+        }
+    }
+}
+
+impl<W: std::io::Write> std::io::Write for ProgressWriter<'_, W> {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        let bytes_written = self.inner.write(buffer)?;
+
+        self.bytes_written += bytes_written as u64;
+        self.progress.update(self.bytes_written);
+
+        Ok(bytes_written)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
     }
 }
 
@@ -311,16 +327,27 @@ pub struct TaskLogger {
     summary: TaskSummary,
 }
 
-enum TransferDirection {
-    Upload,
-    Download,
+pub enum TransferDirection {
+    Upload {
+        source_file_path: Option<String>,
+        target_file_path: String,
+    },
+    Download {
+        source_file_path: String,
+        target_file_path: Option<String>,
+    },
+    Copy {
+        source_file_path: String,
+        target_file_path: String,
+    },
 }
 
 impl TransferDirection {
     fn label(&self) -> &'static str {
         match self {
-            TransferDirection::Upload => "UPLD",
-            TransferDirection::Download => "DWLD",
+            TransferDirection::Upload { .. } => "UPLD",
+            TransferDirection::Download { .. } => "DWLD",
+            TransferDirection::Copy { .. } => "COPY",
         }
     }
 }
@@ -362,7 +389,6 @@ impl TaskLogger {
     fn transfer_progress(
         &self,
         direction: TransferDirection,
-        path: &str,
         total: u64,
     ) -> Result<TransferProgress, TransferProgressCreationError> {
         let bar = self.multi_progress.insert(0, ProgressBar::new(total));
@@ -373,10 +399,71 @@ impl TaskLogger {
                 .progress_chars("█░ "),
         );
 
-        let header = format!(" {}  {}", direction.label().cyan(), path.bright_black());
+        let label = direction.label().cyan();
 
-        bar.set_prefix(format!("{}", direction.label().cyan()));
-        bar.set_message(format!("{}", path.bright_black()));
+        let (header, message) = match &direction {
+            TransferDirection::Upload {
+                source_file_path: Some(source),
+                target_file_path: target,
+            } => {
+                let from = format!("from {}", source).bright_black();
+                let to = format!("to   {}", target).bright_black();
+
+                (
+                    format!(" {}  {}\n       {}", label, from, to),
+                    format!("{}\n       {}", from, to),
+                )
+            }
+            TransferDirection::Upload {
+                source_file_path: None,
+                target_file_path: target,
+            } => {
+                let path_colored = format!("to {}", target).bright_black();
+
+                (
+                    format!(" {}  {}", label, path_colored),
+                    format!("{}", path_colored),
+                )
+            }
+            TransferDirection::Download {
+                source_file_path: source,
+                target_file_path: Some(target),
+            } => {
+                let from = format!("from {}", source).bright_black();
+                let to = format!("to   {}", target).bright_black();
+
+                (
+                    format!(" {}  {}\n       {}", label, from, to),
+                    format!("{}\n       {}", from, to),
+                )
+            }
+            TransferDirection::Download {
+                source_file_path: source,
+                target_file_path: None,
+            } => {
+                let path_colored = format!("from {}", source).bright_black();
+
+                (
+                    format!(" {}  {}", label, path_colored),
+                    format!("{}", path_colored),
+                )
+            }
+            TransferDirection::Copy {
+                source_file_path: source,
+                target_file_path: target,
+            } => {
+                let from = format!("from {}", source).bright_black();
+                let to = format!("to   {}", target).bright_black();
+
+                (
+                    format!(" {}  {}\n       {}", label, from, to),
+                    format!("{}\n       {}", from, to),
+                )
+            }
+        };
+
+        bar.set_prefix(format!("{}", label));
+        bar.set_message(message);
 
         Ok(TransferProgress {
             bar,

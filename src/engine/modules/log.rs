@@ -20,12 +20,13 @@ impl Log {
     }
 }
 
-fn lua_value_to_string(value: mlua::Value) -> String {
-    match value.to_string() {
-        Ok(utf8_str) => utf8_str,
-        Err(_) => {
-            format!("[binary data] {:X?}", value)
-        }
+fn lua_value_to_string(lua: &mlua::Lua, value: mlua::Value) -> Result<String, mlua::Error> {
+    let lua_to_string: mlua::Function = lua.globals().get("tostring")?;
+    let lua_string: mlua::String = lua_to_string.call(value)?;
+
+    match lua_string.to_str() {
+        Ok(utf8_str) => Ok(utf8_str.to_string()),
+        Err(_) => Ok(format!("[binary data] {:X?}", lua_string.as_bytes())),
     }
 }
 
@@ -35,7 +36,7 @@ impl UserData for Log {
             let log = lua
                 .app_data_ref::<Self>()
                 .expect("logger unavailable in app data");
-            log.log(LogLevel::Debug, &lua_value_to_string(value));
+            log.log(LogLevel::Debug, &lua_value_to_string(lua, value)?);
 
             Ok(())
         });
@@ -44,7 +45,7 @@ impl UserData for Log {
             let log = lua
                 .app_data_ref::<Self>()
                 .expect("logger unavailable in app data");
-            log.log(LogLevel::Info, &lua_value_to_string(value));
+            log.log(LogLevel::Info, &lua_value_to_string(lua, value)?);
 
             Ok(())
         });
@@ -53,7 +54,7 @@ impl UserData for Log {
             let log = lua
                 .app_data_ref::<Self>()
                 .expect("logger unavailable in app data");
-            log.log(LogLevel::Warn, &lua_value_to_string(value));
+            log.log(LogLevel::Warn, &lua_value_to_string(lua, value)?);
 
             Ok(())
         });
@@ -62,7 +63,7 @@ impl UserData for Log {
             let log = lua
                 .app_data_ref::<Self>()
                 .expect("logger unavailable in app data");
-            log.log(LogLevel::Error, &lua_value_to_string(value));
+            log.log(LogLevel::Error, &lua_value_to_string(lua, value)?);
 
             Ok(())
         });
@@ -83,7 +84,7 @@ impl MountToGlobals for Log {
                     .app_data_ref::<Self>()
                     .expect("logger unavailable in app data");
 
-                logger.log(LogLevel::Info, &lua_value_to_string(value));
+                logger.log(LogLevel::Info, &lua_value_to_string(lua, value)?);
 
                 Ok(())
             })?,

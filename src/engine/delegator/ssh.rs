@@ -10,7 +10,7 @@ use super::{
 };
 use crate::engine::delegator::ssh::error::{classify_io_error, classify_ssh_error};
 use crate::memory::target_systems::RemoteTargetSystem;
-use crate::progress::{CommandProgress, TransferProgress};
+use crate::progress::{CommandProgress, ProgressWriter, TransferProgress};
 
 mod error;
 use error::ExecutionError;
@@ -38,11 +38,11 @@ pub enum SshError {
 
 impl SshClient {
     pub fn connect(system: &RemoteTargetSystem) -> Result<Self, ConnectionError> {
-        let tcp =
+        let tcp_stream =
             TcpStream::connect(system.socket_address()).map_err(ConnectionError::TcpConnection)?;
 
         let mut session = Session::new()?;
-        session.set_tcp_stream(tcp);
+        session.set_tcp_stream(tcp_stream);
         session.handshake()?;
 
         // Try to authenticate without agent (e.g. without credentials)
@@ -160,14 +160,17 @@ impl SshClient {
             .map_err(|error| classify_ssh_error(error, path))?;
 
         let mut content = Vec::new();
-        let mut buf = [0u8; 8192];
+        let mut buf = vec![0u8; super::TRANSFER_BUFFER_SIZE];
 
         loop {
-            let n = file.read(&mut buf).map_err(classify_io_error)?;
-            if n == 0 {
+            let bytes_read = file.read(&mut buf).map_err(classify_io_error)?;
+
+            if bytes_read == 0 {
                 break;
             }
-            content.extend_from_slice(&buf[..n]);
+
+            content.extend_from_slice(&buf[..bytes_read]);
+
             progress.update(content.len() as u64);
         }
 
@@ -188,7 +191,7 @@ impl SshClient {
             .map_err(|error| classify_ssh_error(error, path))?;
 
         let mut written = 0;
-        for chunk in content.chunks(8192) {
+        for chunk in content.chunks(super::TRANSFER_BUFFER_SIZE) {
             file.write_all(chunk).map_err(classify_io_error)?;
             written += chunk.len();
             progress.update(written as u64);
@@ -394,5 +397,42 @@ impl SshClient {
                 _ => Err(classify_ssh_error(error, path)),
             },
         }
+    }
+
+    pub fn open_reader(
+        &self,
+        path: &Path,
+    ) -> Result<std::io::BufReader<ssh2::File>, ExecutionError> {
+        let file = self
+            .sftp
+            .open(path)
+            .map_err(|error| classify_ssh_error(error, path))?;
+
+        Ok(std::io::BufReader::with_capacity(
+            super::TRANSFER_BUFFER_SIZE,
+            file,
+        ))
+    }
+
+    pub fn write_from_reader(
+        &self,
+        path: &Path,
+        reader: &mut dyn Read,
+        progress: &TransferProgress,
+    ) -> Result<FileWriteResult, ExecutionError> {
+        let file = self
+            .sftp
+            .create(path)
+            .map_err(|error| classify_ssh_error(error, path))?;
+
+        let buf_writer = std::io::BufWriter::with_capacity(super::TRANSFER_BUFFER_SIZE, file);
+        let mut writer = ProgressWriter::new(buf_writer, progress);
+
+        let bytes_written = std::io::copy(reader, &mut writer).map_err(classify_io_error)?;
+
+        Ok(FileWriteResult {
+            path: path.to_path_buf(),
+            bytes_written: bytes_written as usize,
+        })
     }
 }

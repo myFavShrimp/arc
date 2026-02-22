@@ -43,9 +43,9 @@ impl FromLua for TaskConfig {
                     .get("on_fail")
                     .or(Err(mlua::Error::runtime("\"on_fail\" is invalid")))?;
                 let on_fail = match on_fail_str {
-                    Some(s) => OnFailBehavior::from_str(&s).or(Err(mlua::Error::runtime(format!(
+                    Some(string) => OnFailBehavior::from_str(&string).or(Err(mlua::Error::runtime(format!(
                         "Invalid on_fail value: \"{}\". Expected \"continue\", \"skip_system\", or \"abort\"",
-                        s
+                        string
                     ))))?,
                     None => OnFailBehavior::default(),
                 };

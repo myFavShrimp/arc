@@ -32,10 +32,10 @@ impl Host {
 
 impl UserData for Host {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
-        methods.add_method("run_command", |_, this, cmd: String| {
+        methods.add_method("run_command", |_, this, command: String| {
             let result = this
                 .executor
-                .run_command(cmd)
+                .run_command(command)
                 .unwrap_or_else(|error| resume_unwind(Box::new(FfiPanicError(Box::new(error)))));
 
             Ok(result)

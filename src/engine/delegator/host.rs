@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 use std::sync::mpsc;
 
 use crate::engine::delegator::host::error::classify_io_error;
-use crate::progress::CommandProgress;
+use crate::progress::{CommandProgress, ProgressWriter, TransferProgress};
 
 pub mod error;
 
@@ -307,5 +307,37 @@ impl HostClient {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(error) => Err(classify_io_error(error, path)),
         }
+    }
+
+    pub fn open_reader(
+        &self,
+        path: &Path,
+    ) -> Result<std::io::BufReader<std::fs::File>, ExecutionError> {
+        let file = std::fs::File::open(path).map_err(|error| classify_io_error(error, path))?;
+
+        Ok(std::io::BufReader::with_capacity(
+            super::TRANSFER_BUFFER_SIZE,
+            file,
+        ))
+    }
+
+    pub fn write_from_reader(
+        &self,
+        path: &Path,
+        reader: &mut dyn Read,
+        progress: &TransferProgress,
+    ) -> Result<FileWriteResult, ExecutionError> {
+        let file = std::fs::File::create(path).map_err(|error| classify_io_error(error, path))?;
+
+        let buf_writer = std::io::BufWriter::with_capacity(super::TRANSFER_BUFFER_SIZE, file);
+        let mut writer = ProgressWriter::new(buf_writer, progress);
+
+        let bytes_written =
+            std::io::copy(reader, &mut writer).map_err(|error| classify_io_error(error, path))?;
+
+        Ok(FileWriteResult {
+            path: path.to_path_buf(),
+            bytes_written: bytes_written as usize,
+        })
     }
 }

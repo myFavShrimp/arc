@@ -1,5 +1,6 @@
 use std::{
     fmt::Display,
+    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -19,7 +20,7 @@ use crate::{
     },
     error::ErrorReport,
     memory::target_systems::{TargetSystem, TargetSystemKind},
-    progress::ProgressContext,
+    progress::{ProgressContext, TransferDirection, TransferProgress},
 };
 
 #[derive(Clone)]
@@ -32,7 +33,9 @@ impl FileSystemEntry {
     pub fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
         match self {
             FileSystemEntry::File(file) => Ok(mlua::Value::UserData(lua.create_userdata(file)?)),
-            FileSystemEntry::Directory(dir) => Ok(mlua::Value::UserData(lua.create_userdata(dir)?)),
+            FileSystemEntry::Directory(directory) => {
+                Ok(mlua::Value::UserData(lua.create_userdata(directory)?))
+            }
         }
     }
 }
@@ -282,6 +285,19 @@ pub struct DirectoryValidityError {
     source: OperationError,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error(
+    "Failed to stream {source_locality} file {source_path:?} to {target_locality} file {target_path:?}"
+)]
+pub struct FileStreamError {
+    source_path: PathBuf,
+    source_locality: Locality,
+    target_path: PathBuf,
+    target_locality: Locality,
+    #[source]
+    source: OperationError,
+}
+
 macro_rules! delegate_ffi_error {
     ($($name:ident),* $(,)?) => {
         $(
@@ -297,6 +313,7 @@ macro_rules! delegate_ffi_error {
 delegate_ffi_error!(
     FileReadError,
     FileWriteError,
+    FileStreamError,
     RenameError,
     RemoveFileError,
     RemoveDirectoryError,
@@ -311,17 +328,21 @@ delegate_ffi_error!(
 impl FileSystemOperator {
     pub fn read_file(&self, path: &PathBuf) -> Result<Vec<u8>, FileReadError> {
         match &self.kind {
-            FileSystemOperatorKind::Ssh(ssh_client) => {
-                let path_str = path.to_string_lossy();
-                self.progress
-                    .download(&path_str, ssh_client.file_size(path).unwrap_or(0))
-                    .map_err(OperationError::Progress)
-                    .and_then(|progress| {
-                        ssh_client
-                            .read_file(path, &progress)
-                            .map_err(OperationError::Remote)
-                    })
-            }
+            FileSystemOperatorKind::Ssh(ssh_client) => self
+                .progress
+                .transfer(
+                    TransferDirection::Download {
+                        source_file_path: path.to_string_lossy().into_owned(),
+                        target_file_path: None,
+                    },
+                    ssh_client.file_size(path).unwrap_or(0),
+                )
+                .map_err(OperationError::Progress)
+                .and_then(|progress| {
+                    ssh_client
+                        .read_file(path, &progress)
+                        .map_err(OperationError::Remote)
+                }),
             FileSystemOperatorKind::Local(local_client, home_path) => {
                 with_local_dir(home_path, || local_client.read_file(path))
                     .map_err(OperationError::Local)
@@ -343,17 +364,21 @@ impl FileSystemOperator {
         content: &[u8],
     ) -> Result<FileWriteResult, FileWriteError> {
         match &self.kind {
-            FileSystemOperatorKind::Ssh(ssh_client) => {
-                let path_str = path.to_string_lossy();
-                self.progress
-                    .upload(&path_str, content.len() as u64)
-                    .map_err(OperationError::Progress)
-                    .and_then(|progress| {
-                        ssh_client
-                            .write_file(path, content, &progress)
-                            .map_err(OperationError::Remote)
-                    })
-            }
+            FileSystemOperatorKind::Ssh(ssh_client) => self
+                .progress
+                .transfer(
+                    TransferDirection::Upload {
+                        source_file_path: None,
+                        target_file_path: path.to_string_lossy().into_owned(),
+                    },
+                    content.len() as u64,
+                )
+                .map_err(OperationError::Progress)
+                .and_then(|progress| {
+                    ssh_client
+                        .write_file(path, content, &progress)
+                        .map_err(OperationError::Remote)
+                }),
             FileSystemOperatorKind::Local(local_client, home_path) => {
                 with_local_dir(home_path, || local_client.write_file(path, content))
                     .map_err(OperationError::Local)
@@ -624,5 +649,125 @@ impl FileSystemOperator {
         new_path.set_file_name(new_name);
 
         self.rename(path, &new_path)
+    }
+
+    fn get_file_size(&self, path: &PathBuf) -> u64 {
+        match &self.kind {
+            FileSystemOperatorKind::Ssh(ssh_client) => ssh_client.file_size(path).unwrap_or(0),
+            FileSystemOperatorKind::Local(_, home_path) => with_local_dir(home_path, || {
+                Ok::<u64, std::convert::Infallible>(
+                    std::fs::metadata(path).map(|m| m.len()).unwrap_or(0),
+                )
+            })
+            .unwrap_or(0),
+            FileSystemOperatorKind::Host(_) => {
+                std::fs::metadata(path).map(|m| m.len()).unwrap_or(0)
+            }
+        }
+    }
+
+    pub fn stream_to_other(
+        &self,
+        source_path: &PathBuf,
+        target: &FileSystemOperator,
+        target_path: &Path,
+    ) -> Result<FileWriteResult, FileStreamError> {
+        let source_size = self.get_file_size(source_path);
+
+        let source_file_path = source_path.to_string_lossy().into_owned();
+        let target_file_path = target_path.to_string_lossy().into_owned();
+
+        let progress = match (&self.kind, &target.kind) {
+            (FileSystemOperatorKind::Ssh(_), FileSystemOperatorKind::Ssh(_))
+            | (
+                FileSystemOperatorKind::Local(_, _) | FileSystemOperatorKind::Host(_),
+                FileSystemOperatorKind::Local(_, _) | FileSystemOperatorKind::Host(_),
+            ) => self.progress.transfer(
+                TransferDirection::Copy {
+                    source_file_path,
+                    target_file_path,
+                },
+                source_size,
+            ),
+            (
+                FileSystemOperatorKind::Ssh(_),
+                FileSystemOperatorKind::Local(_, _) | FileSystemOperatorKind::Host(_),
+            ) => self.progress.transfer(
+                TransferDirection::Download {
+                    source_file_path,
+                    target_file_path: Some(target_file_path),
+                },
+                source_size,
+            ),
+            (
+                FileSystemOperatorKind::Local(_, _) | FileSystemOperatorKind::Host(_),
+                FileSystemOperatorKind::Ssh(_),
+            ) => target.progress.transfer(
+                TransferDirection::Upload {
+                    source_file_path: Some(source_file_path),
+                    target_file_path,
+                },
+                source_size,
+            ),
+        }
+        .map_err(|source| FileStreamError {
+            source_path: source_path.clone(),
+            source_locality: self.locality(),
+            target_path: target_path.to_path_buf(),
+            target_locality: target.locality(),
+            source: OperationError::Progress(source),
+        })?;
+
+        let result = match &self.kind {
+            FileSystemOperatorKind::Ssh(ssh_client) => ssh_client
+                .open_reader(source_path)
+                .map_err(OperationError::Remote)
+                .and_then(|mut reader| {
+                    write_reader_to_writer(&mut reader, target, target_path, &progress)
+                }),
+            FileSystemOperatorKind::Local(host_client, home_path) => {
+                with_local_dir(home_path, || host_client.open_reader(source_path))
+                    .map_err(OperationError::Local)
+                    .and_then(|mut reader| {
+                        write_reader_to_writer(&mut reader, target, target_path, &progress)
+                    })
+            }
+            FileSystemOperatorKind::Host(host_client) => host_client
+                .open_reader(source_path)
+                .map_err(OperationError::Local)
+                .and_then(|mut reader| {
+                    write_reader_to_writer(&mut reader, target, target_path, &progress)
+                }),
+        };
+
+        progress.finish();
+
+        result.map_err(|source| FileStreamError {
+            source_path: source_path.clone(),
+            source_locality: self.locality(),
+            target_path: target_path.to_path_buf(),
+            target_locality: target.locality(),
+            source,
+        })
+    }
+}
+
+fn write_reader_to_writer(
+    reader: &mut dyn Read,
+    target: &FileSystemOperator,
+    target_path: &Path,
+    progress: &TransferProgress,
+) -> Result<FileWriteResult, OperationError> {
+    match &target.kind {
+        FileSystemOperatorKind::Ssh(ssh_client) => ssh_client
+            .write_from_reader(target_path, reader, progress)
+            .map_err(OperationError::Remote),
+        FileSystemOperatorKind::Local(host_client, home_path) => with_local_dir(home_path, || {
+            host_client.write_from_reader(target_path, reader, progress)
+        })
+        .map_err(OperationError::Local),
+        FileSystemOperatorKind::Host(host_client) => host_client
+            .write_from_reader(target_path, reader, progress)
+            .map_err(OperationError::Local),
     }
 }

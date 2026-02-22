@@ -29,7 +29,7 @@ fn main() -> Result<(), error::ErrorReport> {
 
     let logger = Logger::new();
     let root_path = std::env::current_dir()
-        .map_err(|e| error::ErrorReport::boxed_from(WorkingDirectoryError(e)))?;
+        .map_err(|error| error::ErrorReport::boxed_from(WorkingDirectoryError(error)))?;
     let home_path =
         std::env::home_dir().ok_or_else(|| error::ErrorReport::boxed_from(HomeDirectoryError))?;
 

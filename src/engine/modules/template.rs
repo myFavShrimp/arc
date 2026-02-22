@@ -69,9 +69,9 @@ impl Template {
             let (key, value) = pair?;
 
             let key_string = match key {
-                mlua::Value::String(s) => s.to_string_lossy(),
-                mlua::Value::Integer(i) => i.to_string(),
-                mlua::Value::Number(n) => n.to_string(),
+                mlua::Value::String(string) => string.to_string_lossy(),
+                mlua::Value::Integer(integer) => integer.to_string(),
+                mlua::Value::Number(float) => float.to_string(),
                 other => Err(InvalidArgumentNameError(other.type_name().to_string()))?,
             };
 
@@ -79,24 +79,24 @@ impl Template {
                 mlua::Value::Nil => {
                     map.insert(key_string, ().into());
                 }
-                mlua::Value::Boolean(b) => {
-                    map.insert(key_string, b.into());
+                mlua::Value::Boolean(boolean) => {
+                    map.insert(key_string, boolean.into());
                 }
-                mlua::Value::Integer(i) => {
-                    map.insert(key_string, i.into());
+                mlua::Value::Integer(integer) => {
+                    map.insert(key_string, integer.into());
                 }
-                mlua::Value::Number(n) => {
-                    map.insert(key_string, n.into());
+                mlua::Value::Number(number) => {
+                    map.insert(key_string, number.into());
                 }
-                mlua::Value::String(s) => {
-                    if let Ok(string) = s.to_str() {
+                mlua::Value::String(string) => {
+                    if let Ok(string) = string.to_str() {
                         map.insert(key_string, string.to_string().into());
                     }
                 }
-                mlua::Value::Table(t) => {
-                    map.insert(key_string, Self::build_template_arguments(t)?.into());
+                mlua::Value::Table(table) => {
+                    map.insert(key_string, Self::build_template_arguments(table)?.into());
                 }
-                other => Err(InvalidArgumentNameError(other.type_name().to_string()))?,
+                other => Err(InvalidArgumentTypeError(other.type_name().to_string()))?,
             }
         }
 
@@ -108,13 +108,23 @@ impl UserData for Template {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_function(
             "render",
-            |lua, (template_content, context): (String, mlua::Table)| {
+            |lua, (template_content, context): (mlua::Value, mlua::Table)| {
                 let template = lua
                     .app_data_ref::<Self>()
                     .expect("templating engine unavailable in app data");
 
+                let lua_to_string: mlua::Function = lua.globals().get("tostring")?;
+
+                let template_string: mlua::String = lua_to_string.call(template_content)?;
+                let template_str = template_string.to_str().map_err(|error| {
+                    mlua::Error::RuntimeError(format!(
+                        "template content is not valid UTF-8: {}",
+                        error
+                    ))
+                })?;
+
                 template
-                    .render_string_with_lua_context(&template_content, context)
+                    .render_string_with_lua_context(&template_str, context)
                     .map_err(|error| {
                         mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
                     })
