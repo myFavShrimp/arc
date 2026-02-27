@@ -50,23 +50,12 @@ tasks["setup_grafana_service"] = {
 tasks["start_grafana_service"] = {
     handler = function(system)
         local service_dir = helpers.paths.service_dir(system, "grafana")
-
-        local engine = helpers.container.engine(system)
         local compose = helpers.container.compose(system)
 
-        local result = system:run_command(engine .. " ps --format '{{.Names}}' | grep grafana")
-        local is_running = result.exit_code == 0
+        local restart_result = system:run_command("cd " .. service_dir .. " && " .. compose .. " up -d --force-recreate")
 
-        if not is_running then
-            local up_result = system:run_command("cd " .. service_dir .. " && " .. compose .. " up -d")
-            if up_result.exit_code ~= 0 then
-                error("Could not start grafana: " .. up_result.stderr)
-            end
-        else
-            local restart_result = system:run_command("cd " .. service_dir .. " && " .. compose .. " up -d --force-recreate")
-            if restart_result.exit_code ~= 0 then
-                error("Could not restart grafana: " .. restart_result.stderr)
-            end
+        if restart_result.exit_code ~= 0 then
+            error("Could not restart grafana: " .. restart_result.stderr)
         end
     end,
     tags = {"start"},

@@ -50,23 +50,12 @@ tasks["setup_tempo_service"] = {
 tasks["start_tempo_service"] = {
     handler = function(system)
         local service_dir = helpers.paths.service_dir(system, "tempo")
-
-        local engine = helpers.container.engine(system)
         local compose = helpers.container.compose(system)
 
-        local result = system:run_command(engine .. " ps --format '{{.Names}}' | grep tempo")
-        local is_running = result.exit_code == 0
+        local restart_result = system:run_command("cd " .. service_dir .. " && " .. compose .. " up -d --force-recreate")
 
-        if not is_running then
-            local up_result = system:run_command("cd " .. service_dir .. " && " .. compose .. " up -d")
-            if up_result.exit_code ~= 0 then
-                error("Could not start tempo: " .. up_result.stderr)
-            end
-        else
-            local restart_result = system:run_command("cd " .. service_dir .. " && " .. compose .. " up -d --force-recreate")
-            if restart_result.exit_code ~= 0 then
-                error("Could not restart tempo: " .. restart_result.stderr)
-            end
+        if restart_result.exit_code ~= 0 then
+            error("Could not restart tempo: " .. restart_result.stderr)
         end
     end,
     tags = {"start"},
