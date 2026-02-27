@@ -1,6 +1,6 @@
 services:
   server:
-    build: .
+    build: ..
     privileged: true
     ports:
       - "2222:22"

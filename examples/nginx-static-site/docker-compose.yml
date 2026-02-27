@@ -1,6 +1,6 @@
 services:
   web-server:
-    build: .
+    build: ..
     ports:
       - "2222:22"
       - "8080:80"

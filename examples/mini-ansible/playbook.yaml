@@ -1,0 +1,38 @@
+vars:
+  app_name: My Website
+
+systems:
+  web-1:
+    address: 127.0.0.1
+    port: 2221
+    user: root
+  web-2:
+    address: 127.0.0.1
+    port: 2222
+    user: root
+
+groups:
+  webservers:
+    members:
+      - web-1
+      - web-2
+
+tasks:
+  - name: install_packages
+    packages:
+      - nginx
+
+  - name: deploy_site
+    template:
+      src: templates/index.html
+      dest: /var/www/html/index.html
+
+  - name: deploy_css
+    copy:
+      src: files/style.css
+      dest: /var/www/html/style.css
+
+  - name: start_nginx
+    service:
+      name: nginx
+      state: started
