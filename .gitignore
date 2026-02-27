@@ -1,3 +1,4 @@
 target/
 examples/local-dev-env-and-remote-deployment/project/.dev/
 examples/local-dev-env-and-remote-deployment/project/.env
+examples/build-tool/project
