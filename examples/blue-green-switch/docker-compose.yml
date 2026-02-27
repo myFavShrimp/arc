@@ -1,0 +1,7 @@
+services:
+  server:
+    build: .
+    privileged: true
+    ports:
+      - "2222:22"
+      - "8080:80"
