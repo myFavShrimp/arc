@@ -6,6 +6,18 @@ arc (Automatic Remote Controller) is an automation tool that uses Lua for script
 
 ## Installation
 
+### Pre-built binaries
+
+Pre-built binaries are available on the [GitHub releases page](https://github.com/myFavShrimp/arc/releases).
+
+Alternatively, using [cargo-binstall](https://github.com/cargo-bins/cargo-binstall):
+
+```bash
+cargo binstall arc-automation
+```
+
+### From source
+
 1. Install [Rust](https://rust-lang.org/)
 
 2. Install arc using Cargo:
