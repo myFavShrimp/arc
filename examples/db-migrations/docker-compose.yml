@@ -1,0 +1,12 @@
+services:
+  server:
+    build: ../
+    ports:
+      - "2222:22"
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
