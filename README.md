@@ -1,6 +1,6 @@
 # arc
 
-arc (Automatic Remote Controller) is an automation tool that uses Lua for scripting. It executes tasks on the local or remote systems via SSH with a flexible API for managing configurations, files, and commands across multiple servers.
+arc (Automatic Remote Controller) is a general-purpose automation tool that uses Lua for scripting. It executes tasks on the local or remote systems via SSH with a flexible API for managing configurations, files, and commands across multiple servers. arc is not limited to a single domain and can be used as a build tool, for CI/CD, infrastructure provisioning, deployment, and many more, all within a single project sharing the same logic.
 
 [![asciicast](https://asciinema.org/a/L5fJR5JOLVziZyvA.svg)](https://asciinema.org/a/L5fJR5JOLVziZyvA)
 
