@@ -11,10 +11,12 @@ static MAX_OUTPUT_LINES: usize = 4;
 static MAX_OUTPUT_LINE_WIDTH: usize = 42;
 
 fn truncate_line(line: &str, max_width: usize) -> String {
-    if line.len() <= max_width {
+    if line.chars().count() <= max_width {
         line.to_string()
     } else {
-        format!("{}...", &line[..max_width - 3])
+        let mut truncated: String = line.chars().take(max_width.saturating_sub(3)).collect();
+        truncated.push_str("...");
+        truncated
     }
 }
 
