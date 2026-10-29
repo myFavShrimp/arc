@@ -83,7 +83,9 @@ impl FromLua for TaskConfig {
                     important,
                 })
             }
-            mlua::Value::Function(_)
+            mlua::Value::Vector(_)
+            | mlua::Value::Buffer(_)
+            | mlua::Value::Function(_)
             | mlua::Value::Nil
             | mlua::Value::Boolean(_)
             | mlua::Value::LightUserData(_)

@@ -117,7 +117,7 @@ impl Engine {
         home_path: PathBuf,
     ) -> Result<Self, EngineBuilderCreationError> {
         let mut lua = Lua::new_with(
-            StdLib::TABLE | StdLib::STRING | StdLib::PACKAGE | StdLib::BIT | StdLib::MATH,
+            StdLib::TABLE | StdLib::STRING | StdLib::BIT | StdLib::MATH,
             LuaOptions::new().catch_rust_panics(false),
         )?;
 

@@ -23,7 +23,7 @@ lto = "fat"
 strip = "symbols"
 
 [dependencies]
-mlua = { version = "0.12", features = ["luajit", "vendored", "macros", "serialize"] }
+mlua = { version = "0.12", features = ["luau", "macros", "serialize"] }
 clap = { version = "4.6", features = ["derive"] }
 ssh2 = "0.9"
 thiserror = "2.0.21"
