@@ -22,7 +22,7 @@ impl Log {
 
 fn lua_value_to_string(lua: &mlua::Lua, value: mlua::Value) -> Result<String, mlua::Error> {
     let lua_to_string: mlua::Function = lua.globals().get("tostring")?;
-    let lua_string: mlua::String = lua_to_string.call(value)?;
+    let lua_string: mlua::LuaString = lua_to_string.call(value)?;
 
     match lua_string.to_str() {
         Ok(utf8_str) => Ok(utf8_str.to_string()),

@@ -49,12 +49,13 @@ fn resolve_file_content_concat_value(
                 return Ok(content.materialize()?);
             }
 
-            let lua_string: mlua::String = lua_to_string.call(mlua::Value::UserData(user_data))?;
+            let lua_string: mlua::LuaString =
+                lua_to_string.call(mlua::Value::UserData(user_data))?;
 
             Ok(lua_string.as_bytes().to_vec())
         }
         other => {
-            let lua_string: mlua::String = lua_to_string.call(other)?;
+            let lua_string: mlua::LuaString = lua_to_string.call(other)?;
 
             Ok(lua_string.as_bytes().to_vec())
         }

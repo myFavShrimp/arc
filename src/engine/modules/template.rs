@@ -55,17 +55,14 @@ impl Template {
         template_content: &str,
         lua_context: mlua::Table,
     ) -> Result<String, TemplateRenderError> {
-        let context =
-            tera::Context::from_value(Self::build_template_arguments(lua_context)?.into())?;
+        let context = tera::Context::from_serialize(&Self::build_template_arguments(lua_context)?)?;
 
-        let mut guard = self.tera.lock().map_err(|_| MutexLockError)?;
+        let guard = self.tera.lock().map_err(|_| MutexLockError)?;
 
-        Ok(guard.render_str(template_content, &context)?)
+        Ok(guard.render_str(template_content, &context, false)?)
     }
 
-    fn build_template_arguments(
-        table: mlua::Table,
-    ) -> Result<tera::Map<String, tera::Value>, TemplateArgumentsError> {
+    fn build_template_arguments(table: mlua::Table) -> Result<tera::Map, TemplateArgumentsError> {
         let mut map = tera::Map::new();
 
         for pair in table.pairs::<mlua::Value, mlua::Value>() {
@@ -80,24 +77,30 @@ impl Template {
 
             match value {
                 mlua::Value::Nil => {
-                    map.insert(key_string, ().into());
+                    map.insert(tera::value::Key::String(key_string.into()), ().into());
                 }
                 mlua::Value::Boolean(boolean) => {
-                    map.insert(key_string, boolean.into());
+                    map.insert(tera::value::Key::String(key_string.into()), boolean.into());
                 }
                 mlua::Value::Integer(integer) => {
-                    map.insert(key_string, integer.into());
+                    map.insert(tera::value::Key::String(key_string.into()), integer.into());
                 }
                 mlua::Value::Number(number) => {
-                    map.insert(key_string, number.into());
+                    map.insert(tera::value::Key::String(key_string.into()), number.into());
                 }
                 mlua::Value::String(string) => {
                     if let Ok(string) = string.to_str() {
-                        map.insert(key_string, string.to_string().into());
+                        map.insert(
+                            tera::value::Key::String(key_string.into()),
+                            string.to_string().into(),
+                        );
                     }
                 }
                 mlua::Value::Table(table) => {
-                    map.insert(key_string, Self::build_template_arguments(table)?.into());
+                    map.insert(
+                        tera::value::Key::String(key_string.into()),
+                        Self::build_template_arguments(table)?.into(),
+                    );
                 }
                 other => Err(InvalidArgumentTypeError(other.type_name().to_string()))?,
             }
