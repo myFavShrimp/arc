@@ -3,7 +3,7 @@ use std::{collections::HashSet, path::PathBuf, str::FromStr};
 use mlua::{FromLua, IntoLua, Lua, MetaMethod, UserData};
 
 use crate::{
-    engine::{modules::MountToGlobals, readonly::set_readonly},
+    engine::{ENTRY_POINT_SCRIPT, modules::MountToGlobals, readonly::set_readonly},
     error::{ErrorReport, MutexLockError},
     memory::{
         SharedMemory,
@@ -141,22 +141,27 @@ pub enum TasksModuleRetrievalError {
     TaskRetrieval(#[from] TaskRetrievalError),
 }
 
-pub struct TasksTable {
+#[derive(Clone)]
+pub struct TaskTable {
     pub tasks_memory: SharedMemory<TasksMemory>,
 }
 
-impl TasksTable {
+impl TaskTable {
     pub fn new(tasks_memory: SharedMemory<TasksMemory>) -> Self {
         Self { tasks_memory }
     }
 
-    pub fn add(
+    pub fn add_with_additional_tags(
         &self,
-        _lua: &Lua,
+        lua: &Lua,
         name: String,
-        config: TaskConfig,
+        mut config: TaskConfig,
     ) -> Result<(), TaskConfigAdditionError> {
         let mut tasks = self.tasks_memory.lock().map_err(|_| MutexLockError)?;
+
+        if let Some(Some(additional_tags)) = lua.inspect_stack(1, build_additional_tags) {
+            config.tags.extend(additional_tags);
+        };
 
         tasks.add(Task {
             name,
@@ -182,54 +187,70 @@ impl TasksTable {
     }
 }
 
-impl UserData for TasksTable {
+fn build_additional_tags(debug: &mlua::debug::Debug) -> Option<Vec<String>> {
+    let source = debug.source().source?;
+
+    if !source.starts_with('@') || source.ends_with(ENTRY_POINT_SCRIPT) {
+        return None;
+    }
+
+    let source_path = PathBuf::from(source.trim_start_matches('@'));
+
+    let source_file_stem = source_path.file_stem()?.to_string_lossy().to_string();
+    let initial_additional_tags = vec![source_file_stem];
+
+    let additional_tags = if let Some(parent_path) = source_path.parent() {
+        parent_path
+            .components()
+            .fold(initial_additional_tags, |mut acc, component| {
+                match component {
+                    std::path::Component::Prefix(..)
+                    | std::path::Component::RootDir
+                    | std::path::Component::CurDir
+                    | std::path::Component::ParentDir => {}
+                    std::path::Component::Normal(component) => {
+                        acc.push(component.to_string_lossy().to_string());
+                    }
+                };
+
+                acc
+            })
+    } else {
+        initial_additional_tags
+    };
+
+    Some(additional_tags)
+}
+
+impl UserData for TaskTable {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_meta_method(
-            MetaMethod::NewIndex,
-            |lua, this, (name, mut config): (String, TaskConfig)| {
-                let additional_tags = lua.inspect_stack(1, |debug| {
-                    let source = debug.source().source?;
+            MetaMethod::Call,
+            |lua, this, (name, config): (String, Option<TaskConfig>)| match config {
+                Some(config) => {
+                    this.add_with_additional_tags(lua, name, config)
+                        .map_err(|error| {
+                            mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+                        })?;
 
-                    if !source.starts_with('@') {
-                        return None;
-                    }
-
-                    let source_path = PathBuf::from(source.trim_start_matches('@'));
-
-                    let source_file_stem = source_path.file_stem()?.to_string_lossy().to_string();
-                    let initial_additional_tags = vec![source_file_stem];
-
-                    let additional_tags = if let Some(parent_path) = source_path.parent() {
-                        parent_path.components().fold(
-                            initial_additional_tags,
-                            |mut acc, component| {
-                                match component {
-                                    std::path::Component::Prefix(..)
-                                    | std::path::Component::RootDir
-                                    | std::path::Component::CurDir
-                                    | std::path::Component::ParentDir => {}
-                                    std::path::Component::Normal(component) => {
-                                        acc.push(component.to_string_lossy().to_string());
-                                    }
-                                };
-
-                                acc
-                            },
-                        )
-                    } else {
-                        initial_additional_tags
-                    };
-
-                    Some(additional_tags)
-                });
-
-                if let Some(Some(additional_tags)) = additional_tags {
-                    config.tags.extend(additional_tags);
+                    Ok(mlua::Value::Nil)
                 }
+                None => {
+                    let this = this.clone();
 
-                this.add(lua, name, config).map_err(|error| {
-                    mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
-                })
+                    let function = lua.create_function(move |lua, config: TaskConfig| {
+                        this.add_with_additional_tags(lua, name.clone(), config)
+                            .map_err(|error| {
+                                mlua::Error::RuntimeError(
+                                    ErrorReport::boxed_from(error).build_report(),
+                                )
+                            })?;
+
+                        Ok(mlua::Value::Nil)
+                    })?;
+
+                    Ok(mlua::Value::Function(function))
+                }
             },
         );
 
@@ -241,10 +262,10 @@ impl UserData for TasksTable {
     }
 }
 
-impl MountToGlobals for TasksTable {
+impl MountToGlobals for TaskTable {
     fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
         let globals = lua.globals();
-        globals.set("tasks", self)?;
+        globals.set("task", self)?;
 
         Ok(())
     }

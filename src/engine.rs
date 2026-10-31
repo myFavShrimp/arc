@@ -154,10 +154,11 @@ impl Engine {
     pub fn execute_entrypoint(&self) -> Result<(), EntrypointExecutionError> {
         let entry_point_script_path = PathBuf::from(ENTRY_POINT_SCRIPT);
         let entry_point_script = std::fs::read_to_string(&entry_point_script_path)?;
+        let entry_point_script_name = format!("@{}", entry_point_script_path.to_string_lossy());
 
         self.lua
             .load(entry_point_script)
-            .set_name(entry_point_script_path.to_string_lossy())
+            .set_name(entry_point_script_name)
             .exec()?;
 
         Ok(())

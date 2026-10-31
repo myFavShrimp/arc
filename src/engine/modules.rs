@@ -14,14 +14,14 @@ mod format;
 mod host;
 mod log;
 mod targets;
-mod tasks;
+mod task;
 mod template;
 
 pub struct Modules {
     template: template::Template,
     format: format::Format,
     targets: targets::TargetsTable,
-    tasks: tasks::TasksTable,
+    task: task::TaskTable,
     log: log::Log,
     env: env::Env,
     host: host::Host,
@@ -39,7 +39,7 @@ impl Modules {
     ) -> Self {
         let format = format::Format;
         let targets = targets::TargetsTable::new(target_groups, target_systems.clone());
-        let tasks = tasks::TasksTable::new(tasks);
+        let task = task::TaskTable::new(tasks);
         let template = template::Template::new();
         let env = env::Env;
         let host = host::Host::new(progress.clone());
@@ -49,7 +49,7 @@ impl Modules {
         Self {
             format,
             targets,
-            tasks,
+            task,
             template,
             log,
             env,
@@ -63,7 +63,7 @@ impl MountToGlobals for Modules {
     fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
         self.format.mount_to_globals(lua)?;
         self.targets.mount_to_globals(lua)?;
-        self.tasks.mount_to_globals(lua)?;
+        self.task.mount_to_globals(lua)?;
         self.env.mount_to_globals(lua)?;
         self.template.mount_to_globals(lua)?;
         self.log.mount_to_globals(lua)?;
