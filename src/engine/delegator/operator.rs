@@ -19,7 +19,7 @@ use crate::{
         readonly::set_readonly,
     },
     error::ErrorReport,
-    memory::target_systems::{TargetSystem, TargetSystemKind},
+    memory::systems::{TargetSystem, TargetSystemKind},
     progress::{ProgressContext, TransferDirection, TransferProgress},
 };
 

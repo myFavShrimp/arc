@@ -1,26 +1,25 @@
 use std::path::PathBuf;
 
 use crate::{
-    memory::{
-        SharedMemory, target_groups::TargetGroupsMemory, target_systems::TargetSystemsMemory,
-        tasks::TasksMemory,
-    },
+    memory::{SharedMemory, groups::GroupsMemory, systems::SystemsMemory, tasks::TasksMemory},
     progress::ProgressContext,
 };
 
 mod arc;
 mod env;
 mod format;
+mod group;
 mod host;
 mod log;
-mod targets;
+mod system;
 mod task;
 mod template;
 
 pub struct Modules {
     template: template::Template,
     format: format::Format,
-    targets: targets::TargetsTable,
+    system: system::SystemsTable,
+    group: group::GroupsTable,
     task: task::TaskTable,
     log: log::Log,
     env: env::Env,
@@ -30,15 +29,16 @@ pub struct Modules {
 
 impl Modules {
     pub fn new(
-        target_systems: SharedMemory<TargetSystemsMemory>,
-        target_groups: SharedMemory<TargetGroupsMemory>,
+        systems: SharedMemory<SystemsMemory>,
+        groups: SharedMemory<GroupsMemory>,
         tasks: SharedMemory<TasksMemory>,
         progress: ProgressContext,
         root_path: PathBuf,
         home_path: PathBuf,
     ) -> Self {
         let format = format::Format;
-        let targets = targets::TargetsTable::new(target_groups, target_systems.clone());
+        let system = system::SystemsTable::new(systems);
+        let group = group::GroupsTable::new(groups);
         let task = task::TaskTable::new(tasks);
         let template = template::Template::new();
         let env = env::Env;
@@ -48,7 +48,8 @@ impl Modules {
 
         Self {
             format,
-            targets,
+            system,
+            group,
             task,
             template,
             log,
@@ -62,7 +63,8 @@ impl Modules {
 impl MountToGlobals for Modules {
     fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
         self.format.mount_to_globals(lua)?;
-        self.targets.mount_to_globals(lua)?;
+        self.system.mount_to_globals(lua)?;
+        self.group.mount_to_globals(lua)?;
         self.task.mount_to_globals(lua)?;
         self.env.mount_to_globals(lua)?;
         self.template.mount_to_globals(lua)?;

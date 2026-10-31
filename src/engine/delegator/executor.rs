@@ -11,7 +11,7 @@ use super::{
 use crate::{
     engine::readonly::set_readonly,
     error::ErrorReport,
-    memory::target_systems::{TargetSystem, TargetSystemKind},
+    memory::systems::{TargetSystem, TargetSystemKind},
     progress::ProgressContext,
 };
 

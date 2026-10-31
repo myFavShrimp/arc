@@ -4,13 +4,13 @@ use mlua::{FromLua, IntoLua, LuaSerdeExt, MetaMethod, UserData};
 use serde::Serialize;
 
 use crate::{
-    engine::readonly::set_readonly,
+    engine::{modules::MountToGlobals, readonly::set_readonly},
     error::{ErrorReport, MutexLockError},
     memory::{
         SharedMemory,
-        target_systems::{
+        systems::{
             RemoteTargetSystem, TargetSystem, TargetSystemAdditionError, TargetSystemKind,
-            TargetSystemRetrievalError, TargetSystemsMemory,
+            TargetSystemRetrievalError, SystemsMemory,
         },
     },
 };
@@ -166,11 +166,16 @@ pub enum SystemRetrievalError {
     TargetSystemRetrieval(#[from] TargetSystemRetrievalError),
 }
 
+#[derive(Clone)]
 pub struct SystemsTable {
-    pub systems_memory: SharedMemory<TargetSystemsMemory>,
+    pub systems_memory: SharedMemory<SystemsMemory>,
 }
 
 impl SystemsTable {
+    pub fn new(systems_memory: SharedMemory<SystemsMemory>) -> Self {
+        Self { systems_memory }
+    }
+
     fn add(&self, name: String, config: SystemConfig) -> Result<(), SystemAdditionError> {
         let mut guard = self.systems_memory.lock().map_err(|_| MutexLockError)?;
 
@@ -203,6 +208,32 @@ impl SystemsTable {
 impl UserData for SystemsTable {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_meta_method(
+            MetaMethod::Call,
+            |lua, this, (name, config): (String, Option<SystemConfig>)| match config {
+                Some(config) => {
+                    this.add(name, config).map_err(|error| {
+                        mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+                    })?;
+
+                    Ok(mlua::Value::Nil)
+                }
+                None => {
+                    let this = this.clone();
+
+                    let function = lua.create_function(move |_lua, config: SystemConfig| {
+                        this.add(name.clone(), config).map_err(|error| {
+                            mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+                        })?;
+
+                        Ok(mlua::Value::Nil)
+                    })?;
+
+                    Ok(mlua::Value::Function(function))
+                }
+            },
+        );
+
+        methods.add_meta_method(
             MetaMethod::NewIndex,
             |_, this, (name, config): (String, SystemConfig)| {
                 this.add(name, config).map_err(|error| {
@@ -216,5 +247,14 @@ impl UserData for SystemsTable {
                 mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
             })
         });
+    }
+}
+
+impl MountToGlobals for SystemsTable {
+    fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
+        let globals = lua.globals();
+        globals.set("system", self)?;
+
+        Ok(())
     }
 }

@@ -2,12 +2,12 @@ use mlua::{FromLua, IntoLua, LuaSerdeExt, MetaMethod, UserData};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    engine::readonly::set_readonly,
+    engine::{modules::MountToGlobals, readonly::set_readonly},
     error::{ErrorReport, MutexLockError},
     memory::{
         SharedMemory,
-        target_groups::{
-            TargetGroup, TargetGroupAdditionError, TargetGroupRetrievalError, TargetGroupsMemory,
+        groups::{
+            TargetGroup, TargetGroupAdditionError, TargetGroupRetrievalError, GroupsMemory,
         },
     },
 };
@@ -86,11 +86,16 @@ pub enum GroupRetrievalError {
     TargetGroupRetrieval(#[from] TargetGroupRetrievalError),
 }
 
+#[derive(Clone)]
 pub struct GroupsTable {
-    pub groups_memory: SharedMemory<TargetGroupsMemory>,
+    pub groups_memory: SharedMemory<GroupsMemory>,
 }
 
 impl GroupsTable {
+    pub fn new(groups_memory: SharedMemory<GroupsMemory>) -> Self {
+        Self { groups_memory }
+    }
+
     fn add(&self, name: String, config: GroupConfig) -> Result<(), GroupAdditionError> {
         let mut groups_memory = self.groups_memory.lock().map_err(|_| MutexLockError)?;
 
@@ -112,11 +117,28 @@ impl GroupsTable {
 impl UserData for GroupsTable {
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
         methods.add_meta_method(
-            MetaMethod::NewIndex,
-            |_, this, (name, config): (String, GroupConfig)| {
-                this.add(name, config).map_err(|error| {
-                    mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
-                })
+            MetaMethod::Call,
+            |lua, this, (name, config): (String, Option<GroupConfig>)| match config {
+                Some(config) => {
+                    this.add(name, config).map_err(|error| {
+                        mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+                    })?;
+
+                    Ok(mlua::Value::Nil)
+                }
+                None => {
+                    let this = this.clone();
+
+                    let function = lua.create_function(move |_lua, config: GroupConfig| {
+                        this.add(name.clone(), config).map_err(|error| {
+                            mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
+                        })?;
+
+                        Ok(mlua::Value::Nil)
+                    })?;
+
+                    Ok(mlua::Value::Function(function))
+                }
             },
         );
 
@@ -125,5 +147,14 @@ impl UserData for GroupsTable {
                 mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
             })
         });
+    }
+}
+
+impl MountToGlobals for GroupsTable {
+    fn mount_to_globals(self, lua: &mut mlua::Lua) -> Result<(), mlua::Error> {
+        let globals = lua.globals();
+        globals.set("group", self)?;
+
+        Ok(())
     }
 }

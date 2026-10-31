@@ -2,8 +2,8 @@ use crate::{
     error::MutexLockError,
     memory::{
         SharedMemory,
-        target_groups::{TargetGroups, TargetGroupsMemory},
-        target_systems::{TargetSystems, TargetSystemsMemory},
+        groups::{GroupsMemory, TargetGroups},
+        systems::{SystemsMemory, TargetSystems},
         tasks::{
             TaskState, Tasks, TasksErrorSetError, TasksMemory, TasksResultSetError,
             TasksStateSetError,
@@ -12,8 +12,8 @@ use crate::{
 };
 
 pub struct State {
-    target_systems: SharedMemory<TargetSystemsMemory>,
-    target_groups: SharedMemory<TargetGroupsMemory>,
+    target_systems: SharedMemory<SystemsMemory>,
+    target_groups: SharedMemory<GroupsMemory>,
     tasks: SharedMemory<TasksMemory>,
 }
 
@@ -46,8 +46,8 @@ pub enum TasksErrorStateSetError {
 
 impl State {
     pub fn new(
-        target_systems: SharedMemory<TargetSystemsMemory>,
-        target_groups: SharedMemory<TargetGroupsMemory>,
+        target_systems: SharedMemory<SystemsMemory>,
+        target_groups: SharedMemory<GroupsMemory>,
         tasks: SharedMemory<TasksMemory>,
     ) -> Self {
         Self {

@@ -31,7 +31,7 @@ impl RemoteTargetSystem {
 pub type TargetSystems = HashMap<String, TargetSystem>;
 
 #[derive(Debug, Default)]
-pub struct TargetSystemsMemory {
+pub struct SystemsMemory {
     memory: TargetSystems,
 }
 
@@ -55,7 +55,7 @@ pub enum TargetSystemRetrievalError {
 #[error("System {0:?} is not defined")]
 pub struct TargetSystemNotDefinedError(String);
 
-impl TargetSystemsMemory {
+impl SystemsMemory {
     pub fn all(&self) -> TargetSystems {
         self.memory.clone()
     }

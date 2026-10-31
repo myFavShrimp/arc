@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use crate::memory::{
-    target_groups::TargetGroups,
-    target_systems::TargetSystems,
+    groups::TargetGroups,
+    systems::TargetSystems,
     tasks::{Task, Tasks},
 };
 

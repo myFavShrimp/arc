@@ -34,8 +34,8 @@ use crate::{
     error::MutexLockError,
     logger::{LogLevel, Logger},
     memory::{
-        target_groups::TargetGroupsMemory,
-        target_systems::{TargetSystem, TargetSystemKind, TargetSystemsMemory},
+        groups::GroupsMemory,
+        systems::{TargetSystem, TargetSystemKind, SystemsMemory},
         tasks::{OnFailBehavior, Task, TaskState, TasksMemory},
     },
     progress::{ProgressContext, SystemLogger, SystemLoggerCreationError, TaskLoggerCreationError},
@@ -121,8 +121,8 @@ impl Engine {
             LuaOptions::new().catch_rust_panics(false),
         )?;
 
-        let target_systems_memory = Arc::new(Mutex::new(TargetSystemsMemory::default()));
-        let target_groups_memory = Arc::new(Mutex::new(TargetGroupsMemory::default()));
+        let target_systems_memory = Arc::new(Mutex::new(SystemsMemory::default()));
+        let target_groups_memory = Arc::new(Mutex::new(GroupsMemory::default()));
         #[allow(clippy::arc_with_non_send_sync)]
         let tasks_memory = Arc::new(Mutex::new(TasksMemory::default()));
 

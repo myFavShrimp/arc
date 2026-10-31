@@ -9,8 +9,8 @@ use crate::{
     engine::Engine,
     error::MutexLockError,
     memory::{
-        target_groups::TargetGroups,
-        target_systems::{TargetSystemKind, TargetSystems},
+        groups::TargetGroups,
+        systems::{TargetSystemKind, TargetSystems},
         tasks::{Task as MemoryTask, Tasks},
     },
 };

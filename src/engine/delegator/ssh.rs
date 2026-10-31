@@ -9,7 +9,7 @@ use super::{
     operator::{FileWriteResult, MetadataResult, MetadataType},
 };
 use crate::engine::delegator::ssh::error::{classify_io_error, classify_ssh_error};
-use crate::memory::target_systems::RemoteTargetSystem;
+use crate::memory::systems::RemoteTargetSystem;
 use crate::progress::{CommandProgress, ProgressWriter, TransferProgress};
 
 mod error;

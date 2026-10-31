@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::memory::{target_groups::TargetGroups, target_systems::TargetSystems, tasks::Tasks};
+use crate::memory::{groups::TargetGroups, systems::TargetSystems, tasks::Tasks};
 
 use super::selection::{GroupSelection, SystemSelection, TagSelection};
 

@@ -9,22 +9,22 @@ pub struct TargetGroup {
 pub type TargetGroups = HashMap<String, TargetGroup>;
 
 #[derive(Debug, Default)]
-pub struct TargetGroupsMemory {
+pub struct GroupsMemory {
     memory: TargetGroups,
 }
 
 #[derive(thiserror::Error, Debug)]
-#[error("Failed to add system")]
+#[error("Failed to add group")]
 pub enum TargetGroupAdditionError {
     DuplicateGroup(#[from] DuplicateTargetGroupError),
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("Duplicate system: {0:?}")]
+#[error("Duplicate group: {0:?}")]
 pub struct DuplicateTargetGroupError(pub String);
 
 #[derive(Debug, thiserror::Error)]
-#[error("Failed to retrieve system configuration")]
+#[error("Failed to retrieve group configuration")]
 pub enum TargetGroupRetrievalError {
     GroupNotDefinedError(#[from] TargetGroupNotDefinedError),
 }
@@ -33,7 +33,7 @@ pub enum TargetGroupRetrievalError {
 #[error("Group {0:?} is not defined")]
 pub struct TargetGroupNotDefinedError(String);
 
-impl TargetGroupsMemory {
+impl GroupsMemory {
     pub fn all(&self) -> TargetGroups {
         self.memory.clone()
     }
