@@ -1,5 +1,5 @@
-local fs = require("helpers/fs")
-local pg = require("helpers/postgres")
+local fs = require("./fs")
+local pg = require("./postgres")
 
 local migrations = {}
 

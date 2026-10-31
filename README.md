@@ -67,13 +67,13 @@ This command creates the project structure, type definitions for code completion
 
 ```lua
 -- Define a target system
-targets.systems["web-server"] = {
+system "web-server" {
     address = "192.168.1.100",
     user = "root",
 }
 
 -- Define a simple task
-tasks["hello"] = {
+task "hello" {
     handler = function(system)
         local result = system:run_command("echo 'Hello from ' $(hostname)")
         print(result.stdout)
@@ -104,13 +104,13 @@ Systems can be either remote (accessed via SSH) or local (running on the arc hos
 Remote systems represent individual servers with SSH connection details.
 
 ```lua
-targets.systems["frontend-server"] = {
+system "frontend-server" {
     address = "192.168.1.100",
     user = "root",
     port = 22,  -- optional, defaults to 22
 }
 
-targets.systems["api-server"] = {
+system "api-server" {
     address = "192.168.1.101",
     user = "deploy",
     port = 2222,
@@ -124,7 +124,7 @@ Authentication is handled through the SSH agent. The host's public key must be p
 Local systems execute tasks on the machine where arc is running.
 
 ```lua
-targets.systems["localhost"] = {
+system "localhost" {
     type = "local"
 }
 ```
@@ -136,11 +136,11 @@ Local systems use the same API as remote systems but operations execute locally 
 Groups organize multiple systems.
 
 ```lua
-targets.groups["web-servers"] = {
+group "web-servers" {
     members = {"frontend-server", "api-server"}
 }
 
-targets.groups["prod"] = {
+group "prod" {
     members = {"prod-web-1", "prod-db-1"}
 }
 ```
@@ -151,7 +151,7 @@ targets.groups["prod"] = {
 Tasks define operations to execute on target systems. Tasks execute in definition order on each system.
 
 ```lua
-tasks["install_nginx"] = {
+task "install_nginx" {
     handler = function(system)
         local result = system:run_command("apt install nginx -y")
         if result.exit_code ~= 0 then
@@ -161,7 +161,7 @@ tasks["install_nginx"] = {
     tags = {"nginx", "setup"},
 }
 
-tasks["configure_nginx"] = {
+task "configure_nginx" {
     requires = {"install_nginx"},
     handler = function(system)
         local config = system:file("/etc/nginx/nginx.conf")
@@ -194,7 +194,7 @@ Tasks are defined by assigning to the global `tasks` table. Tasks execute in def
 
 - `handler`: Function that implements the task logic
   - *Parameters*: `system` - The system object to operate on
-  - *Returns*: Optional result value accessible via `tasks["name"].result`
+  - *Returns*: Optional result value accessible via `task["name"].result`
 
 - `tags` (optional): Array of tags for filtering tasks. Tasks are automatically tagged with their name and source file path components (e.g., `modules/web/nginx.lua` adds tags: `modules`, `web`, `nginx`).
 
@@ -221,16 +221,16 @@ Tasks are defined by assigning to the global `tasks` table. Tasks execute in def
 Example:
 
 ```lua
-tasks["check_nginx"] = {
+task "check_nginx" {
     handler = function(system)
         return system:run_command("which nginx").exit_code == 0
     end
 }
 
-tasks["install_nginx"] = {
+task "install_nginx" {
     requires = {"check_nginx"},
     when = function()
-        return tasks["check_nginx"].result == false
+        return task["check_nginx"].result == false
     end,
     handler = function(system)
         local result = system:run_command("apt install nginx -y")
@@ -273,7 +273,7 @@ The `system` object represents a connection to a target system (remote or local)
 Example:
 
 ```lua
-tasks["check_service"] = {
+task "check_service" {
     handler = function(system)
         log.info("Checking nginx on " .. system.name)
         local result = system:run_command("systemctl status nginx")
@@ -309,7 +309,7 @@ The File object represents a file on a target system and provides access to file
 Example:
 
 ```lua
-tasks["configure_nginx"] = {
+task "configure_nginx" {
     handler = function(system)
         local config_file = system:file("/etc/nginx/sites-available/default")
 
@@ -324,7 +324,7 @@ tasks["configure_nginx"] = {
     end
 }
 
-tasks["manage_file"] = {
+task "manage_file" {
     handler = function(system)
         -- Create, move and then delete a file
         local file = system:file("/path/to/file.txt")
@@ -362,7 +362,7 @@ The Directory object represents a directory on a target system and provides acce
 Example:
 
 ```lua
-tasks["setup_directory"] = {
+task "setup_directory" {
     handler = function(system)
         -- Create directory structure
         local app_dir = system:directory("/var/www/myapp")
@@ -373,7 +373,7 @@ tasks["setup_directory"] = {
     end
 }
 
-tasks["list_configs"] = {
+task "list_configs" {
     handler = function(system)
         -- Iterate through directory contents
         local dir = system:directory("/etc/nginx/sites-available")
@@ -392,7 +392,7 @@ tasks["list_configs"] = {
     end
 }
 
-tasks["manage_directory"] = {
+task "manage_directory" {
     handler = function(system)
         -- Create, move and then delete a directory
         local dir = system:directory("/path/to/dir")
@@ -419,7 +419,7 @@ The `metadata()` method on File or Directory objects returns a table with the fo
 Example:
 
 ```lua
-tasks["check_metadata"] = {
+task "check_metadata" {
     handler = function(system)
         local file = system:file("/etc/hostname")
         local metadata = file:metadata()
@@ -449,7 +449,7 @@ The `env` module provides access to environment variables. arc automatically loa
 Example:
 
 ```lua
-tasks["deploy_app"] = {
+task "deploy_app" {
     handler = function(system)
         local app_version = env.get("APP_VERSION") or "latest"
         local deploy_path = env.get("DEPLOY_PATH") or "/var/www"
@@ -481,7 +481,7 @@ The global `host` object provides functions for interacting with the local syste
 Example:
 
 ```lua
-tasks["deploy_from_local"] = {
+task "deploy_from_local" {
     handler = function(system)
         -- Streams the file directly from local to remote without loading it into memory
         system:file("/etc/nginx/nginx.conf").content = host:file("templates/nginx.conf").content
@@ -491,7 +491,7 @@ tasks["deploy_from_local"] = {
     end
 }
 
-tasks["backup_to_local"] = {
+task "backup_to_local" {
     handler = function(system)
         -- Streams from remote to local
         local backup_dir = host:directory("backups/" .. system.name)
@@ -510,7 +510,7 @@ The `format` module provides serialization and deserialization for various data 
 Example:
 
 ```lua
-tasks["edit_config"] = {
+task "edit_config" {
     handler = function(system)
         -- Decode a JSON config, modify it, and write it back
         local config_file = system:file("/etc/myapp/config.json")
@@ -589,7 +589,7 @@ The `template` module provides template rendering capabilities using the [Tera](
 Example:
 
 ```lua
-tasks["configure_web_server"] = {
+task "configure_web_server" {
     handler = function(system)
         -- Load a template from a local file
         local template_content = host:file("templates/nginx.conf.template").content
@@ -631,7 +631,7 @@ The global `arc` object provides information about the arc project and environme
 Example:
 
 ```lua
-tasks["deploy_config"] = {
+task "deploy_config" {
     handler = function(system)
         -- Read a file relative to the project root
         local config = host:file(arc.project_root_path .. "/configs/app.json").content
@@ -661,7 +661,7 @@ The `log` module provides logging functions at various severity levels.
 Example:
 
 ```lua
-tasks["provision_database"] = {
+task "provision_database" {
     handler = function(system)
         log.info("Provisioning database on " .. system.name)
 

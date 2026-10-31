@@ -1,4 +1,4 @@
-tasks["deploy_html"] = {
+task "deploy_html" {
     requires = { "install_nginx" },
     handler = function(system)
         local source = host:file("frontend/index.html")
@@ -8,7 +8,7 @@ tasks["deploy_html"] = {
     end,
 }
 
-tasks["deploy_css"] = {
+task "deploy_css" {
     requires = { "install_nginx" },
     handler = function(system)
         local source = host:file("frontend/style.css")

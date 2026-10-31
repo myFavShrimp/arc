@@ -1,24 +1,24 @@
-targets.systems["loadbalancer"] = {
+system "loadbalancer" {
     address = "127.0.0.1",
     port = 2220,
     user = "root",
 }
 
-targets.systems["backend-1"] = {
+system "backend-1" {
     address = "127.0.0.1",
     port = 2221,
     user = "root",
 }
 
-targets.systems["backend-2"] = {
+system "backend-2" {
     address = "127.0.0.1",
     port = 2222,
     user = "root",
 }
 
-targets.groups["backend"] = {
+group "backend" {
     members = { "backend-1", "backend-2" }
 }
 
-require("tasks.loadbalancer")
-require("tasks.backend")
+require("./tasks/loadbalancer")
+require("./tasks/backend")

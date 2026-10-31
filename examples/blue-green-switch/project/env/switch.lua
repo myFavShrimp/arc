@@ -1,6 +1,6 @@
-local config = require("webservice")
+local config = require("./webservice")
 
-tasks["determine_active_slot"] = {
+task "determine_active_slot" {
     requires = { "ensure_nginx_running" },
     handler = function(system)
         local upstream = system:file("/etc/nginx/app-upstream.conf")
@@ -24,10 +24,10 @@ tasks["determine_active_slot"] = {
     end,
 }
 
-tasks["deploy_to_inactive_slot"] = {
+task "deploy_to_inactive_slot" {
     requires = { "determine_active_slot", "load_webservice", "install_podman" },
     handler = function(system)
-        local slots = tasks["determine_active_slot"].result
+        local slots = task["determine_active_slot"].result
         local container_name = "webservice-" .. slots.inactive
         local port = slots.inactive_port
 
@@ -49,10 +49,10 @@ tasks["deploy_to_inactive_slot"] = {
     end,
 }
 
-tasks["health_check"] = {
+task "health_check" {
     requires = { "deploy_to_inactive_slot" },
     handler = function(system)
-        local slots = tasks["determine_active_slot"].result
+        local slots = task["determine_active_slot"].result
 
         log.info("Waiting for " .. slots.inactive .. " slot to become healthy...")
 
@@ -80,10 +80,10 @@ tasks["health_check"] = {
     end,
 }
 
-tasks["switch_traffic"] = {
+task "switch_traffic" {
     requires = { "health_check" },
     handler = function(system)
-        local slots = tasks["determine_active_slot"].result
+        local slots = task["determine_active_slot"].result
 
         log.info(
             "Switching traffic from " .. slots.active
@@ -112,10 +112,10 @@ tasks["switch_traffic"] = {
     end,
 }
 
-tasks["stop_old_slot"] = {
+task "stop_old_slot" {
     requires = { "switch_traffic" },
     handler = function(system)
-        local slots = tasks["determine_active_slot"].result
+        local slots = task["determine_active_slot"].result
         local container_name = "webservice-" .. slots.active
 
         log.info("Stopping old " .. slots.active .. " slot")

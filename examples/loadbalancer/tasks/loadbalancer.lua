@@ -1,4 +1,4 @@
-tasks["check_haproxy_installed"] = {
+task "check_haproxy_installed" {
     targets = { "loadbalancer" },
     handler = function(system)
         local result = system:run_command("which haproxy")
@@ -6,11 +6,11 @@ tasks["check_haproxy_installed"] = {
     end,
 }
 
-tasks["install_haproxy"] = {
+task "install_haproxy" {
     targets = { "loadbalancer" },
     requires = { "check_haproxy_installed" },
     when = function()
-        return tasks["check_haproxy_installed"].result == false
+        return task["check_haproxy_installed"].result == false
     end,
     handler = function(system)
         system:run_command("apt-get update")
@@ -23,7 +23,7 @@ tasks["install_haproxy"] = {
     end,
 }
 
-tasks["deploy_haproxy_config"] = {
+task "deploy_haproxy_config" {
     targets = { "loadbalancer" },
     requires = { "install_haproxy" },
     handler = function(system)
@@ -34,7 +34,7 @@ tasks["deploy_haproxy_config"] = {
     end,
 }
 
-tasks["check_haproxy_running"] = {
+task "check_haproxy_running" {
     targets = { "loadbalancer" },
     requires = { "deploy_haproxy_config" },
     handler = function(system)
@@ -43,11 +43,11 @@ tasks["check_haproxy_running"] = {
     end,
 }
 
-tasks["enable_haproxy"] = {
+task "enable_haproxy" {
     targets = { "loadbalancer" },
     requires = { "check_haproxy_running" },
     when = function()
-        return tasks["check_haproxy_running"].result == false
+        return task["check_haproxy_running"].result == false
     end,
     handler = function(system)
         local result = system:run_command("service haproxy start")

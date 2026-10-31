@@ -6,7 +6,7 @@ local config = {
     green_port = 8082,
 }
 
-tasks["build_webservice"] = {
+task "build_webservice" {
     handler = function()
         local project_root = arc.project_root_path .. "/.."
 
@@ -21,7 +21,7 @@ tasks["build_webservice"] = {
     end,
 }
 
-tasks["export_webservice"] = {
+task "export_webservice" {
     requires = { "build_webservice" },
     handler = function()
         local project_root = arc.project_root_path .. "/.."
@@ -37,7 +37,7 @@ tasks["export_webservice"] = {
     end,
 }
 
-tasks["upload_webservice"] = {
+task "upload_webservice" {
     requires = { "export_webservice", "cleanup_tar" },
     handler = function(system)
         local project_root = arc.project_root_path .. "/.."
@@ -47,7 +47,7 @@ tasks["upload_webservice"] = {
     end,
 }
 
-tasks["load_webservice"] = {
+task "load_webservice" {
     requires = { "upload_webservice" },
     handler = function(system)
         local result = system:run_command("podman load -i /tmp/" .. config.tar)
@@ -58,7 +58,7 @@ tasks["load_webservice"] = {
     end,
 }
 
-tasks["cleanup_tar"] = {
+task "cleanup_tar" {
     requires = { "load_webservice" },
     handler = function(system)
         local project_root = arc.project_root_path .. "/.."

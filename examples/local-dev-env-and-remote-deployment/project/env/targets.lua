@@ -1,17 +1,17 @@
-targets.systems["server"] = {
+system "server" {
     address = "127.0.0.1",
     port = 2222,
     user = "root",
 }
 
-targets.systems["local-dev"] = {
+system "local-dev" {
     type = "local",
 }
 
-targets.groups["remote"] = {
+group "remote" {
     members = {"server"},
 }
 
-targets.groups["dev"] = {
+group "dev" {
     members = {"local-dev"},
 }

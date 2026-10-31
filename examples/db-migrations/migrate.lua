@@ -1,7 +1,7 @@
-local pg = require("helpers/postgres")
-local migrations = require("helpers/migrations")
+local pg = require("./helpers/postgres")
+local migrations = require("./helpers/migrations")
 
-tasks["ensure_migrations_table"] = {
+task "ensure_migrations_table" {
     requires = { "wait_for_postgres" },
     handler = function(system)
         pg.exec(system,
@@ -13,7 +13,7 @@ tasks["ensure_migrations_table"] = {
 
 local changed_migrations_separator = "\n  - "
 
-tasks["check_modified_migrations"] = {
+task "check_modified_migrations" {
     requires = { "ensure_migrations_table" },
     handler = function(system)
         local applied_migrations = migrations.get_applied(system)
@@ -35,7 +35,7 @@ tasks["check_modified_migrations"] = {
     end,
 }
 
-tasks["check_pending_migrations"] = {
+task "check_pending_migrations" {
     requires = { "ensure_migrations_table" },
     handler = function(system)
         local applied_migrations = migrations.get_applied(system)
@@ -57,13 +57,13 @@ tasks["check_pending_migrations"] = {
     end,
 }
 
-tasks["apply_migrations"] = {
+task "apply_migrations" {
     requires = { "check_pending_migrations", "check_modified_migrations" },
     when = function()
-        return #tasks["check_pending_migrations"].result > 0
+        return #task["check_pending_migrations"].result > 0
     end,
     handler = function(system)
-        local pending_migrations = tasks["check_pending_migrations"].result
+        local pending_migrations = task["check_pending_migrations"].result
 
         for _, migration in ipairs(pending_migrations) do
             log.info("Applying " .. migration.name)

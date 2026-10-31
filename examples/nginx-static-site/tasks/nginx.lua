@@ -1,14 +1,14 @@
-tasks["check_nginx_installed"] = {
+task "check_nginx_installed" {
     handler = function(system)
         local result = system:run_command("which nginx")
         return result.exit_code == 0
     end,
 }
 
-tasks["install_nginx"] = {
+task "install_nginx" {
     requires = { "check_nginx_installed" },
     when = function()
-        return tasks["check_nginx_installed"].result == false
+        return task["check_nginx_installed"].result == false
     end,
     handler = function(system)
         system:run_command("apt-get update")
@@ -21,7 +21,7 @@ tasks["install_nginx"] = {
     end,
 }
 
-tasks["check_nginx_running"] = {
+task "check_nginx_running" {
     requires = { "install_nginx" },
     handler = function(system)
         local result = system:run_command("service nginx status")
@@ -29,10 +29,10 @@ tasks["check_nginx_running"] = {
     end,
 }
 
-tasks["enable_nginx"] = {
+task "enable_nginx" {
     requires = { "check_nginx_running" },
     when = function()
-        return tasks["check_nginx_running"].result == false
+        return task["check_nginx_running"].result == false
     end,
     handler = function(system)
         local result = system:run_command("service nginx start")

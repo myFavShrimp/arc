@@ -1,4 +1,4 @@
-local helpers = require("helpers")
+local helpers = require("../../helpers")
 
 local config = {
     image = "docker.io/grafana/tempo",
@@ -9,7 +9,7 @@ local config = {
     remote_api_port = 3300,
 }
 
-tasks["ensure_tempo_directories"] = {
+task "ensure_tempo_directories" {
     handler = function(system)
         local service_dir = helpers.paths.service_dir(system, "tempo")
         local data_dir = helpers.paths.data_dir(system, "tempo")
@@ -20,9 +20,9 @@ tasks["ensure_tempo_directories"] = {
     tags = {"directories"},
 }
 
-tasks["setup_tempo_service"] = {
+task "setup_tempo_service" {
     handler = function(system)
-        local id = tasks["obtain_user_id"].result
+        local id = task["obtain_user_id"].result
         local service_dir = helpers.paths.service_dir(system, "tempo")
         local data_dir = helpers.paths.data_dir(system, "tempo")
 
@@ -47,7 +47,7 @@ tasks["setup_tempo_service"] = {
     tags = {"setup"},
 }
 
-tasks["start_tempo_service"] = {
+task "start_tempo_service" {
     handler = function(system)
         local service_dir = helpers.paths.service_dir(system, "tempo")
         local compose = helpers.container.compose(system)

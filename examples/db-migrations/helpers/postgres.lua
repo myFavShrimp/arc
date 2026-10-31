@@ -9,7 +9,7 @@ local pg = {}
 ---@param sql string
 ---@return string
 function pg.exec(system, sql)
-    local config = tasks["pg_config"].result
+    local config = task["pg_config"].result
 
     local result = system:run_command(
         "psql -h " .. config.host .. " -U " .. config.user .. " -d " .. config.name
@@ -26,7 +26,7 @@ end
 ---@param system RemoteSystem|LocalSystem
 ---@param path string
 function pg.exec_file(system, path)
-    local config = tasks["pg_config"].result
+    local config = task["pg_config"].result
 
     local result = system:run_command(
         "psql -h " .. config.host .. " -U " .. config.user .. " -d " .. config.name

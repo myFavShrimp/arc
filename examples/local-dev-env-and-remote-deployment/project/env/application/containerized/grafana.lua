@@ -1,4 +1,4 @@
-local helpers = require("helpers")
+local helpers = require("../../helpers")
 
 local config = {
     image = "docker.io/grafana/grafana",
@@ -8,7 +8,7 @@ local config = {
     admin_password = env.get("GRAFANA_ADMIN_PASSWORD") or error("GRAFANA_ADMIN_PASSWORD env variable is not set"),
 }
 
-tasks["ensure_grafana_directories"] = {
+task "ensure_grafana_directories" {
     handler = function(system)
         local service_dir = helpers.paths.service_dir(system, "grafana")
         local data_dir = helpers.paths.data_dir(system, "grafana")
@@ -20,9 +20,9 @@ tasks["ensure_grafana_directories"] = {
     tags = {"directories"},
 }
 
-tasks["setup_grafana_service"] = {
+task "setup_grafana_service" {
     handler = function(system)
-        local id = tasks["obtain_user_id"].result
+        local id = task["obtain_user_id"].result
         local service_dir = helpers.paths.service_dir(system, "grafana")
         local data_dir = helpers.paths.data_dir(system, "grafana")
 
@@ -47,7 +47,7 @@ tasks["setup_grafana_service"] = {
     tags = {"setup"},
 }
 
-tasks["start_grafana_service"] = {
+task "start_grafana_service" {
     handler = function(system)
         local service_dir = helpers.paths.service_dir(system, "grafana")
         local compose = helpers.container.compose(system)

@@ -1,6 +1,6 @@
-require("targets")
+require("./targets")
 
-require("podman")
-require("nginx")
-require("webservice")
-require("switch")
+require("./podman")
+require("./nginx")
+require("./webservice")
+require("./switch")

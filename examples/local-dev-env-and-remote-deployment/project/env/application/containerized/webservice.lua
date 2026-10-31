@@ -1,4 +1,4 @@
-local helpers = require("helpers")
+local helpers = require("../../helpers")
 
 local config = {
     image_name = "webservice",
@@ -7,7 +7,7 @@ local config = {
     tar_name = "webservice.tar",
 }
 
-tasks["ensure_webservice_directories"] = {
+task "ensure_webservice_directories" {
     targets = {"remote"},
     handler = function(system)
         local service_dir = helpers.paths.service_dir(system, "webservice")
@@ -17,7 +17,7 @@ tasks["ensure_webservice_directories"] = {
     tags = {"directories"},
 }
 
-tasks["build_webservice_image"] = {
+task "build_webservice_image" {
     targets = {"remote"},
     handler = function()
         local project_root = arc.project_root_path .. "/.."
@@ -34,7 +34,7 @@ tasks["build_webservice_image"] = {
     tags = {"build"},
 }
 
-tasks["export_webservice_image"] = {
+task "export_webservice_image" {
     targets = {"remote"},
     requires = {"build_webservice_image"},
     handler = function()
@@ -48,7 +48,7 @@ tasks["export_webservice_image"] = {
     tags = {"deploy"},
 }
 
-tasks["upload_webservice_image"] = {
+task "upload_webservice_image" {
     targets = {"remote"},
     requires = {"export_webservice_image", "cleanup_webservice_tar"},
     handler = function(system)
@@ -62,7 +62,7 @@ tasks["upload_webservice_image"] = {
     tags = {"deploy"},
 }
 
-tasks["load_webservice_image"] = {
+task "load_webservice_image" {
     targets = {"remote"},
     handler = function(system)
         local remote_tar_path = "/tmp/" .. config.tar_name
@@ -75,7 +75,7 @@ tasks["load_webservice_image"] = {
     tags = {"deploy"},
 }
 
-tasks["cleanup_webservice_tar"] = {
+task "cleanup_webservice_tar" {
     targets = {"remote"},
     handler = function(system)
         local project_root = arc.project_root_path .. "/.."
@@ -93,7 +93,7 @@ tasks["cleanup_webservice_tar"] = {
     tags = {"deploy"},
 }
 
-tasks["setup_webservice_service"] = {
+task "setup_webservice_service" {
     targets = {"remote"},
     handler = function(system)
         local service_dir = helpers.paths.service_dir(system, "webservice")
@@ -111,7 +111,7 @@ tasks["setup_webservice_service"] = {
     tags = {"setup"},
 }
 
-tasks["start_webservice_service"] = {
+task "start_webservice_service" {
     targets = {"remote"},
     handler = function(system)
         local service_dir = helpers.paths.service_dir(system, "webservice")

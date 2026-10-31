@@ -1,8 +1,8 @@
-targets.systems["server"] = {
+system "server" {
     address = "127.0.0.1",
     port = 2222,
     user = "root",
 }
 
-require("postgres")
-require("migrate")
+require("./postgres")
+require("./migrate")

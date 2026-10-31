@@ -1,6 +1,6 @@
-local tempo_config = require("application/containerized/tempo")
+local tempo_config = require("../containerized/tempo")
 
-tasks["setup_local_env"] = {
+task "setup_local_env" {
     targets = {"dev"},
     handler = function(system)
         local project_root = arc.project_root_path .. "/.."

@@ -1,4 +1,4 @@
-targets.systems["local"] = {
+system "local" {
     type = "local",
 }
 
@@ -8,14 +8,14 @@ local build_dir = arc.project_root_path .. "/project/build"
 local sources = { "main", "greet", "bubble" }
 local binary = "hello"
 
-tasks["prepare_build_dir"] = {
+task "prepare_build_dir" {
     handler = function(system)
         system:directory(build_dir):create()
     end,
 }
 
 for _, name in ipairs(sources) do
-    tasks["check_" .. name] = {
+    task ("check_" .. name) {
         requires = { "prepare_build_dir" },
         handler = function(system)
             local source = system:file(src_dir .. "/" .. name .. ".c")
@@ -29,10 +29,10 @@ for _, name in ipairs(sources) do
         end,
     }
 
-    tasks["compile_" .. name] = {
+    task ("compile_" .. name) {
         requires = { "check_" .. name },
         when = function()
-            return tasks["check_" .. name].result == true
+            return task["check_" .. name].result == true
         end,
         handler = function(system)
             local result = system:run_command(
@@ -48,11 +48,11 @@ for _, name in ipairs(sources) do
     }
 end
 
-tasks["check_link"] = {
+task "check_link" {
     requires = { "compile_main", "compile_greet", "compile_bubble" },
     handler = function(system)
         for _, name in ipairs(sources) do
-            if tasks["compile_" .. name].state ~= "skipped" then
+            if task["compile_" .. name].state ~= "skipped" then
                 return true
             end
         end
@@ -61,10 +61,10 @@ tasks["check_link"] = {
     end,
 }
 
-tasks["link"] = {
+task "link" {
     requires = { "check_link" },
     when = function()
-        return tasks["check_link"].result == true
+        return task["check_link"].result == true
     end,
     handler = function(system)
         local objects = ""
