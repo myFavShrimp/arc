@@ -55,3 +55,5 @@ task "ensure_nginx_running" {
         end
     end,
 }
+
+return nil

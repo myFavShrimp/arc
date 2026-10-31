@@ -40,6 +40,8 @@ pub enum Command {
         #[arg(long)]
         all_systems: bool,
     },
+    /// Type check arc.lua and the files it requires without executing them
+    Check,
     /// List registered items
     List {
         /// Item type to list

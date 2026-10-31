@@ -20,3 +20,5 @@ task "install_podman" {
         end
     end,
 }
+
+return nil

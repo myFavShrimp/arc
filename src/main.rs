@@ -97,6 +97,7 @@ fn main() -> Result<(), error::ErrorReport> {
                 }
             }
         }
+        cli::Command::Check => engine::type_check().map_err(error::ErrorReport::boxed_from)?,
         cli::Command::List { item_type, json } => {
             if let Err(error) = dotenvy::dotenv_override() {
                 logger.warn(&format!("Failed to load .env: {}", error));

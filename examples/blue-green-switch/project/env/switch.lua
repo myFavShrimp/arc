@@ -123,3 +123,5 @@ task "stop_old_slot" {
         system:run_command("podman rm -f " .. container_name)
     end,
 }
+
+return nil

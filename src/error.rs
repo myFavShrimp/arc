@@ -13,12 +13,20 @@ impl ErrorReport {
         let error = &self.0;
 
         let mut message = error.to_string();
-        let mut curr_err = error.source();
+        let mut current_error_maybe = error.source();
 
-        while let Some(current_error) = curr_err {
+        while let Some(current_error) = current_error_maybe {
             message.push_str("\nCaused by:");
-            message.push_str(&format!("\n    {}", current_error));
-            curr_err = current_error.source();
+
+            let current_error_message = format!("{current_error}");
+            let current_error_message = current_error_message
+                .lines()
+                .map(|line| format!("\n    {line}"))
+                .collect::<String>();
+
+            message.push_str(&current_error_message);
+
+            current_error_maybe = current_error.source();
         }
 
         message

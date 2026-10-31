@@ -688,7 +688,7 @@ arc provides Language Server Protocol (LSP) support for Lua code editing with au
 
 ### Setup
 
-1. Install the [Lua Language Server](https://github.com/LuaLS/lua-language-server) for the editor being used.
+1. Install [luau-lsp](https://github.com/JohnnyMorganz/luau-lsp) for the editor being used.
 
 2. Initialize an arc project to generate type definitions:
 
@@ -696,7 +696,16 @@ arc provides Language Server Protocol (LSP) support for Lua code editing with au
 arc init /path/to/project
 ```
 
-The `init` command creates `.luarc.json` and type definition files that enable the Lua Language Server to recognize arc's API types.
+The `init` command creates `arc.d.luau` with arc's type definitions and a `.luaurc` that enables strict mode.
+
+3. Point luau-lsp at the definitions file in the editor settings:
+
+```json
+{
+    "luau-lsp.platform.type": "standard",
+    "luau-lsp.types.definitionFiles": { "arc": "arc.d.luau" }
+}
+```
 
 ## Contributing
 

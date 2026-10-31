@@ -57,3 +57,5 @@ task "enable_haproxy" {
         end
     end,
 }
+
+return nil

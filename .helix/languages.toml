@@ -1,0 +1,13 @@
+[language-server.luau]
+command = "luau-lsp"
+args = ["lsp", "--flag:LuauSolverV2=true", "--definitions:@arc=arc.d.luau"]
+config = { luau-lsp = { platform = { type = "standard" } } }
+
+[[language]]
+name = "luau"
+file-types = ["luau", "lua"]
+indent = { tab-width = 4, unit = "    " }
+
+[[language]]
+name = "lua"
+file-types = []

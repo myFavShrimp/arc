@@ -54,3 +54,5 @@ task "wait_for_postgres" {
         error("PostgreSQL not ready after 10 attempts")
     end,
 }
+
+return nil

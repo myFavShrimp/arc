@@ -20,3 +20,5 @@ task "install_podman" {
     requires = {"is_podman_installed"},
     targets = {"remote"},
 }
+
+return nil

@@ -15,3 +15,5 @@ task "setup_local_env" {
     end,
     tags = {"setup"},
 }
+
+return nil

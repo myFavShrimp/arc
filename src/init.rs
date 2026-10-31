@@ -1,16 +1,17 @@
-use std::{io::Write, path::PathBuf};
+use std::path::PathBuf;
 
-static TYPES_LUA: &str = include_str!("types.lua");
+use crate::engine::check::DEFINITIONS;
+
 static ARC_LUA: &str = include_str!("arc.lua");
-static LUA_RC_JSON: &str = include_str!(".luarc.json");
+static LUAU_RC: &str = include_str!(".luaurc");
 
 #[derive(Debug, thiserror::Error)]
 #[error("Project initialization failed")]
 pub enum InitializationFailure {
     RootDirectory(#[from] RootDirectoryCreationError),
-    LspTypes(#[from] LspTypesCreationError),
+    Definitions(#[from] DefinitionsCreationError),
     ArcLua(#[from] ArcLuaCreationError),
-    LuaRc(#[from] LuaRcCreationError),
+    LuauRc(#[from] LuauRcCreationError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -18,62 +19,24 @@ pub enum InitializationFailure {
 pub struct RootDirectoryCreationError(#[source] std::io::Error);
 
 #[derive(Debug, thiserror::Error)]
-#[error("Failed to write lsp types file")]
-pub struct LspTypesCreationError(#[source] std::io::Error);
+#[error("Failed to write type definitions file")]
+pub struct DefinitionsCreationError(#[source] std::io::Error);
 
 #[derive(Debug, thiserror::Error)]
 #[error("Failed to write initial arc.lua")]
 pub struct ArcLuaCreationError(#[source] std::io::Error);
 
 #[derive(Debug, thiserror::Error)]
-#[error("Failed to write initial arc.lua")]
-pub struct LuaRcCreationError(#[source] std::io::Error);
+#[error("Failed to write .luaurc")]
+pub struct LuauRcCreationError(#[source] std::io::Error);
 
 pub fn init_project(project_root: PathBuf) -> Result<(), InitializationFailure> {
     std::fs::create_dir_all(&project_root).map_err(RootDirectoryCreationError)?;
 
-    let mut lsp_types_path = project_root.clone();
-    lsp_types_path.push("types.lua");
-
-    let mut lsp_types_file = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(lsp_types_path)
-        .map_err(LspTypesCreationError)?;
-    lsp_types_file
-        .write_all(
-            TYPES_LUA
-                .replacen("{version}", env!("CARGO_PKG_VERSION"), 1)
-                .as_bytes(),
-        )
-        .map_err(LspTypesCreationError)?;
-
-    let mut arc_lua_path = project_root.clone();
-    arc_lua_path.push("arc.lua");
-
-    let mut arc_lua_file = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(arc_lua_path)
-        .map_err(LspTypesCreationError)?;
-    arc_lua_file
-        .write_all(ARC_LUA.as_bytes())
-        .map_err(LspTypesCreationError)?;
-
-    let mut lua_rc_path = project_root.clone();
-    lua_rc_path.push(".luarc.json");
-
-    let mut lua_rc_file = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(lua_rc_path)
-        .map_err(LspTypesCreationError)?;
-    lua_rc_file
-        .write_all(LUA_RC_JSON.as_bytes())
-        .map_err(LspTypesCreationError)?;
+    std::fs::write(project_root.join("arc.d.luau"), DEFINITIONS)
+        .map_err(DefinitionsCreationError)?;
+    std::fs::write(project_root.join("arc.lua"), ARC_LUA).map_err(ArcLuaCreationError)?;
+    std::fs::write(project_root.join(".luaurc"), LUAU_RC).map_err(LuauRcCreationError)?;
 
     Ok(())
 }

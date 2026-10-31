@@ -35,12 +35,13 @@ use crate::{
     logger::{LogLevel, Logger},
     memory::{
         groups::GroupsMemory,
-        systems::{TargetSystem, TargetSystemKind, SystemsMemory},
+        systems::{SystemsMemory, TargetSystem, TargetSystemKind},
         tasks::{OnFailBehavior, Task, TaskState, TasksMemory},
     },
     progress::{ProgressContext, SystemLogger, SystemLoggerCreationError, TaskLoggerCreationError},
 };
 
+pub mod check;
 pub mod delegator;
 pub mod modules;
 pub mod objects;
@@ -83,6 +84,21 @@ pub enum EngineExecutionError {
 pub enum EntrypointExecutionError {
     Lua(#[from] mlua::Error),
     Io(#[from] std::io::Error),
+    TypeCheck(#[from] check::CheckError),
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Failed to type check arc scripts")]
+pub enum TypeCheckError {
+    Io(#[from] std::io::Error),
+    TypeCheck(#[from] check::CheckError),
+}
+
+pub fn type_check() -> Result<(), TypeCheckError> {
+    let entry_point_script = std::fs::read_to_string(ENTRY_POINT_SCRIPT)?;
+    check::check(ENTRY_POINT_SCRIPT, &entry_point_script)?;
+
+    Ok(())
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -153,8 +169,11 @@ impl Engine {
 
     pub fn execute_entrypoint(&self) -> Result<(), EntrypointExecutionError> {
         let entry_point_script_path = PathBuf::from(ENTRY_POINT_SCRIPT);
+        let entry_point_script_path_string = entry_point_script_path.to_string_lossy().into_owned();
         let entry_point_script = std::fs::read_to_string(&entry_point_script_path)?;
-        let entry_point_script_name = format!("@{}", entry_point_script_path.to_string_lossy());
+        let entry_point_script_name = format!("@{}", entry_point_script_path_string);
+
+        check::check(&entry_point_script_path_string, &entry_point_script)?;
 
         self.lua
             .load(entry_point_script)

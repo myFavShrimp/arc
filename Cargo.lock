@@ -56,6 +56,7 @@ dependencies = [
 name = "arc-automation"
 version = "0.14.1"
 dependencies = [
+ "cc",
  "clap",
  "colored",
  "dotenvy",

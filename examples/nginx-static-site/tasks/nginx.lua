@@ -42,3 +42,5 @@ task "enable_nginx" {
         end
     end,
 }
+
+return nil

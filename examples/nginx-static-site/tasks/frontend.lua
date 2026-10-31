@@ -17,3 +17,5 @@ task "deploy_css" {
         target.content = source.content
     end,
 }
+
+return nil

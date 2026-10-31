@@ -84,3 +84,5 @@ task "apply_migrations" {
         log.info("Applied " .. #pending_migrations .. " migration(s)")
     end,
 }
+
+return nil

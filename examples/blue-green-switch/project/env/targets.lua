@@ -3,3 +3,5 @@ system "server" {
     port = 2222,
     user = "root",
 }
+
+return nil

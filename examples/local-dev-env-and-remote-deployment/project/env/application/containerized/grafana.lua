@@ -60,3 +60,5 @@ task "start_grafana_service" {
     end,
     tags = {"start"},
 }
+
+return nil

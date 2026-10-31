@@ -12,3 +12,5 @@ task "obtain_user_id" {
     end,
     important = true,
 }
+
+return nil
