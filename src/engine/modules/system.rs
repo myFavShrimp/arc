@@ -9,8 +9,8 @@ use crate::{
     memory::{
         SharedMemory,
         systems::{
-            RemoteTargetSystem, TargetSystem, TargetSystemAdditionError, TargetSystemKind,
-            TargetSystemRetrievalError, SystemsMemory,
+            RemoteTargetSystem, SystemsMemory, TargetSystem, TargetSystemAdditionError,
+            TargetSystemKind, TargetSystemRetrievalError,
         },
     },
 };
@@ -230,15 +230,6 @@ impl UserData for SystemsTable {
 
                     Ok(mlua::Value::Function(function))
                 }
-            },
-        );
-
-        methods.add_meta_method(
-            MetaMethod::NewIndex,
-            |_, this, (name, config): (String, SystemConfig)| {
-                this.add(name, config).map_err(|error| {
-                    mlua::Error::RuntimeError(ErrorReport::boxed_from(error).build_report())
-                })
             },
         );
 
