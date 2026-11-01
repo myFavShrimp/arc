@@ -1,6 +1,6 @@
 # arc
 
-arc (Automatic Remote Controller) is a general-purpose automation tool that uses Lua for scripting. It executes tasks on the local or remote systems via SSH with a flexible API for managing configurations, files, and commands across multiple servers. arc is not limited to a single domain and can be used as a build tool, for CI/CD, infrastructure provisioning, deployment, and many more, all within a single project sharing the same logic.
+arc (Automatic Remote Controller) is a general-purpose automation tool that uses [Luau](https://luau.org/) for scripting. It executes tasks on the local or remote systems via SSH with a flexible API for managing configurations, files, and commands across multiple servers. arc is not limited to a single domain and can be used as a build tool, for CI/CD, infrastructure provisioning, deployment, and many more, all within a single project sharing the same logic.
 
 [![asciicast](https://asciinema.org/a/L5fJR5JOLVziZyvA.svg)](https://asciinema.org/a/L5fJR5JOLVziZyvA)
 
@@ -87,6 +87,12 @@ Run the task:
 arc run -s web-server -t hello
 ```
 
+Type check the project without running anything:
+
+```bash
+arc check
+```
+
 See the [examples](examples/) directory for more complete usage examples. You can also explore the available commands using `arc --help`, `arc run --help` etc.
 
 ## Core Concepts
@@ -131,6 +137,8 @@ system "localhost" {
 
 Local systems use the same API as remote systems but operations execute locally instead of over SSH. The `address`, `port`, and `user` properties return `nil` for local systems.
 
+Systems can also be defined with `system("name", { ... })`. Reading `system["name"]` returns the registered system's `name`, `address`, `port`, and `user`.
+
 #### Groups
 
 Groups organize multiple systems.
@@ -144,6 +152,8 @@ group "prod" {
     members = {"prod-web-1", "prod-db-1"}
 }
 ```
+
+Groups can also be defined with `group("name", { ... })`. Reading `group["name"]` returns a table with its `members`.
 
 
 ### Tasks
@@ -175,20 +185,26 @@ See [Tasks API](#tasks-1) for all available fields.
 
 ## Lua API Reference
 
-arc uses a restricted [LuaJIT](https://luajit.org/) environment. The following standard library modules are available:
+arc uses a restricted [Luau](https://luau.org/) environment. The following standard library modules are available:
 
 - [Modules](https://www.lua.org/manual/5.1/manual.html#5.3) (`require`)
 - [String Manipulation](https://www.lua.org/manual/5.1/manual.html#5.4) (`string.format`, `string.match`, `string.gsub`, etc.)
 - [Table Manipulation](https://www.lua.org/manual/5.1/manual.html#5.5) (`table.insert`, `table.remove`, `table.sort`, etc.)
 - [Mathematical Functions](https://www.lua.org/manual/5.1/manual.html#5.6) (`math.floor`, `math.random`, etc.)
 
-Not available: `io`, `os`, `debug`, `coroutine`. Use the provided arc APIs (`system:run_command()`, `system:file()`, `env.get()`, etc.) instead.
+Not available: `os`, `debug`, `coroutine`, `utf8`, `buffer`, `vector`, `integer`. Use the provided arc APIs (`system:run_command()`, `system:file()`, `env.get()`, etc.) instead.
 
 The global `print()` function is an alias for `log.info()`.
 
+Files loaded with `require` have to return a value. Files that only define tasks or systems end with `return nil`.
+
+### Type Checking
+
+arc type checks `arc.lua` and every file it requires in strict mode before execution. `arc check` runs the type check alone.
+
 ### Tasks
 
-Tasks are defined by assigning to the global `tasks` table. Tasks execute in definition order on each system.
+Tasks are defined with `task "name" { ... }` or `task("name", { ... })`. Tasks execute in definition order on each system.
 
 #### Properties
 
@@ -212,7 +228,7 @@ Tasks are defined by assigning to the global `tasks` table. Tasks execute in def
 
 - `important` (optional): If `true`, always runs regardless of tag filters, `--no-reqs`, and `skip_system`
 
-#### State (read-only, available after execution)
+#### State (read-only via `task["name"]`, available after execution)
 
 - `result`: Return value from handler (nil if failed/skipped)
 - `state`: `"success"`, `"failed"`, or `"skipped"`
@@ -250,7 +266,7 @@ The `system` object represents a connection to a target system (remote or local)
 
 #### Properties
 
-- `name`: The name of the system as defined in `targets.systems`
+- `name`: The name the system was defined with
 - `type`: The type of system - `"remote"` or `"local"`
 - `address`: The IP address of the system (nil for local systems)
 - `port`: The SSH port of the system (nil for local systems)
@@ -698,13 +714,10 @@ arc init /path/to/project
 
 The `init` command creates `arc.d.luau` with arc's type definitions and a `.luaurc` that enables strict mode.
 
-3. Point luau-lsp at the definitions file in the editor settings:
+3. luau-lsp needs to be started with these arguments and the setting `platform.type` set to `"standard"`:
 
-```json
-{
-    "luau-lsp.platform.type": "standard",
-    "luau-lsp.types.definitionFiles": { "arc": "arc.d.luau" }
-}
+```bash
+luau-lsp lsp --flag:LuauSolverV2=true --definitions:@arc=arc.d.luau
 ```
 
 ## Contributing
